@@ -26,8 +26,9 @@ def headline(listing: Listing, verdict: Verdict | None = None) -> str:
     return " · ".join(parts) or listing.title
 
 
-def print_match(listing: Listing, verdict: Verdict) -> None:
-    print(f"  ★ {headline(listing, verdict)}   [{listing.source}]")
+def print_match(listing: Listing, verdict: Verdict, score: int | None = None) -> None:
+    lead = f"[{score}] " if score is not None else ""
+    print(f"  ★ {lead}{headline(listing, verdict)}   [{listing.source}]")
     print(f"    {listing.title[:100]}")
     print(f"    {listing.url}")
     for f in verdict.flags:
@@ -54,12 +55,13 @@ class Notifier:
     def configured(self) -> bool:
         return bool(self.ntfy_topic or (self.tg_token and self.tg_chat))
 
-    def listing(self, listing: Listing, verdict: Verdict) -> bool:
+    def listing(self, listing: Listing, verdict: Verdict, score: int | None = None) -> bool:
         body = [listing.title]
         body += [f"⚠ {f}" for f in verdict.flags]
         body += [f"· {n}" for n in verdict.notes]
         body.append(f"via {listing.source}")
-        return self.push(headline(listing, verdict), "\n".join(body), listing.url,
+        title = headline(listing, verdict) if score is None else f"{score}/100 · {headline(listing, verdict)}"
+        return self.push(title, "\n".join(body), listing.url,
                          image=listing.image_url, warn=bool(verdict.flags))
 
     def page_changed(self, name: str, url: str, added: list[str]) -> bool:

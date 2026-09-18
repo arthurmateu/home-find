@@ -61,6 +61,9 @@ class WgGesucht(Source):
             )
             if " - " in dates:
                 listing.signals["temporary"] = True
+            online = re.search(r"Online:\s*([^\n|]{1,25})", "\n".join(lines))
+            if online:
+                listing.published = online.group(1).strip()
             yield listing
 
     def enrich(self, listing: Listing) -> Listing:
@@ -77,6 +80,9 @@ class WgGesucht(Source):
         if addr:
             listing.address = f"{addr.group(1)}, {addr.group(2)}"
             listing.zip_code = berlin_zip(addr.group(2)) or listing.zip_code
+        online = re.search(r"(?m)^Online:\s*\n?([^\n]+)", t)
+        if online:
+            listing.published = online.group(1).strip()
         if re.search(r"(?m)^frei bis:?\s*\n?\s*\d{2}\.\d{2}\.\d{4}", t):
             listing.signals["temporary"] = True
 

@@ -64,10 +64,20 @@ Windows restart, start it again.
   the full-screen viewer (arrow keys, swipe, thumbnail strip, Esc to close).
 - **Descriptions:** per card, or "Expand descriptions" for all.
 - **☆ Save / Hide** on every listing, stored in the database (hide has Undo).
+- **Score (0–100)** on every listing, rejected ones included, sorted best
+  first (or newest / cheapest / largest). "Why 74?" shows the points:
+  value for money (warm €/m²) 35 · budget fit 15 (negative when over) ·
+  size 20 + rooms 5 · freshness 10 (the first hours after posting count most) ·
+  photos / verified or municipal landlord / description 10 · balcony,
+  kitchen, lift, Altbau, garden up to 8; minus scam signs, Ablöse, an
+  estimated warm rent, ImmoScout Plus-only, semi-basement. Tune it in
+  `homefind/rating.py`. Push notifications start with the score.
 - **Rejected** has a chip per reason. **Near miss** = everything fine except
   the warm rent is over budget while the cold rent is within
   `near_miss_cold_rent` (1000 € by default); that's why the sources search up
-  to 1000 € *cold*.
+  to 1000 € *cold*. Sorted by score, the near misses worth a look come first.
+- WG rooms and senior housing don't show up at all (`drop_reasons` in
+  `config.toml`).
 
 ## Commands
 

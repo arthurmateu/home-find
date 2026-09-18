@@ -55,8 +55,10 @@ def main(argv=None) -> int:
         print("sent" if ok else "failed, see warnings above")
         return 0 if ok else 1
     if args.rejected:
+        drop = set(cfg["search"].get("drop_reasons") or [])
         for listing, verdict, *_ in store.rejected(args.rejected):
-            print_reject(listing, verdict)
+            if not drop & set(verdict.codes):
+                print_reject(listing, verdict)
         return 0
     if args.recheck:
         total, changed, dropped = recheck(cfg, store)

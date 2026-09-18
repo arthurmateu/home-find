@@ -17,7 +17,9 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .notify import headline
+from .rating import band, rate
 from .rules import REASONS
+from .util import parse_published
 from .store import Store
 
 log = logging.getLogger("homefind")
@@ -34,9 +36,15 @@ def payload(cfg: dict, store: Store) -> dict:
         reasons["near_miss"] = f"Near miss (cold ≤ {s['near_miss_cold_rent']} €)"
     checks = [float(v) for v in store.meta_values("last:")]
     checked = datetime.fromtimestamp(max(checks)).strftime("%H:%M") if checks else "never"
+    drop = set(s.get("drop_reasons") or [])
+    now = datetime.now()
     listings = []
     for listing, verdict, first_seen, last_seen, status in store.all_rows():
+        if drop & set(verdict.codes):
+            continue
         images = listing.images or ([listing.image_url] if listing.image_url else [])
+        score, parts = rate(listing, verdict, first_seen, cfg, now)
+        posted = parse_published(listing.published, first_seen)
         listings.append({
             "key": listing.key,
             "source": listing.source,
@@ -54,6 +62,12 @@ def payload(cfg: dict, store: Store) -> dict:
             "codes": verdict.codes,
             "flags": verdict.flags,
             "notes": verdict.notes,
+            "score": score,
+            "band": band(score),
+            "why": [[p, label] for p, label in parts],
+            "warm": verdict.warm or listing.warm_rent,
+            "size": listing.size_sqm,
+            "posted": (posted.isoformat(timespec="seconds") if posted else first_seen),
         })
     area = " · ".join(cfg["area"]["names"])
     return {"listings": listings, "reasons": reasons,

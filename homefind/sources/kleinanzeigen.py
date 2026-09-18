@@ -110,6 +110,11 @@ class Kleinanzeigen(Source):
             listing.private = True
         elif "Gewerblicher Nutzer" in page:
             listing.private = False
+        listing.published = grab("viewad-extra-info") or listing.published  # posting date, dd.mm.yyyy
+        tags = " ".join(text(t) for t in re.findall(r'<li class="checktag">(.*?)</li>', page, re.S)).lower()
+        listing.signals["features"] = [label for word, label in
+                                       (("balkon", "balcony"), ("einbauküche", "fitted kitchen"),
+                                        ("aufzug", "lift"), ("garten", "garden")) if word in tags]
         since = re.search(r"Aktiv seit (\d{2}\.\d{2}\.\d{4})", page)
         if since:
             listing.signals["account_since"] = since.group(1)

@@ -55,6 +55,17 @@ main { padding-top: 18px; padding-bottom: 80px; }
 .badges { position: absolute; left: 8px; top: 8px; display: flex; gap: 4px; }
 .badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--card); color: var(--ink); }
 .badge.new { background: var(--accent); color: var(--accent-ink); }
+.score { position: absolute; right: 8px; top: 8px; min-width: 38px; padding: 3px 9px; border-radius: 99px; font-weight: 700;
+         font-size: 14px; text-align: center; color: #fff; background: #6b6b66; box-shadow: 0 1px 4px rgba(0, 0, 0, .3); }
+.score.great { background: #1b7a4c; } .score.good { background: #2a67a8; } .score.ok { background: #8a6a14; }
+.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.sort { font-size: 14px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+.sort select { font: inherit; font-size: 14px; color: var(--ink); background: var(--card); border: 1px solid var(--line);
+               border-radius: 8px; padding: 5px 8px; }
+.toggles { display: flex; gap: 16px; flex-wrap: wrap; }
+.why { list-style: none; margin: 0; padding: 6px 10px; border-left: 3px solid var(--line); font-size: 13px; display: grid; gap: 2px; }
+.why .pts { display: inline-block; min-width: 34px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.why .plus { color: var(--accent); } .why .minus { color: var(--bad); } .why .zero { color: var(--muted); }
 .body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .price { font-weight: 650; font-size: 16px; }
 .card.rejected .price { color: var(--muted); }
@@ -116,7 +127,17 @@ main { padding-top: 18px; padding-bottom: 80px; }
       <h1>Flat hunt</h1>
       <p class="sub" id="sub"></p>
     </div>
-    <button class="btn" id="toggle-desc" aria-pressed="false">Expand descriptions</button>
+    <div class="controls">
+      <label class="sort">Sort
+        <select id="sort">
+          <option value="score">Best first</option>
+          <option value="newest">Newest</option>
+          <option value="cheapest">Cheapest</option>
+          <option value="largest">Largest</option>
+        </select>
+      </label>
+      <button class="btn" id="toggle-desc" aria-pressed="false">Expand descriptions</button>
+    </div>
   </div>
   <nav class="wrap tabs" role="tablist" id="tabs"></nav>
   <div class="wrap chips-row" id="reasons" hidden></div>
@@ -172,12 +193,28 @@ const EMPTY = {
   hidden: "Nothing hidden.",
 };
 
-let data = JSON.parse($("data").textContent);
+// Tolerate data from an older homefind process (fields added later default sensibly).
+function normalize(d) {
+  for (const l of d.listings) {
+    l.why ??= []; l.score ??= 0; l.band ??= "weak"; l.posted ??= l.first_seen;
+    l.images ??= []; l.codes ??= []; l.flags ??= []; l.notes ??= []; l.reasons ??= [];
+  }
+  return d;
+}
+let data = normalize(JSON.parse($("data").textContent));
 let byKey = new Map();
 let pending = null;                 // newer data from polling, applied on the next navigation
 const photoAt = new Map();          // listing key -> photo shown on its card
 const openDesc = new Set();         // listing keys with the description open
-const state = { tab: "matches", reason: "inarea", shown: PAGE, expandAll: prefs.get("expandAll", false) };
+const openWhy = new Set();          // listing keys with the score breakdown open
+const SORTS = {
+  score: (a, b) => b.score - a.score || b.posted.localeCompare(a.posted),
+  newest: (a, b) => b.posted.localeCompare(a.posted),
+  cheapest: (a, b) => (a.warm ?? 1e9) - (b.warm ?? 1e9),
+  largest: (a, b) => (b.size ?? 0) - (a.size ?? 0),
+};
+const state = { tab: "matches", reason: "inarea", shown: PAGE, expandAll: prefs.get("expandAll", false),
+                sort: SORTS[prefs.get("sort", "score")] ? prefs.get("sort", "score") : "score" };
 const prevSeen = prefs.get("lastSeen", "");  // newest listing at the previous visit
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -192,7 +229,7 @@ function visible() {
   if (state.tab === "rejected") {
     list = list.filter((l) => state.reason === "inarea" ? !l.codes.includes("area") : l.codes.includes(state.reason));
   }
-  return list;
+  return list.sort(SORTS[state.sort]);
 }
 
 function renderTabs() {
@@ -227,12 +264,19 @@ function card(l) {
   const chips = [...l.flags.map((f) => `<span class="chip warn">⚠ ${esc(f)}</span>`),
                  ...l.notes.map((t) => `<span class="chip">${esc(t)}</span>`)].join("");
   const open = state.expandAll || openDesc.has(l.key);
-  const desc = l.description
-    ? `<button class="desc-toggle" data-act="desc" aria-expanded="${open}">${open ? "Hide description" : "Show description"}</button>` +
-      `<div class="desc"${open ? "" : " hidden"}>${esc(l.description)}</div>`
-    : `<p class="desc-none">No description here${l.source === "inberlinwohnen" ? "; the landlord's page has the details" : ""}.</p>`;
+  const whyOpen = openWhy.has(l.key);
+  const whyList = l.why.map(([p, t]) =>
+    `<li><span class="pts ${p > 0 ? "plus" : p < 0 ? "minus" : "zero"}">${p > 0 ? "+" : ""}${p}</span>${esc(t)}</li>`).join("");
+  const toggles = `<div class="toggles">` +
+    (l.description ? `<button class="desc-toggle" data-act="desc" aria-expanded="${open}">${open ? "Hide description" : "Show description"}</button>` : "") +
+    `<button class="desc-toggle" data-act="why" aria-expanded="${whyOpen}">Why ${l.score}?</button></div>`;
+  const desc = toggles +
+    `<ul class="why"${whyOpen ? "" : " hidden"}>${whyList}</ul>` +
+    (l.description ? `<div class="desc"${open ? "" : " hidden"}>${esc(l.description)}</div>`
+                   : `<p class="desc-none">No description here${l.source === "inberlinwohnen" ? "; the landlord's page has the details" : ""}.</p>`);
   return `<article class="card${l.ok ? "" : " rejected"}" data-key="${esc(l.key)}">
-    <div class="media">${media}<div class="badges">${badges}</div></div>
+    <div class="media">${media}<div class="badges">${badges}</div>
+      <span class="score ${l.band}" title="Score ${l.score}/100 (${l.band})">${l.score}</span></div>
     <div class="body">
       <div class="price">${esc(l.headline)}</div>
       <a class="title" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || l.url)}</a>
@@ -364,7 +408,7 @@ async function poll() {
     $("sub").textContent = next.subtitle;
     if (!next.listings.some((l) => !byKey.has(l.key))) return;
     for (const l of next.listings) { const cur = byKey.get(l.key); if (cur) l.status = cur.status; }
-    pending = next;
+    pending = normalize(next);
     showPending();
   } catch { /* homefind isn't running right now; try again later */ }
 }
@@ -388,6 +432,13 @@ $("reasons").addEventListener("click", (e) => {
   render();
 });
 $("more").addEventListener("click", () => { state.shown += PAGE; render(); });
+$("sort").value = state.sort;
+$("sort").addEventListener("change", () => {
+  state.sort = $("sort").value;
+  prefs.set("sort", state.sort);
+  state.shown = PAGE;
+  render();
+});
 $("toggle-desc").addEventListener("click", () => {
   state.expandAll = !state.expandAll;
   openDesc.clear();
@@ -413,6 +464,11 @@ $("grid").addEventListener("click", (e) => {
     el.setAttribute("aria-expanded", String(open));
     el.textContent = open ? "Hide description" : "Show description";
     if (open) openDesc.add(l.key); else openDesc.delete(l.key);
+  } else if (act === "why") {
+    const box = cardEl.querySelector(".why");
+    box.hidden = !box.hidden;
+    el.setAttribute("aria-expanded", String(!box.hidden));
+    if (box.hidden) openWhy.delete(l.key); else openWhy.add(l.key);
   }
 });
 document.addEventListener("error", (e) => {

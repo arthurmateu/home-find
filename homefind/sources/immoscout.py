@@ -89,6 +89,9 @@ class ImmoScout(Source):
             listing.photos = int(num(a["obj_picturecount"]) or 0)
         if "obj_privateOffer" in a:
             listing.private = a["obj_privateOffer"] == "true"
+        listing.signals["features"] = [label for key, label in
+                                       (("obj_balcony", "balcony"), ("obj_hasKitchen", "fitted kitchen"),
+                                        ("obj_lift", "lift"), ("obj_garden", "garden")) if a.get(key) == "y"]
 
         texts, attrs = [], {}
         for sec in d.get("sections", []):

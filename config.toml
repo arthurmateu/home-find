@@ -13,6 +13,10 @@ have_wbs = false             # true = keep listings that need a Wohnberechtigung
 coop_member = false          # true = keep co-op offers marked "members only"
 reject_furnished = true      # furnished in Berlin ≈ temporary + overpriced
 include_senior_housing = false  # "Wohnen ab 50/60", Seniorenwohnungen
+# Rejected for one of these reasons = not shown anywhere (not even under Rejected).
+# Codes: near_miss budget no_rent size rooms swap wanted not_flat wg temporary
+#        furnished wbs members senior scam photos district area
+drop_reasons = ["wg", "senior"]
 extra_costs_per_sqm = 2.5    # to estimate warm rent when only cold rent is given
 suspicious_below_eur_sqm = 10.0  # warm €/m²; new leases here are ~15–25 €/m²
 scam_threshold = 3           # scam points at which a listing is dropped (see homefind/rules.py)
