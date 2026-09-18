@@ -24,7 +24,8 @@ class WgGesucht(Source):
         params = [("offer_filter", "1"), ("city_id", "8"), ("sort_order", "0"), ("noDeact", "1"),
                   ("categories[]", "1"), ("categories[]", "2"),
                   ("rent_types[]", "2"),  # 2 = unbefristet (1 = befristet, 3 = overnight stays)
-                  ("rMax", str(int(self.cfg["search"]["max_warm_rent"])))]
+                  # WG-Gesucht filters on total rent; leave room for near misses (cold rent in range).
+                  ("rMax", str(int(self.fetch_cap * 1.3 if self.near_miss else self.fetch_cap)))]
         params += [("ot[]", str(d)) for d in self.opts.get("districts", [126])]
         yield from self._parse_list(self.http.get(f"{BASE}/wohnungen-in-Berlin.8.2.1.0.html?{urlencode(params)}"))
 
@@ -87,6 +88,14 @@ class WgGesucht(Source):
                     break
                 desc.append(line)
             listing.description = "\n".join(desc)
-        # Listing photos come in ".small." variants; the profile picture is ".sized." only.
-        listing.photos = len(set(re.findall(r"media/up/[\d/]+/([0-9a-f]{64})_[^\"'\s]*?\.small\.", page)))
+        # Listing photos appear as ".small." thumbnails (the profile picture only as
+        # ".sized."); the same path with ".large." is the full-size photo.
+        seen, images = set(), []
+        for url in re.findall(r"https://img\.wg-gesucht\.de/media/up/[\d/]+/[0-9a-f]{64}_[^\"'\s]*?\.small\.\w+", page):
+            digest = re.search(r"/([0-9a-f]{64})_", url).group(1)
+            if digest not in seen:
+                seen.add(digest)
+                images.append(url.replace(".small.", ".large."))
+        listing.images = images
+        listing.photos = len(images)
         return listing

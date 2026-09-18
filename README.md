@@ -25,39 +25,57 @@ interval, up to an hour) while the others carry on.
 ## Setup
 
 1. Install the **ntfy** app ([Android](https://play.google.com/store/apps/details?id=io.heckel.ntfy) / [iOS](https://apps.apple.com/app/ntfy/id1625396347), or <https://ntfy.sh/app> in a browser) and subscribe to the `ntfy_topic` in `config.toml`.
-2. Send a test notification (see below). The listings already online when a source was first added are in the report but were not pushed; from then on, only new ones are.
+2. Send a test notification (see below). Listings that were already online when
+   a source was first added were stored without a push; from then on only new
+   matches are pushed.
 
 ## Running it from Windows (PowerShell)
 
-Keep it running in a PowerShell window (Ctrl+C stops it; closing the window too):
+Start it hidden in the background and open the page:
 
 ```powershell
-wsl -d Ubuntu --cd /home/mouse/projects/home-find -- python3 -m homefind --loop
+Start-Process wsl -ArgumentList '-d Ubuntu --cd /home/mouse/projects/home-find -- python3 -m homefind --loop --open' -WindowStyle Hidden
 ```
 
-Or run it hidden in the background, and stop it later:
+After that, just open **<http://localhost:8765>** whenever you like (bookmark
+it). The page is always current when opened, and while it stays open new
+listings appear by themselves (or as a "new match" banner if you've scrolled
+down). Stop it with:
 
 ```powershell
-Start-Process wsl -ArgumentList '-d Ubuntu --cd /home/mouse/projects/home-find -- python3 -m homefind --loop' -WindowStyle Hidden
 wsl -d Ubuntu -- pkill -f '^python3 -m homefind'
 ```
 
-Test notification, and opening the report:
+Or keep it in a visible window instead (Ctrl+C or closing the window stops it):
 
 ```powershell
-wsl -d Ubuntu --cd /home/mouse/projects/home-find -- python3 -m homefind --test-notify
-start \\wsl.localhost\Ubuntu\home\mouse\projects\home-find\out\report.html
+wsl -d Ubuntu --cd /home/mouse/projects/home-find -- python3 -m homefind --loop --open
 ```
 
-Only one instance runs at a time (a second one exits with "another homefind
-run is in progress"). While it runs, WSL stays up; if Windows restarts,
-start it again.
+Test notification: `wsl -d Ubuntu --cd /home/mouse/projects/home-find -- python3 -m homefind --test-notify`
+
+Only one instance runs at a time. It keeps WSL up while running; after a
+Windows restart, start it again.
+
+## The web page
+
+- **Matches / Saved / Rejected / Hidden** tabs (bookmarkable: `/#saved`).
+- **Photos:** arrows on each card flip through all photos; click a photo for
+  the full-screen viewer (arrow keys, swipe, thumbnail strip, Esc to close).
+- **Descriptions:** per card, or "Expand descriptions" for all.
+- **☆ Save / Hide** on every listing, stored in the database (hide has Undo).
+- **Rejected** has a chip per reason. **Near miss** = everything fine except
+  the warm rent is over budget while the cold rent is within
+  `near_miss_cold_rent` (1000 € by default); that's why the sources search up
+  to 1000 € *cold*.
 
 ## Commands
 
 ```
 python3 -m homefind                  # check every source once
-python3 -m homefind --loop           # keep going, each source on its own schedule
+python3 -m homefind --loop           # keep going, each source on its own schedule, + web UI
+python3 -m homefind --loop --open    # ... and open the web UI in your browser
+python3 -m homefind --serve          # web UI only, no polling
 python3 -m homefind --dry-run        # evaluate what's online now, print every verdict, store nothing
 python3 -m homefind --only immoscout,kleinanzeigen
 python3 -m homefind --rejected 50    # what got filtered out, and why
@@ -65,8 +83,8 @@ python3 -m homefind --recheck        # re-apply the rules after editing config.t
 python3 -m homefind --no-push        # store + print, no notifications
 ```
 
-State lives in `data/homefind.db` (delete it to start over); `out/report.html`
-lists every match so far plus the recent rejects and why.
+State (listings, verdicts, saved/hidden) lives in `data/homefind.db`; delete
+it to start over.
 
 ## Filtering
 

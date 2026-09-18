@@ -56,6 +56,7 @@ def parse(page: str):
             private=c.get("type") == "PRIVATE",
             published=(c.get("metadata") or {}).get("creationDate"),
             image_url=first.get("url") if isinstance(first, dict) else None,
+            images=[i["url"] for i in images if isinstance(i, dict) and i.get("url")],
         )
         listing.signals["created"] = listing.published
         listing.signals["provider_city"] = raw.get("providercity")

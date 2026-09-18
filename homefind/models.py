@@ -22,7 +22,8 @@ class Listing:
     available_from: str | None = None
     published: str | None = None
     landlord: str | None = None
-    image_url: str | None = None
+    image_url: str | None = None     # first photo (thumbnail-sized is fine)
+    images: list = field(default_factory=list)  # all photos, large versions
     description: str = ""
     trusted: bool = False            # municipal / co-op landlord: skip scam heuristics
     signals: dict = field(default_factory=dict)  # source-specific facts rules.py understands

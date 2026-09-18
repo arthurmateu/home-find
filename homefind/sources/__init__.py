@@ -17,6 +17,17 @@ class Source:
         self.cfg, self.http = cfg, http
         self.opts = cfg["sources"].get(self.name, {})
 
+    @property
+    def fetch_cap(self) -> float:
+        """Price cap for searching: also covers near misses (cold rent within
+        search.near_miss_cold_rent), which the rules then file under Rejected."""
+        s = self.cfg["search"]
+        return float(max(s["max_warm_rent"], s.get("near_miss_cold_rent") or 0))
+
+    @property
+    def near_miss(self) -> bool:
+        return bool(self.cfg["search"].get("near_miss_cold_rent"))
+
     def search(self, seen: Callable[[str], bool]) -> Iterator[Listing]:
         """`seen(key)` lets paginating sources stop once they reach known listings."""
         raise NotImplementedError

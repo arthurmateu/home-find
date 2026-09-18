@@ -70,5 +70,6 @@ def parse(page: str):
             published=it.get("createdAt"),
             landlord=(company.get("name") or "").strip() or None,
             image_url=f"https://www.inberlinwohnen.de/img/{img}" if img else None,
+            images=[f"https://www.inberlinwohnen.de/img/{img}"] if img else [],
             trusted=True,
         )

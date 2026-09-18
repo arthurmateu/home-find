@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Flat hunt</title>
+<style>
+:root {
+  --bg: #f6f6f3; --card: #fff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e3e3de; --chip: #f0f0ec;
+  --accent: #1f6f5c; --accent-ink: #fff; --warn: #a2560c; --warn-bg: #fdf1e3; --bad: #a3322a; --bad-bg: #fbeceb;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141413; --card: #1e1e1c; --ink: #ececE8; --muted: #9a9a93; --line: #33332f; --chip: #2a2a27;
+    --accent: #6fc2a9; --accent-ink: #0d2a22; --warn: #f0b36b; --warn-bg: #3a2a17; --bad: #f19a92; --bad-bg: #3a1d1b;
+  }
+}
+* { box-sizing: border-box; }
+html { color-scheme: light dark; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+body.noscroll { overflow: hidden; }
+[hidden] { display: none !important; }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent);
+       backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding-top: 16px; flex-wrap: wrap; }
+h1 { font-size: 20px; margin: 0; }
+.sub { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.tabs { display: flex; gap: 4px; padding-top: 8px; overflow-x: auto; scrollbar-width: none; }
+.tab { appearance: none; border: 0; background: none; color: var(--muted); font: inherit; font-weight: 600;
+       padding: 8px 12px; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.n { font-weight: 500; color: var(--muted); font-size: 12px; margin-left: 2px; }
+.chips-row { display: flex; gap: 6px; flex-wrap: wrap; padding-top: 10px; padding-bottom: 12px; }
+.chip-btn { appearance: none; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit;
+            font-size: 13px; border-radius: 99px; padding: 4px 10px; cursor: pointer; }
+.chip-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.chip-btn[aria-pressed="true"] .n { color: inherit; opacity: .8; }
+
+main { padding-top: 18px; padding-bottom: 80px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.media { position: relative; aspect-ratio: 4 / 3; overflow: hidden; background: var(--chip); }
+.photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; }
+.nophoto { height: 100%; display: grid; place-items: center; color: var(--muted); font-size: 14px; }
+.nav { position: absolute; top: 50%; transform: translateY(-50%); width: 38px; height: 38px; border-radius: 50%; border: 0;
+       background: rgba(0, 0, 0, .55); color: #fff; font-size: 24px; line-height: 1; cursor: pointer; display: grid; place-items: center; }
+.nav.prev { left: 8px; } .nav.next { right: 8px; }
+@media (hover: hover) { .nav { opacity: 0; transition: opacity .15s; } .media:hover .nav, .nav:focus-visible { opacity: 1; } }
+.counter { position: absolute; right: 8px; bottom: 8px; background: rgba(0, 0, 0, .6); color: #fff; font-size: 12px;
+           padding: 2px 8px; border-radius: 99px; pointer-events: none; }
+.badges { position: absolute; left: 8px; top: 8px; display: flex; gap: 4px; }
+.badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--card); color: var(--ink); }
+.badge.new { background: var(--accent); color: var(--accent-ink); }
+.body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.price { font-weight: 650; font-size: 16px; }
+.card.rejected .price { color: var(--muted); }
+.title { color: var(--ink); text-decoration: none; overflow-wrap: anywhere; } .title:hover { text-decoration: underline; }
+.meta { color: var(--muted); font-size: 13px; }
+.reasons { margin: 0; color: var(--bad); background: var(--bad-bg); padding: 6px 8px; border-radius: 8px; font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--chip); color: var(--muted); }
+.chip.warn { background: var(--warn-bg); color: var(--warn); }
+.desc-toggle { align-self: flex-start; appearance: none; border: 0; background: none; color: var(--accent); font: inherit;
+               font-size: 14px; font-weight: 600; padding: 2px 0; cursor: pointer; }
+.desc { white-space: pre-line; font-size: 14px; max-height: 360px; overflow: auto; border-left: 3px solid var(--line); padding-left: 10px; }
+.desc-none { margin: 0; color: var(--muted); font-size: 13px; }
+.actions { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; flex-wrap: wrap; }
+.btn { appearance: none; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 14px;
+       padding: 6px 12px; border-radius: 8px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+.btn:hover { border-color: var(--muted); }
+.btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.small { padding: 4px 10px; font-size: 13px; }
+.empty { color: var(--muted); text-align: center; padding: 48px 0; }
+.more { text-align: center; margin-top: 20px; }
+
+.banner { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 20; background: var(--accent); color: var(--accent-ink);
+          padding: 6px 6px 6px 16px; border-radius: 99px; display: flex; gap: 10px; align-items: center; box-shadow: 0 4px 16px rgba(0, 0, 0, .2); }
+.banner .btn { background: var(--accent-ink); color: var(--accent); border: 0; border-radius: 99px; }
+.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 20; background: var(--ink); color: var(--bg);
+         padding: 6px 6px 6px 16px; border-radius: 10px; display: flex; gap: 10px; align-items: center; min-height: 40px; }
+.toast .btn { color: var(--bg); text-decoration: underline; }
+.error { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; background: var(--bad); color: #fff; padding: 8px 16px; font-size: 14px; }
+
+.lb { position: fixed; inset: 0; z-index: 40; background: rgba(10, 10, 10, .95); display: grid;
+      grid-template-rows: minmax(0, 1fr) auto; grid-template-columns: 64px minmax(0, 1fr) 64px; align-items: center; }
+.lb-fig { grid-row: 1; grid-column: 2; margin: 0; height: 100%; min-height: 0; display: flex; flex-direction: column;
+          align-items: center; justify-content: center; gap: 10px; padding: 16px 0 4px; }
+#lb-img { max-width: 100%; max-height: calc(100% - 30px); object-fit: contain; }
+#lb-cap { color: #ddd; font-size: 14px; text-align: center; }
+.lb-nav { grid-row: 1; width: 48px; height: 48px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .14); color: #fff;
+          font-size: 30px; line-height: 1; cursor: pointer; justify-self: center; }
+.lb-nav:hover, .lb-close:hover { background: rgba(255, 255, 255, .25); }
+.lb-nav.prev { grid-column: 1; } .lb-nav.next { grid-column: 3; }
+.lb-close { position: absolute; top: 10px; right: 12px; width: 42px; height: 42px; border: 0; border-radius: 50%;
+            background: rgba(255, 255, 255, .14); color: #fff; font-size: 20px; cursor: pointer; z-index: 1; }
+.lb-thumbs { grid-row: 2; grid-column: 1 / -1; display: flex; gap: 6px; overflow-x: auto; padding: 8px 16px 14px; justify-content: safe center; }
+.lb-thumb { flex: 0 0 auto; padding: 0; border: 2px solid transparent; border-radius: 6px; background: none; cursor: pointer; opacity: .55; }
+.lb-thumb[aria-current="true"] { border-color: #fff; opacity: 1; }
+.lb-thumb img { display: block; width: 76px; height: 57px; object-fit: cover; border-radius: 4px; }
+@media (max-width: 600px) {
+  .lb { grid-template-columns: 0 minmax(0, 1fr) 0; }
+  .lb-nav { position: absolute; top: 45%; width: 40px; height: 40px; font-size: 24px; }
+  .lb-nav.prev { left: 6px; } .lb-nav.next { right: 6px; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap head">
+    <div>
+      <h1>Flat hunt</h1>
+      <p class="sub" id="sub"></p>
+    </div>
+    <button class="btn" id="toggle-desc" aria-pressed="false">Expand descriptions</button>
+  </div>
+  <nav class="wrap tabs" role="tablist" id="tabs"></nav>
+  <div class="wrap chips-row" id="reasons" hidden></div>
+</header>
+
+<div class="banner" id="banner" hidden><span id="banner-text"></span><button class="btn small" id="banner-show">Show</button></div>
+
+<main class="wrap">
+  <p class="empty" id="empty" hidden></p>
+  <div class="grid" id="grid"></div>
+  <div class="more"><button class="btn" id="more" hidden></button></div>
+</main>
+
+<div class="toast" id="toast" hidden role="status"><span id="toast-text"></span><button class="btn small ghost" id="toast-undo" hidden>Undo</button></div>
+<div class="error" id="error" hidden role="alert"></div>
+
+<div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-label="Photos">
+  <button class="lb-close" id="lb-close" aria-label="Close photos">✕</button>
+  <button class="lb-nav prev" id="lb-prev" aria-label="Previous photo">‹</button>
+  <figure class="lb-fig" id="lb-fig"><img id="lb-img" alt=""><figcaption id="lb-cap"></figcaption></figure>
+  <button class="lb-nav next" id="lb-next" aria-label="Next photo">›</button>
+  <div class="lb-thumbs" id="lb-thumbs"></div>
+</div>
+
+<script id="data" type="application/json">__DATA__</script>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const showError = (msg) => { $("error").textContent = "Something went wrong: " + msg; $("error").hidden = false; };
+window.addEventListener("error", (e) => showError(e.message));
+window.addEventListener("unhandledrejection", (e) => showError(String(e.reason)));
+
+// Per-browser conveniences only; saved/hidden live in the database.
+const prefs = {
+  get(k, d) { try { const v = localStorage.getItem("homefind:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("homefind:" + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
+};
+
+const PAGE = 48;
+const BROKEN = "data:image/svg+xml," + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="100%" height="100%" fill="#8883"/>' +
+  '<text x="50%" y="50%" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#888">Photo unavailable</text></svg>');
+const TABS = [
+  ["matches", "Matches", (l) => l.ok && l.status !== "hidden"],
+  ["saved", "Saved", (l) => l.status === "saved"],
+  ["rejected", "Rejected", (l) => !l.ok && l.status !== "hidden"],
+  ["hidden", "Hidden", (l) => l.status === "hidden"],
+];
+const EMPTY = {
+  matches: "No matches right now. New ones show up here and on your phone.",
+  saved: "Nothing saved yet. Use ☆ Save on a listing to keep it here.",
+  rejected: "Nothing rejected for this reason.",
+  hidden: "Nothing hidden.",
+};
+
+let data = JSON.parse($("data").textContent);
+let byKey = new Map();
+let pending = null;                 // newer data from polling, applied on the next navigation
+const photoAt = new Map();          // listing key -> photo shown on its card
+const openDesc = new Set();         // listing keys with the description open
+const state = { tab: "matches", reason: "inarea", shown: PAGE, expandAll: prefs.get("expandAll", false) };
+const prevSeen = prefs.get("lastSeen", "");  // newest listing at the previous visit
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const when = (iso) => iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+
+function index() { byKey = new Map(data.listings.map((l) => [l.key, l])); }
+function applyPending() { if (pending) { data = pending; pending = null; index(); $("banner").hidden = true; } }
+
+function visible() {
+  const test = TABS.find((t) => t[0] === state.tab)[2];
+  let list = data.listings.filter(test);
+  if (state.tab === "rejected") {
+    list = list.filter((l) => state.reason === "inarea" ? !l.codes.includes("area") : l.codes.includes(state.reason));
+  }
+  return list;
+}
+
+function renderTabs() {
+  $("tabs").innerHTML = TABS.map(([id, label, test]) =>
+    `<button role="tab" class="tab" aria-selected="${id === state.tab}" data-tab="${id}">${label}<span class="n">${data.listings.filter(test).length}</span></button>`
+  ).join("");
+  const row = $("reasons");
+  row.hidden = state.tab !== "rejected";
+  if (row.hidden) return;
+  const rejected = data.listings.filter(TABS[2][2]);
+  const counts = {};
+  for (const l of rejected) for (const c of l.codes) counts[c] = (counts[c] || 0) + 1;
+  const chips = [["inarea", "All in area", rejected.filter((l) => !l.codes.includes("area")).length],
+    ...Object.entries(data.reasons).filter(([c]) => counts[c]).map(([c, label]) => [c, label, counts[c]])];
+  row.innerHTML = chips.map(([c, label, n]) =>
+    `<button class="chip-btn" aria-pressed="${c === state.reason}" data-reason="${c}">${esc(label)}<span class="n">${n}</span></button>`
+  ).join("");
+}
+
+function card(l) {
+  const n = l.images.length;
+  const i = Math.min(photoAt.get(l.key) || 0, Math.max(n - 1, 0));
+  const media = n
+    ? `<img class="photo" src="${esc(l.images[i])}" alt="Photo ${i + 1} of ${n}" loading="lazy" decoding="async" data-act="zoom">` +
+      (n > 1 ? `<button class="nav prev" data-act="prev" aria-label="Previous photo">‹</button>` +
+               `<button class="nav next" data-act="next" aria-label="Next photo">›</button>` : "") +
+      `<span class="counter">${n > 1 ? `${i + 1} / ${n}` : "1 photo"}</span>`
+    : `<div class="nophoto">No photos</div>`;
+  const saved = l.status === "saved";
+  const badges = (prevSeen && l.first_seen > prevSeen ? `<span class="badge new">new</span>` : "") +
+                 (saved ? `<span class="badge">★ Saved</span>` : "");
+  const chips = [...l.flags.map((f) => `<span class="chip warn">⚠ ${esc(f)}</span>`),
+                 ...l.notes.map((t) => `<span class="chip">${esc(t)}</span>`)].join("");
+  const open = state.expandAll || openDesc.has(l.key);
+  const desc = l.description
+    ? `<button class="desc-toggle" data-act="desc" aria-expanded="${open}">${open ? "Hide description" : "Show description"}</button>` +
+      `<div class="desc"${open ? "" : " hidden"}>${esc(l.description)}</div>`
+    : `<p class="desc-none">No description here${l.source === "inberlinwohnen" ? "; the landlord's page has the details" : ""}.</p>`;
+  return `<article class="card${l.ok ? "" : " rejected"}" data-key="${esc(l.key)}">
+    <div class="media">${media}<div class="badges">${badges}</div></div>
+    <div class="body">
+      <div class="price">${esc(l.headline)}</div>
+      <a class="title" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || l.url)}</a>
+      <div class="meta">${esc([l.source, l.landlord].filter(Boolean).join(" · "))} · seen ${esc(when(l.first_seen))}</div>
+      ${l.ok ? "" : `<p class="reasons">✗ ${esc(l.reasons.join("; "))}</p>`}
+      ${chips ? `<div class="chips">${chips}</div>` : ""}
+      ${desc}
+      <div class="actions">
+        <button class="btn${saved ? " on" : ""}" data-act="save" aria-pressed="${saved}">${saved ? "★ Saved" : "☆ Save"}</button>
+        <button class="btn" data-act="hide">${l.status === "hidden" ? "Unhide" : "Hide"}</button>
+        <a class="btn ghost" href="${esc(l.url)}" target="_blank" rel="noopener">Open ↗</a>
+      </div>
+    </div>
+  </article>`;
+}
+
+function render() {
+  renderTabs();
+  const list = visible();
+  $("grid").innerHTML = list.slice(0, state.shown).map(card).join("");
+  $("more").hidden = list.length <= state.shown;
+  $("more").textContent = `Show more (${list.length - state.shown} left)`;
+  $("empty").hidden = list.length > 0;
+  $("empty").textContent = EMPTY[state.tab];
+  $("toggle-desc").textContent = state.expandAll ? "Collapse descriptions" : "Expand descriptions";
+  $("toggle-desc").setAttribute("aria-pressed", String(state.expandAll));
+  $("sub").textContent = data.subtitle;
+}
+
+// ---- photos on the card
+function step(l, d, cardEl) {
+  const n = l.images.length;
+  if (n < 2) return;
+  const i = ((photoAt.get(l.key) || 0) + d + n) % n;
+  photoAt.set(l.key, i);
+  const img = cardEl.querySelector(".photo");
+  img.src = l.images[i];
+  img.alt = `Photo ${i + 1} of ${n}`;
+  cardEl.querySelector(".counter").textContent = `${i + 1} / ${n}`;
+  new Image().src = l.images[(i + d + n) % n];  // preload the next one in this direction
+}
+
+// ---- full-screen viewer
+const lb = { l: null, i: 0, returnTo: null };
+function openViewer(l, i) {
+  if (!l.images.length) return;
+  Object.assign(lb, { l, i, returnTo: document.activeElement });
+  $("lb-thumbs").innerHTML = l.images.length > 1
+    ? l.images.map((u, k) => `<button class="lb-thumb" data-i="${k}" aria-label="Photo ${k + 1}"><img src="${esc(u)}" alt="" loading="lazy"></button>`).join("")
+    : "";
+  $("lb").hidden = false;
+  document.body.classList.add("noscroll");
+  showViewer();
+  $("lb-close").focus();
+}
+function showViewer() {
+  const { l, i } = lb, n = l.images.length;
+  $("lb-img").src = l.images[i];
+  $("lb-img").alt = `Photo ${i + 1} of ${n}`;
+  $("lb-cap").textContent = `${l.headline}  ·  ${i + 1} / ${n}`;
+  $("lb-prev").hidden = $("lb-next").hidden = n < 2;
+  document.querySelectorAll(".lb-thumb").forEach((t, k) => t.setAttribute("aria-current", String(k === i)));
+  document.querySelector('.lb-thumb[aria-current="true"]')?.scrollIntoView({ block: "nearest", inline: "center" });
+  if (n > 1) new Image().src = l.images[(i + 1) % n];
+}
+function viewerStep(d) { const n = lb.l.images.length; lb.i = (lb.i + d + n) % n; showViewer(); }
+function closeViewer() {
+  const { l, i } = lb;
+  $("lb").hidden = true;
+  document.body.classList.remove("noscroll");
+  photoAt.set(l.key, i);  // the card continues where the viewer stopped
+  const c = document.querySelector(`.card[data-key="${CSS.escape(l.key)}"]`);
+  if (c?.querySelector(".photo")) {
+    c.querySelector(".photo").src = l.images[i];
+    if (l.images.length > 1) c.querySelector(".counter").textContent = `${i + 1} / ${l.images.length}`;
+  }
+  lb.returnTo?.focus();
+  lb.l = null;
+}
+
+// ---- save / hide
+let toastTimer;
+function toast(text, undo) {
+  $("toast-text").textContent = text;
+  $("toast-undo").hidden = !undo;
+  $("toast-undo").onclick = undo ? () => { $("toast").hidden = true; undo(); } : null;
+  $("toast").hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $("toast").hidden = true; }, 6000);
+}
+async function setStatus(l, status) {
+  const before = l.status;
+  l.status = status;
+  render();
+  if (status === "hidden") toast("Hidden.", () => setStatus(l, before));
+  try {
+    const r = await fetch("/api/status", { method: "POST", headers: { "Content-Type": "application/json" },
+                                           body: JSON.stringify({ key: l.key, status }) });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+  } catch {
+    l.status = before;
+    render();
+    toast("Couldn't save that. Is homefind still running?");
+  }
+}
+
+// ---- live updates: new listings appear on their own while the page is open
+const atTop = () => $("lb").hidden && scrollY < 300;
+function showPending() {
+  if (!pending) return;
+  const fresh = pending.listings.filter((l) => !byKey.has(l.key));
+  if (atTop()) {  // nothing to lose: update in place
+    applyPending();
+    render();
+    return;
+  }
+  const matches = fresh.filter((l) => l.ok).length;
+  if (matches) {  // don't move the page under the reader; offer it instead
+    $("banner-text").textContent = `${matches} new match${matches > 1 ? "es" : ""}`;
+    $("banner").hidden = false;
+  }
+}
+async function poll() {
+  try {
+    const r = await fetch("/api/listings", { cache: "no-store" });
+    if (!r.ok) return;
+    const next = await r.json();
+    data.subtitle = next.subtitle;
+    $("sub").textContent = next.subtitle;
+    if (!next.listings.some((l) => !byKey.has(l.key))) return;
+    for (const l of next.listings) { const cur = byKey.get(l.key); if (cur) l.status = cur.status; }
+    pending = next;
+    showPending();
+  } catch { /* homefind isn't running right now; try again later */ }
+}
+addEventListener("scroll", () => { if (pending && atTop()) showPending(); }, { passive: true });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
+
+// ---- events
+$("tabs").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-tab]");
+  if (!b) return;
+  applyPending();
+  Object.assign(state, { tab: b.dataset.tab, shown: PAGE });
+  history.replaceState(null, "", "#" + state.tab);  // so a tab can be bookmarked, e.g. /#saved
+  render();
+});
+$("reasons").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-reason]");
+  if (!b) return;
+  applyPending();
+  Object.assign(state, { reason: b.dataset.reason, shown: PAGE });
+  render();
+});
+$("more").addEventListener("click", () => { state.shown += PAGE; render(); });
+$("toggle-desc").addEventListener("click", () => {
+  state.expandAll = !state.expandAll;
+  openDesc.clear();
+  prefs.set("expandAll", state.expandAll);
+  render();
+});
+$("banner-show").addEventListener("click", () => { applyPending(); Object.assign(state, { tab: "matches", shown: PAGE }); render(); scrollTo(0, 0); });
+$("grid").addEventListener("click", (e) => {
+  const el = e.target.closest("[data-act]");
+  if (!el) return;
+  const cardEl = el.closest(".card");
+  const l = byKey.get(cardEl.dataset.key);
+  if (!l) return;
+  const act = el.dataset.act;
+  if (act === "prev" || act === "next") step(l, act === "next" ? 1 : -1, cardEl);
+  else if (act === "zoom") openViewer(l, photoAt.get(l.key) || 0);
+  else if (act === "save") setStatus(l, l.status === "saved" ? null : "saved");
+  else if (act === "hide") setStatus(l, l.status === "hidden" ? null : "hidden");
+  else if (act === "desc") {
+    const box = cardEl.querySelector(".desc");
+    const open = box.hidden;
+    box.hidden = !open;
+    el.setAttribute("aria-expanded", String(open));
+    el.textContent = open ? "Hide description" : "Show description";
+    if (open) openDesc.add(l.key); else openDesc.delete(l.key);
+  }
+});
+document.addEventListener("error", (e) => {
+  const img = e.target;
+  if (img.tagName === "IMG" && !img.src.startsWith("data:")) img.src = BROKEN;
+}, true);
+$("lb-close").addEventListener("click", closeViewer);
+$("lb-prev").addEventListener("click", () => viewerStep(-1));
+$("lb-next").addEventListener("click", () => viewerStep(1));
+$("lb").addEventListener("click", (e) => {
+  const t = e.target.closest(".lb-thumb");
+  if (t) { lb.i = Number(t.dataset.i); showViewer(); }
+  else if (e.target === $("lb") || e.target === $("lb-fig")) closeViewer();
+});
+document.addEventListener("keydown", (e) => {
+  if ($("lb").hidden) return;
+  if (e.key === "Escape") closeViewer();
+  else if (e.key === "ArrowRight") viewerStep(1);
+  else if (e.key === "ArrowLeft") viewerStep(-1);
+});
+let touchX = null;
+$("lb").addEventListener("touchstart", (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+$("lb").addEventListener("touchend", (e) => {
+  if (touchX === null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  touchX = null;
+  if (Math.abs(dx) > 40) viewerStep(dx < 0 ? 1 : -1);
+});
+
+const fromHash = location.hash.slice(1);
+if (TABS.some((t) => t[0] === fromHash)) state.tab = fromHash;
+index();
+render();
+prefs.set("lastSeen", data.listings.reduce((m, l) => (l.first_seen > m ? l.first_seen : m), ""));
+setInterval(poll, 60000);
+</script>
+</body>
+</html>

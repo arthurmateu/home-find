@@ -9,6 +9,7 @@ from pathlib import Path
 DEFAULTS: dict = {
     "search": {
         "max_warm_rent": 1000,
+        "near_miss_cold_rent": 1000,
         "min_size_sqm": 25,
         "min_rooms": 1,
         "have_wbs": False,
@@ -35,7 +36,7 @@ DEFAULTS: dict = {
     "run": {
         "request_delay_seconds": 2.0,
         "db_path": "data/homefind.db",
-        "report_path": "out/report.html",
+        "web_port": 8765,
     },
     "notify": {
         "ntfy_server": "https://ntfy.sh",
@@ -88,7 +89,6 @@ def load(path: str | Path) -> dict:
         with path.open("rb") as f:
             _merge(cfg, tomllib.load(f))
     root = path.resolve().parent
-    for key in ("db_path", "report_path"):
-        p = Path(cfg["run"][key]).expanduser()
-        cfg["run"][key] = str(p if p.is_absolute() else root / p)
+    p = Path(cfg["run"]["db_path"]).expanduser()
+    cfg["run"]["db_path"] = str(p if p.is_absolute() else root / p)
     return cfg

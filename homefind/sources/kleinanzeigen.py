@@ -21,7 +21,7 @@ class Kleinanzeigen(Source):
     needs_enrich = True
 
     def search(self, seen):
-        cap = int(self.cfg["search"]["max_warm_rent"])
+        cap = int(self.fetch_cap)  # the listed price is usually the cold rent
         for loc in self.opts.get("locations", []):
             for page in range(1, self.opts.get("max_pages", 2) + 1):
                 seite = f"seite:{page}/" if page > 1 else ""
@@ -98,8 +98,14 @@ class Kleinanzeigen(Source):
         if "nur tausch" in attrs.get("Tauschangebot", "").lower():
             listing.signals["swap_only"] = True
 
-        photos = len(set(re.findall(r'data-imgsrc="([^"]+)"', page)))
-        listing.photos = max(photos, 1 if listing.signals.get("has_photo") else 0)
+        # Gallery slides only: the page also shows other ads' thumbnails.
+        ids = []
+        for slide in re.split(r'class="galleryimage-element(?=[\s"])', page)[1:]:
+            m = re.search(r"prod-ads/images/(\w\w/[0-9a-f-]{36})", slide[:3000])
+            if m and m.group(1) not in ids:
+                ids.append(m.group(1))
+        listing.images = [f"https://img.kleinanzeigen.de/api/v1/prod-ads/images/{i}?rule=$_59.AUTO" for i in ids]
+        listing.photos = max(len(ids), 1 if listing.signals.get("has_photo") else 0)
         if "Privater Nutzer" in page:
             listing.private = True
         elif "Gewerblicher Nutzer" in page:

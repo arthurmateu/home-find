@@ -32,8 +32,9 @@ class ImmoScout(Source):
                     "searchType": "region",
                     "geocodes": geocodes,
                     "realestatetype": "apartmentrent",
-                    "price": f"-{float(s['max_warm_rent']):.1f}",
-                    "pricetype": "calculatedtotalrent",
+                    # With near misses on, filter on cold rent (a superset of warm <= budget).
+                    "price": f"-{self.fetch_cap:.1f}" if self.near_miss else f"-{float(s['max_warm_rent']):.1f}",
+                    "pricetype": "rentpermonth" if self.near_miss else "calculatedtotalrent",
                     "livingspace": f"{float(s['min_size_sqm']):.1f}-",
                     "numberofrooms": f"{float(s['min_rooms']):.1f}-",
                     "exclusioncriteria": "swapflat",
@@ -92,7 +93,10 @@ class ImmoScout(Source):
         texts, attrs = [], {}
         for sec in d.get("sections", []):
             kind = sec.get("type")
-            if kind == "TEXT_AREA":
+            if kind == "MEDIA":
+                listing.images = [m["fullImageUrl"] for m in sec.get("media", [])
+                                  if m.get("type") == "PICTURE" and m.get("fullImageUrl")]
+            elif kind == "TEXT_AREA":
                 texts.append(f"{sec.get('title', '')}: {sec.get('text', '')}")
             elif kind == "ATTRIBUTE_LIST":
                 for at in sec.get("attributes", []):

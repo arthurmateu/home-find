@@ -12,7 +12,7 @@ from pathlib import Path
 
 from . import config
 from .app import recheck, run_once, seconds_until_due
-from .report import write_report
+from . import web
 from .net import Fetcher
 from .notify import Notifier, print_reject
 from .sources import SOURCE_NAMES
@@ -28,6 +28,8 @@ def main(argv=None) -> int:
     ap.add_argument("--loop", action="store_true",
                     help="keep running; each source on its own schedule (sources.*.every_minutes)")
     ap.add_argument("--only", help="comma-separated: " + ",".join(SOURCE_NAMES + ["watch"]))
+    ap.add_argument("--serve", action="store_true", help="only run the web UI (no polling)")
+    ap.add_argument("--open", action="store_true", help="open the web UI in your browser (with --loop or --serve)")
     ap.add_argument("--dry-run", action="store_true",
                     help="evaluate everything online now and print each verdict; store and push nothing")
     ap.add_argument("--no-push", action="store_true", help="store and print, but send no notifications")
@@ -58,12 +60,13 @@ def main(argv=None) -> int:
         return 0
     if args.recheck:
         total, changed, dropped = recheck(cfg, store)
-        write_report(store, cfg["run"]["report_path"])
         print(f"rechecked {total} listings: {changed} changed verdict, {dropped} will be re-fetched next run")
         return 0
 
-    if args.loop and args.dry_run:
-        ap.error("--dry-run is a one-off check; drop --loop")
+    if args.dry_run and (args.loop or args.serve):
+        ap.error("--dry-run is a one-off check; drop --loop/--serve")
+    if args.serve:
+        return serve_only(cfg, args.open)
     only = {s.strip() for s in args.only.split(",")} if args.only else None
     unknown = (only or set()) - set(SOURCE_NAMES) - {"watch"}
     if unknown:
@@ -78,19 +81,38 @@ def main(argv=None) -> int:
         return 1
 
     if not notifier.configured and not (args.dry_run or args.no_push):
-        log.warning("no notification channel configured; matches only go to the console and %s",
-                    cfg["run"]["report_path"])
+        log.warning("no notification channel configured; matches only show in the console and the web UI")
     if not args.loop:
         run_once(cfg, store, http, notifier, only=only, dry_run=args.dry_run)
-        if not args.dry_run:
-            log.info("report: %s", cfg["run"]["report_path"])
         return 0
 
+    try:
+        if web.serve(cfg):
+            log.info("web UI: %s", web.url(cfg))
+            if args.open:
+                web.open_browser(web.url(cfg))
+    except OSError as e:
+        log.warning("web UI not started (port %s: %s)", cfg["run"]["web_port"], e.strerror)
     log.info("watching; each source is checked on its own schedule (sources.*.every_minutes). Ctrl+C stops.")
-    log.info("report: %s", cfg["run"]["report_path"])
     while True:
         run_once(cfg, store, http, notifier, only=only, scheduled=True)
         time.sleep(seconds_until_due(cfg, store, only) * random.uniform(0.9, 1.15))
+
+
+def serve_only(cfg: dict, open_it: bool) -> int:
+    try:
+        server = web.serve(cfg)
+    except OSError:
+        print(f"port {cfg['run']['web_port']} is in use; if homefind --loop is running, the UI is already at {web.url(cfg)}")
+        return 1
+    if not server:
+        print("web UI is off (run.web_port = 0)")
+        return 1
+    print(f"web UI: {web.url(cfg)}  (Ctrl+C stops)")
+    if open_it:
+        web.open_browser(web.url(cfg))
+    while True:
+        time.sleep(3600)
 
 
 if __name__ == "__main__":

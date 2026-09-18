@@ -35,8 +35,12 @@ def _now() -> str:
 class Store:
     def __init__(self, path: str):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(path)
+        self.db = sqlite3.connect(path, timeout=15)
+        self.db.execute("PRAGMA journal_mode=WAL")  # the web UI reads while the poller writes
         self.db.executescript(SCHEMA)
+        columns = {row[1] for row in self.db.execute("PRAGMA table_info(listings)")}
+        if "status" not in columns:  # added with the web UI: NULL, 'saved' or 'hidden'
+            self.db.execute("ALTER TABLE listings ADD COLUMN status TEXT")
 
     def seen(self, key: str) -> bool:
         return self.db.execute("SELECT 1 FROM listings WHERE key = ?", (key,)).fetchone() is not None
@@ -49,7 +53,8 @@ class Store:
         now = _now()
         with self.db:
             self.db.execute(
-                "INSERT OR REPLACE INTO listings VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO listings (key, source, first_seen, last_seen, ok, notified, data, verdict)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (listing.key, listing.source, now, now, int(verdict.ok), int(notified),
                  json.dumps(listing.to_dict(), ensure_ascii=False),
                  json.dumps(verdict.to_dict(), ensure_ascii=False)),
@@ -68,6 +73,22 @@ class Store:
 
     def rejected(self, limit: int = 100):
         return list(self._rows(False, limit))
+
+    def set_status(self, key: str, status: str | None) -> bool:
+        with self.db:
+            return self.db.execute("UPDATE listings SET status = ? WHERE key = ?", (status, key)).rowcount == 1
+
+    def update_listing(self, listing: Listing) -> None:
+        with self.db:
+            self.db.execute("UPDATE listings SET data = ? WHERE key = ?",
+                            (json.dumps(listing.to_dict(), ensure_ascii=False), listing.key))
+
+    def all_rows(self):
+        """Everything, newest first, for the web UI."""
+        rows = self.db.execute("SELECT data, verdict, first_seen, last_seen, status FROM listings"
+                               " ORDER BY first_seen DESC, rowid DESC")
+        for data, verdict, first_seen, last_seen, status in rows:
+            yield Listing.from_dict(json.loads(data)), Verdict(**json.loads(verdict)), first_seen, last_seen, status
 
     def update_verdict(self, key: str, verdict: Verdict) -> None:
         with self.db:
@@ -88,6 +109,12 @@ class Store:
             self.db.execute("INSERT OR REPLACE INTO fingerprints VALUES (?, ?, ?, ?)",
                             (fingerprint, listing.key, listing.url, _now()))
         return None
+
+    def meta_values(self, prefix: str) -> list[str]:
+        return [v for (v,) in self.db.execute("SELECT v FROM meta WHERE k LIKE ?", (prefix + "%",))]
+
+    def close(self) -> None:
+        self.db.close()
 
     def meta_get(self, k: str) -> str | None:
         row = self.db.execute("SELECT v FROM meta WHERE k = ?", (k,)).fetchone()

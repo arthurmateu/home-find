@@ -5,6 +5,8 @@
 
 [search]
 max_warm_rent = 1000         # € per month incl. Nebenkosten + Heizung
+near_miss_cold_rent = 1000   # also load flats with cold rent up to this; if warm is over budget they
+                             # show under Rejected → "Near miss". 0 = only fetch within max_warm_rent.
 min_size_sqm = 25            # drops micro-apartments / co-living rooms
 min_rooms = 1
 have_wbs = false             # true = keep listings that need a Wohnberechtigungsschein
@@ -31,6 +33,7 @@ exclude_names = ["Charlottenburg-Nord"]
 
 [run]
 request_delay_seconds = 2.0  # minimum gap between two requests to the same site
+web_port = 8765              # web UI at http://localhost:8765 while --loop / --serve runs; 0 = off
 
 [notify]
 # ntfy.sh: install the ntfy app (Android/iOS) or open https://ntfy.sh/app,

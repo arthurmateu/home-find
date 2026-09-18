@@ -1,4 +1,4 @@
-"""Polling: each source (and the co-op page watch) on its own schedule, then the report."""
+"""Polling: each source (and the co-op page watch) on its own schedule."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ from datetime import datetime
 
 from .net import Blocked
 from .notify import Notifier, print_match, print_reject
-from .report import write_report
 from .rules import evaluate
 from .sources import enabled_sources
 from .store import Store
@@ -65,7 +64,6 @@ def run_once(cfg: dict, store: Store, http, notifier: Notifier, only: set[str] |
         results.append({"name": "watch", "new": 0, "matches": 0})
     if dry_run or not results:
         return
-    write_report(store, cfg["run"]["report_path"])
     if scheduled:
         new = sum(r["new"] for r in results)
         matched = sum(r["matches"] for r in results)

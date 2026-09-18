@@ -19,13 +19,16 @@ from .util import days_since, warm_from_text
 class Verdict:
     ok: bool = True
     reasons: list[str] = field(default_factory=list)  # why it was rejected
+    codes: list[str] = field(default_factory=list)    # machine-readable reasons, see REASONS
     flags: list[str] = field(default_factory=list)    # scam warnings (scored)
     notes: list[str] = field(default_factory=list)    # neutral info worth knowing
     score: int = 0
     warm: float | None = None
 
-    def reject(self, reason: str) -> None:
+    def reject(self, reason: str, code: str) -> None:
         self.reasons.append(reason)
+        if code not in self.codes:
+            self.codes.append(code)
 
     def flag(self, points: int, message: str) -> None:
         self.score += points
@@ -33,6 +36,29 @@ class Verdict:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+# Reason code -> label, in the order the web UI lists them.
+REASONS = {
+    "near_miss": "Near miss (cold rent in range)",
+    "budget": "Over budget",
+    "no_rent": "No rent stated",
+    "size": "Too small",
+    "rooms": "Too few rooms",
+    "swap": "Swap offer",
+    "wanted": "Wanted ad",
+    "not_flat": "Not a flat",
+    "wg": "WG room",
+    "temporary": "Temporary / sublet",
+    "furnished": "Furnished",
+    "wbs": "WBS required",
+    "members": "Co-op members only",
+    "senior": "Senior housing",
+    "scam": "Looks like a scam",
+    "photos": "No photos",
+    "district": "Title names another district",
+    "area": "Outside area",
+}
 
 
 def _rx(pattern: str) -> re.Pattern:
@@ -128,7 +154,9 @@ def _other_district_in_title(title: str, cfg: dict) -> str | None:
         return None
     wanted = {n.lower() for n in cfg["area"]["names"]}
     for d in BERLIN_DISTRICTS:
-        if d.lower() not in wanted and re.search(rf"\b{re.escape(d.lower())}\b", t):
+        # Only as a place: "Berlin-Spandau", "in Spandau", or leading the title;
+        # not "ab Mitte Oktober" or "nahe Grunewald".
+        if d.lower() not in wanted and re.search(rf"(berlin[- ]|\bin |^\W*){re.escape(d.lower())}\b", t):
             return d
     return None
 
@@ -154,7 +182,7 @@ def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
     blob = f"{title}\n{desc}"
 
     if not in_area(listing, cfg):
-        v.reject(f"outside area ({listing.zip_code or listing.district or 'no location'})")
+        v.reject(f"outside area ({listing.zip_code or listing.district or 'no location'})", "area")
 
     # --- rent
     warm = listing.warm_rent
@@ -167,39 +195,48 @@ def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
         warm = round(listing.cold_rent + (listing.size_sqm or 50) * s["extra_costs_per_sqm"])
         v.notes.append(f"warm rent estimated from cold rent (~{warm:.0f} €)")
     v.warm = warm
+    # Near misses: flats whose cold rent is within near_miss_cold_rent are fetched
+    # and fully loaded even when the warm rent is over budget, so they can be
+    # browsed under "Rejected".
     cap = s["max_warm_rent"]
-    if warm is not None:
-        if warm > cap:
-            v.reject(f"{warm:.0f} € warm > {cap} €")
-    elif sig.get("list_price") and sig["list_price"] > cap:
-        v.reject(f"listed at {sig['list_price']:.0f} € > {cap} €")
-    elif final:
-        v.reject("no rent stated")
+    near = s.get("near_miss_cold_rent") or 0
+    fetch_cap = max(cap, near)
+    cold = listing.cold_rent
+    if warm is not None and warm > cap:
+        if final or warm > fetch_cap * 1.35:
+            if near and cold is not None and cold <= near:
+                v.reject(f"{warm:.0f} € warm > {cap} € (cold {cold:.0f} €)", "near_miss")
+            else:
+                v.reject(f"{warm:.0f} € warm > {cap} €", "budget")
+    elif warm is None and sig.get("list_price") and sig["list_price"] > fetch_cap:
+        v.reject(f"listed at {sig['list_price']:.0f} € > {fetch_cap} €", "budget")
+    elif warm is None and final:
+        v.reject("no rent stated", "no_rent")
 
     if listing.size_sqm and listing.size_sqm < s["min_size_sqm"]:
-        v.reject(f"{listing.size_sqm:g} m² < {s['min_size_sqm']} m²")
+        v.reject(f"{listing.size_sqm:g} m² < {s['min_size_sqm']} m²", "size")
     if listing.rooms and listing.rooms < s["min_rooms"]:
-        v.reject(f"{listing.rooms:g} rooms < {s['min_rooms']}")
+        v.reject(f"{listing.rooms:g} rooms < {s['min_rooms']}", "rooms")
 
     # --- not a normal long-term rental
     if sig.get("swap_only") or SWAP_TITLE.search(title) or SWAP_TEXT.search(desc):
-        v.reject("swap offer (Wohnungstausch)")
+        v.reject("swap offer (Wohnungstausch)", "swap")
     if NOT_A_FLAT.search(title):
-        v.reject("not a flat (cellar / parking / commercial)")
+        v.reject("not a flat (cellar / parking / commercial)", "not_flat")
     elsewhere = _other_district_in_title(title, cfg)
     if elsewhere:
-        v.reject(f"title says it's in {elsewhere}")
+        v.reject(f"title says it's in {elsewhere}", "district")
     if WANTED_TITLE.search(title):
-        v.reject("wanted ad, not an offer")
+        v.reject("wanted ad, not an offer", "wanted")
     if WG_TITLE.search(title) or WG_TEXT.search(desc):
-        v.reject("room in a shared flat (WG)")
+        v.reject("room in a shared flat (WG)", "wg")
     if sig.get("temporary") or TEMP_TITLE.search(title) or TEMP_TEXT.search(desc):
-        v.reject("temporary / sublet")
+        v.reject("temporary / sublet", "temporary")
     if SENIOR.search(blob) and not s["include_senior_housing"]:
-        v.reject("senior housing (age-restricted)")
+        v.reject("senior housing (age-restricted)", "senior")
     if sig.get("furnished") or FURNISHED.search(blob):
         if s["reject_furnished"]:
-            v.reject("furnished (in Berlin nearly always short-term and overpriced)")
+            v.reject("furnished (in Berlin nearly always short-term and overpriced)", "furnished")
         else:
             v.notes.append("furnished")
 
@@ -208,18 +245,18 @@ def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
         if s["have_wbs"]:
             v.notes.append("WBS required")
         else:
-            v.reject("WBS required")
+            v.reject("WBS required", "wbs")
     if sig.get("members_only"):
         if s["coop_member"]:
             v.notes.append("co-op members only")
         else:
-            v.reject("co-op members only")
+            v.reject("co-op members only", "members")
 
     # --- sketchiness
     if not listing.trusted:
         _scam_checks(listing, v, s, final)
         if v.score >= s["scam_threshold"]:
-            v.reject("looks like a scam: " + "; ".join(v.flags))
+            v.reject("looks like a scam: " + "; ".join(v.flags), "scam")
 
     # --- neutral notes
     if NACHMIETER.search(blob):
@@ -233,6 +270,10 @@ def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
     if listing.private:
         v.notes.append("private landlord")
 
+    # A near miss is a flat that would match if it were a bit cheaper.
+    if "near_miss" in v.codes and len(v.codes) > 1:
+        v.codes[v.codes.index("near_miss")] = "budget"
+
     v.ok = not v.reasons
     return v
 
@@ -243,7 +284,7 @@ def _scam_checks(listing: Listing, v: Verdict, s: dict, final: bool) -> None:
 
     if final and listing.photos is not None:
         if listing.photos == 0:
-            v.reject("no photos")
+            v.reject("no photos", "photos")
         elif listing.photos == 1:
             v.flag(1, "only one photo")
     for points, message, pattern in SCAM_PATTERNS:
