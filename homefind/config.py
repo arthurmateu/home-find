@@ -47,20 +47,20 @@ DEFAULTS: dict = {
     },
     # every_minutes: how often --loop checks each source.
     "sources": {
-        "inberlinwohnen": {"enabled": True, "every_minutes": 2, "max_pages": 45},
-        "immoscout": {"enabled": True, "every_minutes": 2, "max_pages": 3,
+        "inberlinwohnen": {"enabled": True, "every_minutes": 60, "max_pages": 45},
+        "immoscout": {"enabled": True, "every_minutes": 60, "max_pages": 3,
                       "geocodes": ["1276003001011", "1276003001076"]},  # Charlottenburg (+Westend), Wilmersdorf (+Halensee)
         "kleinanzeigen": {
             "enabled": True,
-            "every_minutes": 3,
+            "every_minutes": 60,
             "max_pages": 2,
             "locations": [{"slug": "charlottenburg", "id": 3332}, {"slug": "westend", "id": 25905},
                           {"slug": "wilmersdorf", "id": 3532}],
         },
-        "wggesucht": {"enabled": True, "every_minutes": 5, "districts": [126, 192, 85083]},
+        "wggesucht": {"enabled": True, "every_minutes": 60, "districts": [126, 192, 85083]},
         "immowelt": {
             "enabled": True,
-            "every_minutes": 15,
+            "every_minutes": 60,
             "urls": [
                 f"https://www.immowelt.de/suche/mieten/wohnung/preis--900/zimmer-1/berlin-10115/{n}"
                 for n in ("charlottenburg-13627/nbh2de91302007", "westend-14055/nbh2de91302127",

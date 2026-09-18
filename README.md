@@ -9,18 +9,18 @@ pushes the rest to your phone. Python 3.11+, standard library only.
 
 | Source | Checked every | What it covers | How |
 |---|---|---|---|
-| `inberlinwohnen` | 2 min | All 6 municipal landlords (degewo, GESOBAU, Gewobag, HOWOGE, STADT UND LAND, WBM). Below-market rents, no scams. Many need a WBS. | Livewire JSON in the page |
-| `immoscout` | 2 min | ImmoScout24, the largest portal | The mobile app's API (the website blocks bots) |
-| `kleinanzeigen` | 3 min | Private landlords and Nachmieter ads; also the most scams | HTML + detail page per candidate |
-| `wggesucht` | 5 min | Whole flats only, open-ended leases only | HTML + detail page per candidate |
-| `immowelt` | 15 min | Partial: 30 listings per neighbourhood page, no paging (its search API is bot-protected) | LZ-compressed JSON in the page |
+| `inberlinwohnen` | 60 min | All 6 municipal landlords (degewo, GESOBAU, Gewobag, HOWOGE, STADT UND LAND, WBM). Below-market rents, no scams. Many need a WBS. | Livewire JSON in the page |
+| `immoscout` | 60 min | ImmoScout24, the largest portal | The mobile app's API (the website blocks bots) |
+| `kleinanzeigen` | 60 min | Private landlords and Nachmieter ads; also the most scams | HTML + detail page per candidate |
+| `wggesucht` | 60 min | Whole flats only, open-ended leases only | HTML + detail page per candidate |
+| `immowelt` | 60 min | Partial: 30 listings per neighbourhood page, no paging (its search API is bot-protected) | LZ-compressed JSON in the page |
 | `charlotte1907` | 60 min | Charlottenburger Baugenossenschaft, the big co-op in Charlottenburg. Weekly offers, mostly members-only. | HTML |
 | `[[watch]]` | 60 min | 7 more co-ops with Charlottenburg-Wilmersdorf stock | Alerts when new text appears on their offers page |
 
-Intervals are `every_minutes` in `config.toml`. That's about 2–3 requests a
-minute in total, at most one a minute per site, with ≥ 2 s between requests
-to the same site. A site that blocks a request is paused (2×, 4×, … its
-interval, up to an hour) while the others carry on.
+Intervals are `every_minutes` in `config.toml` (hourly by default, to stay well
+clear of rate limits): roughly 20 requests an hour in total, spread over 6 sites, with ≥ 2 s between
+requests to the same site. A site that blocks a request is paused (2×, 4×, …
+its interval, up to 6 hours) while the others carry on.
 
 ## Setup
 

@@ -48,26 +48,26 @@ ntfy_topic = "homefind-2zop46awwn3mb5"
 telegram_bot_token = ""
 telegram_chat_id = ""
 
-# every_minutes = how often --loop checks each source. Cheap sources are polled
-# often; WG-Gesucht rate-limits, the co-ops only update weekly. A source that
-# gets blocked pauses itself (2x, 4x, ... its interval, max 1 h).
+# every_minutes = how often --loop checks each source (kept hourly to stay well
+# clear of rate limits). A source that gets blocked pauses itself
+# (2x, 4x, ... its interval, max 6 h).
 [sources.inberlinwohnen]     # all 6 municipal landlords, no scams, often WBS
-every_minutes = 2
+every_minutes = 60
 [sources.immoscout]          # ImmoScout24 via its app API
-every_minutes = 2
+every_minutes = 60
 geocodes = ["1276003001011", "1276003001076"]  # Charlottenburg (+Westend), Wilmersdorf (+Halensee)
 [sources.kleinanzeigen]
-every_minutes = 3
+every_minutes = 60
 locations = [
   { slug = "charlottenburg", id = 3332 },
   { slug = "westend", id = 25905 },
   { slug = "wilmersdorf", id = 3532 },   # includes Halensee
 ]
 [sources.wggesucht]
-every_minutes = 5
+every_minutes = 60
 districts = [126, 192, 85083]          # Charlottenburg, Wilmersdorf, Halensee
 [sources.immowelt]           # partial coverage, see homefind/sources/immowelt.py
-every_minutes = 15
+every_minutes = 60
 [sources.charlotte1907]      # Charlottenburger Baugenossenschaft (co-op)
 every_minutes = 60
 [sources.watch]              # the co-op pages below

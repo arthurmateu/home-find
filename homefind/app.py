@@ -15,7 +15,7 @@ from .store import Store
 from .util import text
 
 log = logging.getLogger("homefind")
-MAX_BACKOFF_MINUTES = 60
+MAX_BACKOFF_MINUTES = 6 * 60
 
 
 def _every(cfg: dict, name: str) -> float:
@@ -39,7 +39,7 @@ def seconds_until_due(cfg: dict, store: Store, only: set[str] | None = None) -> 
 
 
 def _blocked(store: Store, name: str, every: float, err: Exception) -> None:
-    """Back off from a site that blocked us: 2x, 4x, ... its interval, capped at an hour."""
+    """Back off from a site that blocked us: 2x, 4x, ... its interval, capped at 6 hours."""
     strikes = int(store.meta_get(f"strikes:{name}") or 0) + 1
     pause = min(every * 2**strikes, MAX_BACKOFF_MINUTES * 60)
     store.meta_set(f"strikes:{name}", str(strikes))
