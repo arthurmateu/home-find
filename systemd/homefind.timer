@@ -1,0 +1,11 @@
+[Unit]
+Description=Run homefind every 10 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+RandomizedDelaySec=90
+Persistent=true
+
+[Install]
+WantedBy=timers.target

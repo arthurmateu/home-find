@@ -1,0 +1,84 @@
+# homefind configuration. Anything left out falls back to the defaults in
+# homefind/config.py. After changing [search] or [area], run
+#   python3 -m homefind --recheck
+# to re-apply the rules to everything already stored.
+
+[search]
+max_warm_rent = 1000         # € per month incl. Nebenkosten + Heizung
+min_size_sqm = 25            # drops micro-apartments / co-living rooms
+min_rooms = 1
+have_wbs = false             # true = keep listings that need a Wohnberechtigungsschein
+coop_member = false          # true = keep co-op offers marked "members only"
+reject_furnished = true      # furnished in Berlin ≈ temporary + overpriced
+include_senior_housing = false  # "Wohnen ab 50/60", Seniorenwohnungen
+extra_costs_per_sqm = 2.5    # to estimate warm rent when only cold rent is given
+suspicious_below_eur_sqm = 8.0
+scam_threshold = 3           # scam points at which a listing is dropped (see homefind/rules.py)
+
+[area]
+# A listing matches if its postcode is listed here, OR the portal labels its
+# neighbourhood with one of the names below.
+zip_codes = [
+  "10585", "10587", "10589", "10623", "10625", "10627", "10629",  # Charlottenburg
+  "14057", "14059",                                                # Lietzensee / Klausenerplatz
+  "14050", "14052", "14053", "14055",                              # Westend
+  "13627",                                                         # Charlottenburg-Nord
+  # Widen the net: Wilmersdorf / Halensee / south of Ku'damm
+  # "10707", "10709", "10711", "10713", "10715", "10717", "10719",
+]
+names = ["Charlottenburg", "Westend", "Charlottenburg-Nord"]
+
+[run]
+interval_minutes = 10        # used by --loop; the systemd timer has its own interval
+request_delay_seconds = 2.0  # minimum gap between requests to the same site
+
+[notify]
+# ntfy.sh: install the ntfy app (Android/iOS) or open https://ntfy.sh/app,
+# subscribe to this topic, then run: python3 -m homefind --test-notify
+# Anyone who knows the topic name can read it, so keep it unguessable.
+ntfy_topic = "homefind-2zop46awwn3mb5"
+# Telegram instead of / as well as ntfy: create a bot with @BotFather.
+telegram_bot_token = ""
+telegram_chat_id = ""
+
+[sources.inberlinwohnen]     # all 6 municipal landlords, no scams, often WBS
+enabled = true
+[sources.charlotte1907]      # Charlottenburger Baugenossenschaft (co-op)
+enabled = true
+[sources.immoscout]          # ImmoScout24 via its app API
+enabled = true
+geocodes = ["1276003001011"] # Charlottenburg incl. Westend + Charlottenburg-Nord
+[sources.kleinanzeigen]
+enabled = true
+locations = [{ slug = "charlottenburg", id = 3332 }, { slug = "westend", id = 25905 }]
+[sources.wggesucht]
+enabled = true
+districts = [126]            # Charlottenburg
+[sources.immowelt]           # partial coverage, see homefind/sources/immowelt.py
+enabled = true
+
+# Housing co-ops with flats in Charlottenburg-Wilmersdorf that have no parser:
+# you get a notification when new lines of text appear on their offers page.
+# Most co-ops need membership (shares of a few hundred to a few thousand €)
+# and some have closed new memberships; check each site.
+[[watch]]
+name = "Baugenossenschaft Steglitz"
+url = "https://gbst.de/wohnungssuche/"
+[[watch]]
+name = "EVM Berlin"
+url = "https://www.evmberlin.de/wohnungssuche/"
+[[watch]]
+name = "Märkische Baugenossenschaft"
+url = "https://www.mb-eg.de/wohnungssuche"
+[[watch]]
+name = "1892"
+url = "https://1892.de/wohnungssuche/"
+[[watch]]
+name = "Beamten-Wohnungs-Verein"
+url = "https://www.bwv-berlin.de/wohnungsangebote.html"
+[[watch]]
+name = "Märkische Scholle"
+url = "https://www.maerkische-scholle.de/wohnungsangebote.html"
+[[watch]]
+name = "Wohnungsbau-Verein Neukölln"
+url = "https://www.wbv-neukoelln.de/aktuelles/wohnungsangebote.html"

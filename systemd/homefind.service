@@ -1,0 +1,10 @@
+[Unit]
+Description=homefind: poll Berlin rental portals once
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/projects/home-find
+ExecStart=/usr/bin/python3 -m homefind
+TimeoutStartSec=15min
