@@ -1,4 +1,4 @@
-"""One polling run: every source, then the watched pages, then the report."""
+"""Polling: each source (and the co-op page watch) on its own schedule, then the report."""
 
 from __future__ import annotations
 
@@ -15,22 +15,65 @@ from .store import Store
 from .util import text
 
 log = logging.getLogger("homefind")
+MAX_BACKOFF_MINUTES = 60
 
 
-def run_once(cfg: dict, store: Store, http, notifier: Notifier,
-             only: set[str] | None = None, dry_run: bool = False) -> set[str]:
-    new_matches: set[str] = set()
+def _every(cfg: dict, name: str) -> float:
+    return float(cfg["sources"].get(name, {}).get("every_minutes", 10)) * 60
+
+
+def _due_at(cfg: dict, store: Store, name: str) -> float:
+    last = float(store.meta_get(f"last:{name}") or 0)
+    paused_until = float(store.meta_get(f"pause:{name}") or 0)
+    return max(last + _every(cfg, name) - 5, paused_until)
+
+
+def _names(cfg: dict, http, only: set[str] | None) -> list[str]:
+    names = [s.name for s in enabled_sources(cfg, http)] + (["watch"] if cfg.get("watch") else [])
+    return [n for n in names if not only or n in only]
+
+
+def seconds_until_due(cfg: dict, store: Store, only: set[str] | None = None) -> float:
+    soonest = min(_due_at(cfg, store, n) for n in _names(cfg, None, only))
+    return min(max(soonest - time.time(), 15), 3600)
+
+
+def _blocked(store: Store, name: str, every: float, err: Exception) -> None:
+    """Back off from a site that blocked us: 2x, 4x, ... its interval, capped at an hour."""
+    strikes = int(store.meta_get(f"strikes:{name}") or 0) + 1
+    pause = min(every * 2**strikes, MAX_BACKOFF_MINUTES * 60)
+    store.meta_set(f"strikes:{name}", str(strikes))
+    store.meta_set(f"pause:{name}", str(time.time() + pause))
+    log.warning("%s: blocked by the site (%s), pausing it for %.0f min", name, err, pause / 60)
+
+
+def run_once(cfg: dict, store: Store, http, notifier: Notifier, only: set[str] | None = None,
+             dry_run: bool = False, scheduled: bool = False) -> None:
+    """One pass. `scheduled` (the --loop mode) only runs sources that are due."""
+    now = time.time()
+    results = []
     for src in enabled_sources(cfg, http):
-        if not only or src.name in only:
-            new_matches |= _run_source(src, cfg, store, notifier, dry_run)
-    if cfg.get("watch") and (not only or "watch" in only):
+        if (only and src.name not in only) or (scheduled and _due_at(cfg, store, src.name) > now):
+            continue
+        results.append(_run_source(src, cfg, store, notifier, dry_run, quiet=scheduled))
+        if not dry_run:
+            store.meta_set(f"last:{src.name}", str(time.time()))
+    if cfg.get("watch") and (not only or "watch" in only) and not (scheduled and _due_at(cfg, store, "watch") > now):
         run_watches(cfg, store, http, notifier, dry_run)
-    if not dry_run:
-        write_report(store, cfg["run"]["report_path"], new_matches)
-    return new_matches
+        if not dry_run:
+            store.meta_set("last:watch", str(time.time()))
+        results.append({"name": "watch", "new": 0, "matches": 0})
+    if dry_run or not results:
+        return
+    write_report(store, cfg["run"]["report_path"])
+    if scheduled:
+        new = sum(r["new"] for r in results)
+        matched = sum(r["matches"] for r in results)
+        names = ", ".join(r["name"] for r in results)
+        log.info("checked %s: %s", names, f"{new} new, {matched} matching" if new else "nothing new")
 
 
-def _run_source(src, cfg, store, notifier, dry_run) -> set[str]:
+def _run_source(src, cfg, store, notifier, dry_run, quiet=False) -> dict:
     first_run = not dry_run and store.meta_get(f"init:{src.name}") is None
     handled: set[str] = set()
     seen = (lambda key: key in handled) if dry_run else store.seen
@@ -76,17 +119,23 @@ def _run_source(src, cfg, store, notifier, dry_run) -> set[str]:
                     pushed = notifier.listing(listing, verdict)
             store.add(listing, verdict, notified=pushed)
     except Blocked as e:
-        log.warning("%s: blocked by the site (%s), skipped this run", src.name, e)
-        return matches
+        if not dry_run:
+            _blocked(store, src.name, _every(cfg, src.name), e)
+        else:
+            log.warning("%s: blocked by the site (%s)", src.name, e)
+        return {"name": src.name, "new": new, "matches": len(matches)}
     except Exception:  # noqa: BLE001
         log.exception("%s: failed (the site may have changed its layout)", src.name)
-        return matches
+        return {"name": src.name, "new": new, "matches": len(matches)}
+    if not dry_run and store.meta_get(f"strikes:{src.name}") not in (None, "0"):
+        store.meta_set(f"strikes:{src.name}", "0")
     if first_run:
         store.meta_set(f"init:{src.name}", datetime.now().isoformat(timespec="seconds"))
-    log.info("%-14s scanned %3d  new %3d  matches %d  (%.0fs)%s", src.name, scanned, new, len(matches),
-             time.monotonic() - started,
-             "  [first run: stored, not pushed]" if first_run and matches else "")
-    return matches
+    if not quiet or new or first_run:
+        log.info("%-14s scanned %3d  new %3d  matches %d  (%.0fs)%s", src.name, scanned, new, len(matches),
+                 time.monotonic() - started,
+                 "  [first run: stored, not pushed]" if first_run and matches else "")
+    return {"name": src.name, "new": new, "matches": len(matches)}
 
 
 def recheck(cfg: dict, store: Store) -> tuple[int, int, int]:
@@ -142,5 +191,5 @@ def run_watches(cfg, store, http, notifier, dry_run=False) -> None:
             for line in added[:6]:
                 print(f"      + {line[:110]}")
             notifier.page_changed(name, url, added)
-    if not dry_run:
-        log.info("%-14s checked %d co-op pages, %d changed", "watch", checked, changed)
+    if not dry_run and changed:
+        log.info("%-14s %d of %d co-op pages changed", "watch", changed, checked)

@@ -16,20 +16,23 @@ DEFAULTS: dict = {
         "reject_furnished": True,
         "include_senior_housing": False,
         "extra_costs_per_sqm": 2.5,
-        "suspicious_below_eur_sqm": 8.0,
+        "suspicious_below_eur_sqm": 10.0,
         "scam_threshold": 3,
     },
     "area": {
+        # Postcodes per Wikipedia's Ortsteil infoboxes. Postcodes don't follow
+        # district borders exactly (e.g. 14197, 10777 are partly Friedenau / Schöneberg).
         "zip_codes": [
             "10585", "10587", "10589", "10623", "10625", "10627", "10629",  # Charlottenburg
-            "14057", "14059",                                                # around Lietzensee / Klausenerplatz
-            "14050", "14052", "14053", "14055",                              # Westend
-            "13627",                                                         # Charlottenburg-Nord
+            "14050", "14052", "14053", "14055", "14057", "14059",           # Westend (+ west Charlottenburg)
+            "10709", "10711",                                                # Halensee
+            "10707", "10713", "10715", "10717", "10719", "10777", "14197",  # Wilmersdorf
         ],
-        "names": ["Charlottenburg", "Westend", "Charlottenburg-Nord"],
+        # Only used when a listing has no postcode: the portal's neighbourhood label.
+        "names": ["Charlottenburg", "Westend", "Halensee", "Wilmersdorf"],
+        "exclude_names": ["Charlottenburg-Nord"],
     },
     "run": {
-        "interval_minutes": 10,
         "request_delay_seconds": 2.0,
         "db_path": "data/homefind.db",
         "report_path": "out/report.html",
@@ -40,23 +43,30 @@ DEFAULTS: dict = {
         "telegram_bot_token": "",
         "telegram_chat_id": "",
     },
+    # every_minutes: how often --loop checks each source.
     "sources": {
-        "inberlinwohnen": {"enabled": True, "max_pages": 45},
-        "immoscout": {"enabled": True, "geocodes": ["1276003001011"], "max_pages": 3},
+        "inberlinwohnen": {"enabled": True, "every_minutes": 2, "max_pages": 45},
+        "immoscout": {"enabled": True, "every_minutes": 2, "max_pages": 3,
+                      "geocodes": ["1276003001011", "1276003001076"]},  # Charlottenburg (+Westend), Wilmersdorf (+Halensee)
         "kleinanzeigen": {
             "enabled": True,
+            "every_minutes": 3,
             "max_pages": 2,
-            "locations": [{"slug": "charlottenburg", "id": 3332}, {"slug": "westend", "id": 25905}],
+            "locations": [{"slug": "charlottenburg", "id": 3332}, {"slug": "westend", "id": 25905},
+                          {"slug": "wilmersdorf", "id": 3532}],
         },
-        "wggesucht": {"enabled": True, "districts": [126]},
+        "wggesucht": {"enabled": True, "every_minutes": 5, "districts": [126, 192, 85083]},
         "immowelt": {
             "enabled": True,
+            "every_minutes": 15,
             "urls": [
-                "https://www.immowelt.de/suche/mieten/wohnung/preis--900/zimmer-1/berlin-10115/charlottenburg-13627/nbh2de91302007",
-                "https://www.immowelt.de/suche/mieten/wohnung/berlin-10115/charlottenburg-13627/nbh2de91302007",
+                f"https://www.immowelt.de/suche/mieten/wohnung/preis--900/zimmer-1/berlin-10115/{n}"
+                for n in ("charlottenburg-13627/nbh2de91302007", "westend-14055/nbh2de91302127",
+                          "halensee-10709/nbh2de91302034", "wilmersdorf-14197/nbh2de91302130")
             ],
         },
-        "charlotte1907": {"enabled": True},
+        "charlotte1907": {"enabled": True, "every_minutes": 60},
+        "watch": {"every_minutes": 60},
     },
     "watch": [],
 }

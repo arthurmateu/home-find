@@ -12,25 +12,25 @@ coop_member = false          # true = keep co-op offers marked "members only"
 reject_furnished = true      # furnished in Berlin ≈ temporary + overpriced
 include_senior_housing = false  # "Wohnen ab 50/60", Seniorenwohnungen
 extra_costs_per_sqm = 2.5    # to estimate warm rent when only cold rent is given
-suspicious_below_eur_sqm = 8.0
+suspicious_below_eur_sqm = 10.0  # warm €/m²; new leases here are ~15–25 €/m²
 scam_threshold = 3           # scam points at which a listing is dropped (see homefind/rules.py)
 
 [area]
-# A listing matches if its postcode is listed here, OR the portal labels its
-# neighbourhood with one of the names below.
+# A listing matches if its postcode is listed here. Only listings without a
+# postcode fall back to the portal's neighbourhood label (names / exclude_names).
+# Postcodes don't follow district borders exactly: 14197 and 10777 are partly
+# Friedenau / Schöneberg.
 zip_codes = [
   "10585", "10587", "10589", "10623", "10625", "10627", "10629",  # Charlottenburg
-  "14057", "14059",                                                # Lietzensee / Klausenerplatz
-  "14050", "14052", "14053", "14055",                              # Westend
-  "13627",                                                         # Charlottenburg-Nord
-  # Widen the net: Wilmersdorf / Halensee / south of Ku'damm
-  # "10707", "10709", "10711", "10713", "10715", "10717", "10719",
+  "14050", "14052", "14053", "14055", "14057", "14059",           # Westend (+ west Charlottenburg)
+  "10709", "10711",                                                # Halensee
+  "10707", "10713", "10715", "10717", "10719", "10777", "14197",  # Wilmersdorf
 ]
-names = ["Charlottenburg", "Westend", "Charlottenburg-Nord"]
+names = ["Charlottenburg", "Westend", "Halensee", "Wilmersdorf"]
+exclude_names = ["Charlottenburg-Nord"]
 
 [run]
-interval_minutes = 10        # used by --loop; the systemd timer has its own interval
-request_delay_seconds = 2.0  # minimum gap between requests to the same site
+request_delay_seconds = 2.0  # minimum gap between two requests to the same site
 
 [notify]
 # ntfy.sh: install the ntfy app (Android/iOS) or open https://ntfy.sh/app,
@@ -41,21 +41,30 @@ ntfy_topic = "homefind-2zop46awwn3mb5"
 telegram_bot_token = ""
 telegram_chat_id = ""
 
+# every_minutes = how often --loop checks each source. Cheap sources are polled
+# often; WG-Gesucht rate-limits, the co-ops only update weekly. A source that
+# gets blocked pauses itself (2x, 4x, ... its interval, max 1 h).
 [sources.inberlinwohnen]     # all 6 municipal landlords, no scams, often WBS
-enabled = true
-[sources.charlotte1907]      # Charlottenburger Baugenossenschaft (co-op)
-enabled = true
+every_minutes = 2
 [sources.immoscout]          # ImmoScout24 via its app API
-enabled = true
-geocodes = ["1276003001011"] # Charlottenburg incl. Westend + Charlottenburg-Nord
+every_minutes = 2
+geocodes = ["1276003001011", "1276003001076"]  # Charlottenburg (+Westend), Wilmersdorf (+Halensee)
 [sources.kleinanzeigen]
-enabled = true
-locations = [{ slug = "charlottenburg", id = 3332 }, { slug = "westend", id = 25905 }]
+every_minutes = 3
+locations = [
+  { slug = "charlottenburg", id = 3332 },
+  { slug = "westend", id = 25905 },
+  { slug = "wilmersdorf", id = 3532 },   # includes Halensee
+]
 [sources.wggesucht]
-enabled = true
-districts = [126]            # Charlottenburg
+every_minutes = 5
+districts = [126, 192, 85083]          # Charlottenburg, Wilmersdorf, Halensee
 [sources.immowelt]           # partial coverage, see homefind/sources/immowelt.py
-enabled = true
+every_minutes = 15
+[sources.charlotte1907]      # Charlottenburger Baugenossenschaft (co-op)
+every_minutes = 60
+[sources.watch]              # the co-op pages below
+every_minutes = 60
 
 # Housing co-ops with flats in Charlottenburg-Wilmersdorf that have no parser:
 # you get a notification when new lines of text appear on their offers page.

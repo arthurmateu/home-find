@@ -25,11 +25,12 @@ class ImmoScout(Source):
 
     def search(self, seen):
         s = self.cfg["search"]
-        for geocode in self.opts.get("geocodes", []):
+        geocodes = ",".join(self.opts.get("geocodes", []))
+        if geocodes:
             for page in range(1, self.opts.get("max_pages", 3) + 1):
                 params = {
                     "searchType": "region",
-                    "geocodes": geocode,
+                    "geocodes": geocodes,
                     "realestatetype": "apartmentrent",
                     "price": f"-{float(s['max_warm_rent']):.1f}",
                     "pricetype": "calculatedtotalrent",

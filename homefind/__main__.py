@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 from . import config
-from .app import recheck, run_once
+from .app import recheck, run_once, seconds_until_due
 from .report import write_report
 from .net import Fetcher
 from .notify import Notifier, print_reject
@@ -25,7 +25,8 @@ PROJECT_CONFIG = Path(__file__).resolve().parent.parent / "config.toml"
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="homefind", description="Poll Berlin rental portals for matching flats.")
     ap.add_argument("-c", "--config", help=f"config file (default: {PROJECT_CONFIG})")
-    ap.add_argument("--loop", action="store_true", help="keep running every run.interval_minutes")
+    ap.add_argument("--loop", action="store_true",
+                    help="keep running; each source on its own schedule (sources.*.every_minutes)")
     ap.add_argument("--only", help="comma-separated: " + ",".join(SOURCE_NAMES + ["watch"]))
     ap.add_argument("--dry-run", action="store_true",
                     help="evaluate everything online now and print each verdict; store and push nothing")
@@ -61,6 +62,8 @@ def main(argv=None) -> int:
         print(f"rechecked {total} listings: {changed} changed verdict, {dropped} will be re-fetched next run")
         return 0
 
+    if args.loop and args.dry_run:
+        ap.error("--dry-run is a one-off check; drop --loop")
     only = {s.strip() for s in args.only.split(",")} if args.only else None
     unknown = (only or set()) - set(SOURCE_NAMES) - {"watch"}
     if unknown:
@@ -77,19 +80,22 @@ def main(argv=None) -> int:
     if not notifier.configured and not (args.dry_run or args.no_push):
         log.warning("no notification channel configured; matches only go to the console and %s",
                     cfg["run"]["report_path"])
-    while True:
+    if not args.loop:
         run_once(cfg, store, http, notifier, only=only, dry_run=args.dry_run)
         if not args.dry_run:
             log.info("report: %s", cfg["run"]["report_path"])
-        if not args.loop:
-            return 0
-        pause = cfg["run"]["interval_minutes"] * 60 * random.uniform(0.8, 1.2)
-        log.info("next run in %.0f min", pause / 60)
-        time.sleep(pause)
+        return 0
+
+    log.info("watching; each source is checked on its own schedule (sources.*.every_minutes). Ctrl+C stops.")
+    log.info("report: %s", cfg["run"]["report_path"])
+    while True:
+        run_once(cfg, store, http, notifier, only=only, scheduled=True)
+        time.sleep(seconds_until_due(cfg, store, only) * random.uniform(0.9, 1.15))
 
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
+        print("\nstopped")
         sys.exit(130)

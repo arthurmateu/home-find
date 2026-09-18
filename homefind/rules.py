@@ -58,8 +58,19 @@ TEMP_TEXT = _rx(
 )
 FURNISHED = _rx(
     r"(?<!un)(?<!teil)(?<!nicht )(?<!nicht voll )möbliert|(?<!un)furnished|all[- ]?inclusive"
-    r"|(voll|komplett|hochwertig) eingerichtete[n]? (apartment|wohnung|studio)"
+    r"|(voll|komplett|hochwertig|stilvoll|modern|elegant) eingerichtete[n]? (apartment|wohnung|studio)"
+    r"|(elegante|stilvolle|hochwertige|komplette|moderne|gemütliche) (einrichtung|möblierung)"
 )
+# Title is about something other than a flat ("Großer Keller zu vermieten", "Stellplatz ...").
+NOT_A_FLAT = _rx(r"^\W*(\w+ ){0,2}(keller(raum)?|lager(raum|fläche)?|abstellraum|stellplatz|tiefgarage\w*|garage"
+                 r"|parkplatz|büro(raum|fläche)?|gewerbe\w*|praxis\w*|ladenfläche)\b")
+BERLIN_DISTRICTS = [
+    "Mitte", "Moabit", "Wedding", "Gesundbrunnen", "Tiergarten", "Kreuzberg", "Friedrichshain", "Neukölln",
+    "Pankow", "Prenzlauer Berg", "Weißensee", "Lichtenberg", "Hohenschönhausen", "Marzahn", "Hellersdorf",
+    "Treptow", "Köpenick", "Adlershof", "Spandau", "Siemensstadt", "Reinickendorf", "Tegel", "Steglitz",
+    "Zehlendorf", "Lichterfelde", "Lankwitz", "Dahlem", "Tempelhof", "Schöneberg", "Friedenau",
+    "Mariendorf", "Britz", "Rudow", "Buckow", "Grunewald", "Schmargendorf",
+]
 SENIOR = _rx(r"\b(wohnen )?ab (50|55|60|65|70) jahren?\b|senioren(wohnung|wohnen|wohnanlage|residenz)|betreutes wohnen"
              r"|\bfür senior(en|innen)\b")
 NACHMIETER = _rx(r"nachmieter")
@@ -106,13 +117,32 @@ def mentions_tenant_fee(s: str) -> bool:
     return False
 
 
+def _other_district_in_title(title: str, cfg: dict) -> str | None:
+    """A Berlin district outside the search area named in the title, unless the
+    title also names the area ("Wilmersdorf/Schöneberg border" is fine)."""
+    t = title.lower()
+    for excluded in cfg["area"].get("exclude_names", []):
+        if re.search(rf"\b{re.escape(excluded.lower())}\b", t):
+            return excluded
+    if any(re.search(rf"\b{re.escape(n.lower())}\b", t) for n in cfg["area"]["names"]):
+        return None
+    wanted = {n.lower() for n in cfg["area"]["names"]}
+    for d in BERLIN_DISTRICTS:
+        if d.lower() not in wanted and re.search(rf"\b{re.escape(d.lower())}\b", t):
+            return d
+    return None
+
+
 def in_area(listing: Listing, cfg: dict) -> bool:
-    if listing.zip_code and listing.zip_code in cfg["area"]["zip_codes"]:
-        return True
-    # Fall back to the portal's own neighbourhood label. The borough name
-    # "Charlottenburg-Wilmersdorf" is too broad to count.
-    label = f"{listing.district or ''} {listing.address or ''}".lower().replace("charlottenburg-wilmersdorf", "")
-    return any(re.search(rf"\b{re.escape(n.lower())}\b", label) for n in cfg["area"]["names"])
+    area = cfg["area"]
+    if listing.zip_code:
+        return listing.zip_code in area["zip_codes"]
+    # No postcode: fall back to the portal's neighbourhood label. The borough
+    # name "Charlottenburg-Wilmersdorf" is too broad to count.
+    label = f"{listing.district or ''} {listing.address or ''}".lower()
+    for excluded in ["charlottenburg-wilmersdorf", *(n.lower() for n in area.get("exclude_names", []))]:
+        label = label.replace(excluded, "")
+    return any(re.search(rf"\b{re.escape(n.lower())}\b", label) for n in area["names"])
 
 
 def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
@@ -154,6 +184,11 @@ def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
     # --- not a normal long-term rental
     if sig.get("swap_only") or SWAP_TITLE.search(title) or SWAP_TEXT.search(desc):
         v.reject("swap offer (Wohnungstausch)")
+    if NOT_A_FLAT.search(title):
+        v.reject("not a flat (cellar / parking / commercial)")
+    elsewhere = _other_district_in_title(title, cfg)
+    if elsewhere:
+        v.reject(f"title says it's in {elsewhere}")
     if WANTED_TITLE.search(title):
         v.reject("wanted ad, not an offer")
     if WG_TITLE.search(title) or WG_TEXT.search(desc):
