@@ -65,7 +65,8 @@ Windows restart, start it again.
 - **Photos:** arrows on each card flip through all photos; click a photo for
   the full-screen viewer (arrow keys, swipe, thumbnail strip, Esc to close).
 - **Descriptions:** per card, or "Expand descriptions" for all.
-- **☆ Save / Hide** on every listing, stored in the database (hide has Undo).
+- **☆ Save / Hide** on every listing, stored in the database (both have Undo).
+  Saved listings move to the Saved tab, so they don't take space under Matches.
 - **Score (0–100)** on every listing, rejected ones included, sorted best
   first (or newest / cheapest / largest). "Why 74?" shows the points:
   value for money (warm €/m²) 35 · budget fit 15 (negative when over) ·
