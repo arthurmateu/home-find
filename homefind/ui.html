@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>Flat hunt</title>
+<link rel="icon" id="favicon">
 <style>
 :root {
   --bg: #f6f6f3; --card: #fff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e3e3de; --chip: #f0f0ec;
@@ -217,6 +218,7 @@ const state = { tab: "matches", reason: "inarea", shown: PAGE, expandAll: prefs.
                 sort: SORTS[prefs.get("sort", "score")] ? prefs.get("sort", "score") : "score" };
 const prevSeen = prefs.get("lastSeen", "");  // newest listing at the previous visit
 
+const inArea = (l) => !l.codes.includes("area") && !l.codes.includes("avoid");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const when = (iso) => iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
 
@@ -227,7 +229,7 @@ function visible() {
   const test = TABS.find((t) => t[0] === state.tab)[2];
   let list = data.listings.filter(test);
   if (state.tab === "rejected") {
-    list = list.filter((l) => state.reason === "inarea" ? !l.codes.includes("area") : l.codes.includes(state.reason));
+    list = list.filter((l) => state.reason === "inarea" ? inArea(l) : l.codes.includes(state.reason));
   }
   return list.sort(SORTS[state.sort]);
 }
@@ -242,7 +244,7 @@ function renderTabs() {
   const rejected = data.listings.filter(TABS[2][2]);
   const counts = {};
   for (const l of rejected) for (const c of l.codes) counts[c] = (counts[c] || 0) + 1;
-  const chips = [["inarea", "All in area", rejected.filter((l) => !l.codes.includes("area")).length],
+  const chips = [["inarea", "All in area", rejected.filter(inArea).length],
     ...Object.entries(data.reasons).filter(([c]) => counts[c]).map(([c, label]) => [c, label, counts[c]])];
   row.innerHTML = chips.map(([c, label, n]) =>
     `<button class="chip-btn" aria-pressed="${c === state.reason}" data-reason="${c}">${esc(label)}<span class="n">${n}</span></button>`
@@ -383,6 +385,26 @@ async function setStatus(l, status) {
   }
 }
 
+// ---- tab alert: new matches that arrive while you're elsewhere put a count in the
+// tab title and a dot on its icon, until you come back to the tab. Nothing else.
+const TITLE = document.title;
+const unseen = new Set();  // keys of new matches since you last looked
+const icon = (dot) => "data:image/svg+xml," + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1f6f5c"/>' +
+  '<path d="M16 6 4 16h3.5v10h6.5v-7h4v7h6.5V16H28z" fill="#fff"/>' +
+  (dot ? '<circle cx="25" cy="7" r="6.5" fill="#e5484d" stroke="#fff" stroke-width="2"/>' : "") + "</svg>");
+const looking = () => !document.hidden && document.hasFocus();
+// Same as what gets pushed to your phone: a match that isn't a repost of one you've seen.
+const alertWorthy = (l) => l.ok && !l.notes.some((t) => t.startsWith("same rent/size/postcode"));
+function markTab() {
+  const n = unseen.size;
+  document.title = n ? `(${n}) New match${n > 1 ? "es" : ""} · ${TITLE}` : TITLE;
+  $("favicon").href = icon(n > 0);
+}
+function clearTab() { if (unseen.size && looking()) { unseen.clear(); markTab(); } }
+addEventListener("focus", clearTab);
+document.addEventListener("visibilitychange", clearTab);
+
 // ---- live updates: new listings appear on their own while the page is open
 const atTop = () => $("lb").hidden && scrollY < 300;
 function showPending() {
@@ -403,12 +425,17 @@ async function poll() {
   try {
     const r = await fetch("/api/listings", { cache: "no-store" });
     if (!r.ok) return;
-    const next = await r.json();
+    const next = normalize(await r.json());
     data.subtitle = next.subtitle;
     $("sub").textContent = next.subtitle;
-    if (!next.listings.some((l) => !byKey.has(l.key))) return;
+    const fresh = next.listings.filter((l) => !byKey.has(l.key));
+    if (!fresh.length) return;
     for (const l of next.listings) { const cur = byKey.get(l.key); if (cur) l.status = cur.status; }
-    pending = normalize(next);
+    if (!looking()) {
+      for (const l of fresh.filter(alertWorthy)) unseen.add(l.key);
+      markTab();
+    }
+    pending = next;
     showPending();
   } catch { /* homefind isn't running right now; try again later */ }
 }
@@ -502,6 +529,7 @@ const fromHash = location.hash.slice(1);
 if (TABS.some((t) => t[0] === fromHash)) state.tab = fromHash;
 index();
 render();
+markTab();
 prefs.set("lastSeen", data.listings.reduce((m, l) => (l.first_seen > m ? l.first_seen : m), ""));
 setInterval(poll, 60000);
 </script>

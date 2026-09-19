@@ -15,8 +15,8 @@ reject_furnished = true      # furnished in Berlin ≈ temporary + overpriced
 include_senior_housing = false  # "Wohnen ab 50/60", Seniorenwohnungen
 # Rejected for one of these reasons = not shown anywhere (not even under Rejected).
 # Codes: near_miss budget no_rent size rooms swap wanted not_flat wg temporary
-#        furnished wbs members senior scam photos district area
-drop_reasons = ["wg", "senior"]
+#        furnished wbs members senior scam photos district area avoid
+drop_reasons = ["wg", "senior", "swap", "avoid"]
 extra_costs_per_sqm = 2.5    # to estimate warm rent when only cold rent is given
 suspicious_below_eur_sqm = 10.0  # warm €/m²; new leases here are ~15–25 €/m²
 scam_threshold = 3           # scam points at which a listing is dropped (see homefind/rules.py)
@@ -34,6 +34,34 @@ zip_codes = [
 ]
 names = ["Charlottenburg", "Westend", "Halensee", "Wilmersdorf"]
 exclude_names = ["Charlottenburg-Nord"]
+# Never interesting, not even under Rejected → Outside area: former East Berlin
+# and Spandau (reason code "avoid", dropped via drop_reasons above). Postcodes
+# that straddle a border, like 13629 (Siemensstadt / Charlottenburg-Nord), are
+# left out, so those still show under "Outside area".
+avoid_zip_codes = [
+  "10115", "10117", "10119", "10178", "10179",                    # Mitte (the old East part)
+  "10243", "10245", "10247", "10249",                             # Friedrichshain
+  "10405", "10407", "10409", "10435", "10437", "10439",           # Prenzlauer Berg
+  "13086", "13088", "13089", "13125", "13127", "13129",           # Weißensee, Heinersdorf, Buch, Karow, ...
+  "13156", "13158", "13159", "13187", "13189",                    # Pankow, Niederschönhausen, Rosenthal
+  "10315", "10317", "10318", "10319", "10365", "10367", "10369",  # Lichtenberg, Friedrichsfelde, Karlshorst
+  "13051", "13053", "13055", "13057", "13059",                    # Hohenschönhausen
+  "12619", "12621", "12623", "12627", "12629",                    # Hellersdorf, Kaulsdorf, Mahlsdorf
+  "12679", "12681", "12683", "12685", "12687", "12689",           # Marzahn, Biesdorf
+  "12435", "12437", "12439", "12459", "12487", "12489",           # Treptow, Schöneweide, Adlershof
+  "12524", "12526", "12527", "12555", "12557", "12559", "12587", "12589",  # Köpenick & around
+  "13581", "13583", "13585", "13587", "13589", "13591", "13593",  # Spandau
+  "13595", "13597", "13599", "14089",                             # Spandau, Haselhorst, Kladow, Gatow
+]
+# Only for listings without a postcode (portal label, or a place in the title).
+avoid_names = [
+  "Friedrichshain", "Prenzlauer Berg", "Pankow", "Weißensee", "Weissensee", "Heinersdorf",
+  "Niederschönhausen", "Lichtenberg", "Friedrichsfelde", "Karlshorst", "Rummelsburg", "Hohenschönhausen",
+  "Marzahn", "Hellersdorf", "Biesdorf", "Kaulsdorf", "Mahlsdorf", "Treptow", "Köpenick", "Adlershof",
+  "Johannisthal", "Schöneweide", "Oberschöneweide", "Niederschöneweide", "Baumschulenweg", "Plänterwald",
+  "Altglienicke", "Grünau", "Friedrichshagen",
+  "Spandau", "Siemensstadt", "Haselhorst", "Hakenfelde", "Staaken", "Wilhelmstadt", "Kladow", "Gatow",
+]
 
 [run]
 request_delay_seconds = 2.0  # minimum gap between two requests to the same site

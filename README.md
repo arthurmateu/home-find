@@ -40,7 +40,9 @@ Start-Process wsl -ArgumentList '-d Ubuntu --cd /home/mouse/projects/home-find -
 After that, just open **<http://localhost:8765>** whenever you like (bookmark
 it). The page is always current when opened, and while it stays open new
 listings appear by themselves (or as a "new match" banner if you've scrolled
-down). Stop it with:
+down). If a new match comes in while you're in another tab or window, the
+page's tab shows it: "(1) New match · Flat hunt" and a red dot on its icon,
+until you switch back. No sound, no pop-up. Stop it with:
 
 ```powershell
 wsl -d Ubuntu -- pkill -f '^python3 -m homefind'
@@ -76,8 +78,8 @@ Windows restart, start it again.
   the warm rent is over budget while the cold rent is within
   `near_miss_cold_rent` (1000 € by default); that's why the sources search up
   to 1000 € *cold*. Sorted by score, the near misses worth a look come first.
-- WG rooms and senior housing don't show up at all (`drop_reasons` in
-  `config.toml`).
+- WG rooms, senior housing, swap offers and anything in former East Berlin or
+  Spandau don't show up at all (`drop_reasons` in `config.toml`).
 
 ## Commands
 
@@ -101,7 +103,7 @@ it to start over.
 All in `homefind/rules.py`. **Hard rejects:** over budget (warm rent; estimated
 from cold rent at `extra_costs_per_sqm` if that's all there is), outside the
 area (by postcode; the portal's neighbourhood label only when there is no
-postcode), a title naming another district ("… Berlin Spandau"), under
+postcode; East Berlin and Spandau, `avoid_zip_codes`, are dropped outright), a title naming another district ("… Berlin Spandau"), under
 `min_size_sqm`, swap offers ("Tauschwohnung", ~85% of cheap IS24 results),
 wanted ads, cellars/parking/offices, WG rooms, temporary/sublet/holiday flats,
 furnished, WBS-only (unless `have_wbs`), co-op members-only (unless

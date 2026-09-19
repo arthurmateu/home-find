@@ -58,6 +58,7 @@ REASONS = {
     "photos": "No photos",
     "district": "Title names another district",
     "area": "Outside area",
+    "avoid": "Avoided area",
 }
 
 
@@ -66,7 +67,9 @@ def _rx(pattern: str) -> re.Pattern:
 
 
 SWAP_TITLE = _rx(r"tausch|swap")
-SWAP_TEXT = _rx(r"tauschangebot|tauschwohnung|wohnungstausch|nur (im |gegen |zum )?tausch|zum tausch\b|im tausch gegen")
+SWAP_TEXT = _rx(r"tauschangebot|tauschwohnung|wohnungstausch|tauschpartner|nur (im |gegen |zum )?tausch|zum tausch\b"
+               r"|im tausch gegen|(wohnung|zimmer\w*) (zu |zum )?tauschen|tausche (meine|unsere)"
+               r"|\bswap|(flat|apartment|home|house) ?exchange|exchange (my|our) (flat|apartment)")
 WANTED_TITLE = _rx(r"^\W*(ich |wir )?(suche|suchen|gesucht|gesuch)\b")
 WG_TITLE = _rx(r"\bwg\b|wg-?zimmer|mitbewohner|flat ?share|shared (flat|apartment)|\broom in (a|an|my|our)\b")
 WG_TEXT = _rx(r"wg-?zimmer|\b(in|für) (eine|unsere|meine)[nr]? \w{0,6} ?wg\b|mitbewohner(in)? gesucht|flat ?share")
@@ -97,6 +100,8 @@ BERLIN_DISTRICTS = [
     "Zehlendorf", "Lichterfelde", "Lankwitz", "Dahlem", "Tempelhof", "Schöneberg", "Friedenau",
     "Mariendorf", "Britz", "Rudow", "Buckow", "Grunewald", "Schmargendorf",
 ]
+# Borough names that span wanted/avoided and other neighbourhoods: too broad to count.
+BROAD_BOROUGHS = ["charlottenburg-wilmersdorf", "friedrichshain-kreuzberg"]
 SENIOR = _rx(r"\b(wohnen )?ab (50|55|60|65|70) jahren?\b|senioren(wohnung|wohnen|wohnanlage|residenz)|betreutes wohnen"
              r"|\bfür senior(en|innen)\b")
 NACHMIETER = _rx(r"nachmieter")
@@ -143,6 +148,13 @@ def mentions_tenant_fee(s: str) -> bool:
     return False
 
 
+def _place_in_title(title: str, places: list[str]) -> str | None:
+    """The first of `places` named as a location in the title: "Berlin-Spandau",
+    "in Spandau", or leading the title; not "ab Mitte Oktober" or "nahe Grunewald"."""
+    t = title.lower()
+    return next((p for p in places if re.search(rf"(berlin[- ]|\bin |^\W*){re.escape(p.lower())}\b", t)), None)
+
+
 def _other_district_in_title(title: str, cfg: dict) -> str | None:
     """A Berlin district outside the search area named in the title, unless the
     title also names the area ("Wilmersdorf/Schöneberg border" is fine)."""
@@ -153,24 +165,36 @@ def _other_district_in_title(title: str, cfg: dict) -> str | None:
     if any(re.search(rf"\b{re.escape(n.lower())}\b", t) for n in cfg["area"]["names"]):
         return None
     wanted = {n.lower() for n in cfg["area"]["names"]}
-    for d in BERLIN_DISTRICTS:
-        # Only as a place: "Berlin-Spandau", "in Spandau", or leading the title;
-        # not "ab Mitte Oktober" or "nahe Grunewald".
-        if d.lower() not in wanted and re.search(rf"(berlin[- ]|\bin |^\W*){re.escape(d.lower())}\b", t):
-            return d
-    return None
+    return _place_in_title(title, [d for d in BERLIN_DISTRICTS if d.lower() not in wanted])
+
+
+def _label(listing: Listing, remove: list[str]) -> str:
+    """The portal's neighbourhood label and address, minus names too broad to count."""
+    label = f"{listing.district or ''} {listing.address or ''}".lower()
+    for name in [*BROAD_BOROUGHS, *(n.lower() for n in remove)]:
+        label = label.replace(name, "")
+    return label
 
 
 def in_area(listing: Listing, cfg: dict) -> bool:
     area = cfg["area"]
     if listing.zip_code:
         return listing.zip_code in area["zip_codes"]
-    # No postcode: fall back to the portal's neighbourhood label. The borough
-    # name "Charlottenburg-Wilmersdorf" is too broad to count.
-    label = f"{listing.district or ''} {listing.address or ''}".lower()
-    for excluded in ["charlottenburg-wilmersdorf", *(n.lower() for n in area.get("exclude_names", []))]:
-        label = label.replace(excluded, "")
+    # No postcode: fall back to the portal's neighbourhood label.
+    label = _label(listing, area.get("exclude_names", []))
     return any(re.search(rf"\b{re.escape(n.lower())}\b", label) for n in area["names"])
+
+
+def avoided_place(listing: Listing, cfg: dict) -> str | None:
+    """Where the listing is, if that's somewhere you never want to see (avoid_zip_codes);
+    without a postcode, by the neighbourhood label or a place named in the title."""
+    area = cfg["area"]
+    if listing.zip_code:
+        return listing.zip_code if listing.zip_code in area.get("avoid_zip_codes", []) else None
+    names = area.get("avoid_names", [])
+    label = _label(listing, [])
+    return (next((n for n in names if re.search(rf"\b{re.escape(n.lower())}\b", label)), None)
+            or _place_in_title(listing.title or "", names))
 
 
 def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
@@ -182,7 +206,12 @@ def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
     blob = f"{title}\n{desc}"
 
     if not in_area(listing, cfg):
-        v.reject(f"outside area ({listing.zip_code or listing.district or 'no location'})", "area")
+        place = avoided_place(listing, cfg)
+        if place:
+            where = f"{place} {listing.district or ''}".strip() if listing.zip_code else place
+            v.reject(f"in an avoided area ({where})", "avoid")
+        else:
+            v.reject(f"outside area ({listing.zip_code or listing.district or 'no location'})", "area")
 
     # --- rent
     warm = listing.warm_rent

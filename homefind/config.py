@@ -16,7 +16,7 @@ DEFAULTS: dict = {
         "coop_member": False,
         "reject_furnished": True,
         "include_senior_housing": False,
-        "drop_reasons": ["wg", "senior"],
+        "drop_reasons": ["wg", "senior", "swap", "avoid"],
         "extra_costs_per_sqm": 2.5,
         "suspicious_below_eur_sqm": 10.0,
         "scam_threshold": 3,
@@ -33,6 +33,9 @@ DEFAULTS: dict = {
         # Only used when a listing has no postcode: the portal's neighbourhood label.
         "names": ["Charlottenburg", "Westend", "Halensee", "Wilmersdorf"],
         "exclude_names": ["Charlottenburg-Nord"],
+        # Never shown at all (reason "avoid"); config.toml lists East Berlin and Spandau.
+        "avoid_zip_codes": [],
+        "avoid_names": [],
     },
     "run": {
         "request_delay_seconds": 2.0,
