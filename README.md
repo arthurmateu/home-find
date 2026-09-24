@@ -79,8 +79,9 @@ Windows restart, start it again.
   the warm rent is over budget while the cold rent is within
   `near_miss_cold_rent` (1000 € by default); that's why the sources search up
   to 1000 € *cold*. Sorted by score, the near misses worth a look come first.
-- WG rooms, senior housing, swap offers and anything in former East Berlin or
-  Spandau don't show up at all (`drop_reasons` in `config.toml`).
+- WG rooms, senior housing, swap offers, WBS-only flats and anything in former
+  East Berlin, Spandau or Neukölln don't show up at all (`drop_reasons` in
+  `config.toml`).
 
 ## Commands
 
@@ -104,7 +105,7 @@ it to start over.
 All in `homefind/rules.py`. **Hard rejects:** over budget (warm rent; estimated
 from cold rent at `extra_costs_per_sqm` if that's all there is), outside the
 area (by postcode; the portal's neighbourhood label only when there is no
-postcode; East Berlin and Spandau, `avoid_zip_codes`, are dropped outright), a title naming another district ("… Berlin Spandau"), under
+postcode; East Berlin, Spandau and Neukölln, `avoid_zip_codes`, are dropped outright), a title naming another district ("… Berlin Spandau"), under
 `min_size_sqm`, swap offers ("Tauschwohnung", ~85% of cheap IS24 results),
 wanted ads, cellars/parking/offices, WG rooms, temporary/sublet/holiday flats,
 furnished, WBS-only (unless `have_wbs`), co-op members-only (unless

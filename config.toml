@@ -10,13 +10,14 @@ near_miss_cold_rent = 1000   # also load flats with cold rent up to this; if war
 min_size_sqm = 25            # drops micro-apartments / co-living rooms
 min_rooms = 1
 have_wbs = false             # true = keep listings that need a Wohnberechtigungsschein
+                             # (with it false, also take "wbs" out of drop_reasons to see them under Rejected)
 coop_member = false          # true = keep co-op offers marked "members only"
 reject_furnished = true      # furnished in Berlin ≈ temporary + overpriced
 include_senior_housing = false  # "Wohnen ab 50/60", Seniorenwohnungen
 # Rejected for one of these reasons = not shown anywhere (not even under Rejected).
 # Codes: near_miss budget no_rent size rooms swap wanted not_flat wg temporary
 #        furnished wbs members senior scam photos district area avoid
-drop_reasons = ["wg", "senior", "swap", "avoid"]
+drop_reasons = ["wg", "senior", "swap", "avoid", "wbs"]
 extra_costs_per_sqm = 2.5    # to estimate warm rent when only cold rent is given
 suspicious_below_eur_sqm = 10.0  # warm €/m²; new leases here are ~15–25 €/m²
 scam_threshold = 3           # scam points at which a listing is dropped (see homefind/rules.py)
@@ -34,8 +35,8 @@ zip_codes = [
 ]
 names = ["Charlottenburg", "Westend", "Halensee", "Wilmersdorf"]
 exclude_names = ["Charlottenburg-Nord"]
-# Never interesting, not even under Rejected → Outside area: former East Berlin
-# and Spandau (reason code "avoid", dropped via drop_reasons above). Postcodes
+# Never interesting, not even under Rejected → Outside area: former East Berlin,
+# Spandau and Neukölln (reason code "avoid", dropped via drop_reasons above). Postcodes
 # that straddle a border, like 13629 (Siemensstadt / Charlottenburg-Nord), are
 # left out, so those still show under "Outside area".
 avoid_zip_codes = [
@@ -52,6 +53,8 @@ avoid_zip_codes = [
   "12524", "12526", "12527", "12555", "12557", "12559", "12587", "12589",  # Köpenick & around
   "13581", "13583", "13585", "13587", "13589", "13591", "13593",  # Spandau
   "13595", "13597", "13599", "14089",                             # Spandau, Haselhorst, Kladow, Gatow
+  "12043", "12045", "12047", "12049", "12051", "12053", "12055", "12057", "12059",  # Neukölln
+  "12347", "12349", "12351", "12353", "12355", "12357", "12359",  # Britz, Buckow, Gropiusstadt, Rudow
 ]
 # Only for listings without a postcode (portal label, or a place in the title).
 avoid_names = [
@@ -61,6 +64,7 @@ avoid_names = [
   "Johannisthal", "Schöneweide", "Oberschöneweide", "Niederschöneweide", "Baumschulenweg", "Plänterwald",
   "Altglienicke", "Grünau", "Friedrichshagen",
   "Spandau", "Siemensstadt", "Haselhorst", "Hakenfelde", "Staaken", "Wilhelmstadt", "Kladow", "Gatow",
+  "Neukölln", "Neukoelln", "Britz", "Buckow", "Gropiusstadt", "Rudow",
 ]
 
 [run]

@@ -131,11 +131,14 @@ WBS_RX = _rx(r"\bwbs\b|wohnberechtigungsschein")
 
 def mentions_wbs_required(s: str) -> bool:
     for m in WBS_RX.finditer(s):
-        ctx = s[max(0, m.start() - 30): m.end() + 30].lower()
-        if re.search(r"ohne|kein|nicht (erforderlich|notwendig|nötig|benötigt)", ctx):
+        before, after = s[max(0, m.start() - 30): m.start()].lower(), s[m.end(): m.end() + 30].lower()
+        # "ohne WBS", "keine WBS-Wohnung", "WBS nicht erforderlich"; not "WBS erforderlich. Keine Haustiere"
+        if (re.search(r"\b(ohne|kein\w*)\b[^.!?\n]*$", before)
+                or re.search(r"^[^.!?\n]*nicht (erforderlich|notwendig|nötig|benötigt)", after)):
             continue
-        if re.search(r"erforderlich|notwendig|nötig|benötigt|vorausgesetzt|zwingend|pflicht|nur mit|mit wbs"
-                     r"|wbs[- ]?\d{2,3}|wbs-?berechtig", ctx):
+        ctx = before + s[m.start(): m.end()].lower() + after
+        if re.search(r"erforderlich|notwendig|nötig|benötigt|vorausgesetzt|zwingend|pflicht|nur mit|mit (einem )?wbs"
+                     r"|wbs[- ]?\d{2,3}|wbs bis (zu )?\d|wbs-?berechtig|wbs-?wohnung", ctx):
             return True
     return False
 
@@ -269,8 +272,8 @@ def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
         else:
             v.notes.append("furnished")
 
-    wbs = listing.wbs_required if listing.wbs_required is not None else mentions_wbs_required(blob)
-    if wbs:
+    # Either counts: inberlinwohnen's field says "nicht erforderlich" on flats titled "WBS 220 erforderlich".
+    if listing.wbs_required or mentions_wbs_required(blob):
         if s["have_wbs"]:
             v.notes.append("WBS required")
         else:

@@ -65,7 +65,8 @@ def parse(page: str):
             zip_code=addr.get("zipCode"),
             district=addr.get("district"),
             address=" ".join(x for x in (addr.get("street"), addr.get("number")) if x),
-            wbs_required=(wbs == "erforderlich") if wbs else None,
+            # "erforderlich", "nicht erforderlich" or "unbekannt"; rules.py also reads the title
+            wbs_required={"erforderlich": True, "nicht erforderlich": False}.get(wbs),
             available_from=it.get("occupationDate"),
             published=it.get("createdAt"),
             landlord=(company.get("name") or "").strip() or None,
