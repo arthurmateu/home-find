@@ -10,7 +10,14 @@ _REV = {c: i for i, c in enumerate(_KEY)}
 def decompress_from_base64(s: str) -> str | None:
     if not s:
         return ""
-    return _decompress(len(s), 32, lambda i: _REV[s[i]])
+    out = _decompress(len(s), 32, lambda i: _REV[s[i]])
+    return None if out is None else _join_surrogates(out)
+
+
+def _join_surrogates(s: str) -> str:
+    """LZ-String works in UTF-16 code units, so an emoji comes out as two lone
+    surrogates; pair them back up (a stray unpaired one becomes U+FFFD)."""
+    return s.encode("utf-16-le", "surrogatepass").decode("utf-16-le", "replace")
 
 
 def _decompress(length, reset_value, get_next):
