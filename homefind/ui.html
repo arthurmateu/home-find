@@ -492,7 +492,9 @@ $("reasons").addEventListener("click", (e) => {
   const b = e.target.closest("[data-chip]");
   if (!b) return;
   applyPending();
-  state.chip[state.tab] = b.dataset.chip;
+  // Clicking the selected chip again goes back to the tab's default (its first chip).
+  const cur = state.chip[state.tab];
+  state.chip[state.tab] = b.dataset.chip === cur ? chipsFor(state.tab)[0]?.[0] ?? cur : b.dataset.chip;
   state.shown = PAGE;
   render();
 });
