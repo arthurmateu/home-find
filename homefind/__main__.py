@@ -37,7 +37,7 @@ def main(argv=None) -> int:
     ap.add_argument("--recheck", action="store_true",
                     help="re-apply the rules to all stored listings (after editing config.toml)")
     ap.add_argument("--check-offline", action="store_true",
-                    help="look up every stored ad now and move the ones taken offline to Hidden "
+                    help="look up every stored ad now and file away the ones taken offline "
                          "(--loop only does a few per check)")
     ap.add_argument("--test-notify", action="store_true", help="send a test notification")
     ap.add_argument("-v", "--verbose", action="store_true")

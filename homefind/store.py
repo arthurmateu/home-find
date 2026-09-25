@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import NamedTuple
 
@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS fingerprints (fp TEXT PRIMARY KEY, key TEXT, url TEXT
 """
 
 
+SAVED_OFFLINE_DAYS = 2  # a saved ad taken offline stays on Saved this long, then moves to Hidden
+
+
 def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
@@ -42,6 +45,7 @@ class Row(NamedTuple):
     gone: str | None      # the ad was taken offline: 'deactivated' or 'deleted'
     gone_at: str | None   # when that was noticed
     status_if_back: str | None  # where it goes if it comes back online
+    hide_at: str | None   # saved and offline: when it moves to Hidden
 
 
 class Store:
@@ -52,9 +56,17 @@ class Store:
         self.db.executescript(SCHEMA)
         columns = {row[1] for row in self.db.execute("PRAGMA table_info(listings)")}
         # Added later: status (the web UI: NULL, 'saved' or 'hidden'), then the offline check's columns.
-        for column in ("status", "gone", "gone_at", "status_if_back"):
+        for column in ("status", "gone", "gone_at", "status_if_back", "hide_at"):
             if column not in columns:
                 self.db.execute(f"ALTER TABLE listings ADD COLUMN {column} TEXT")
+        if "gone" in columns and "hide_at" not in columns:
+            # Offline ads marked when all of them went to Hidden: apply today's rules (see mark_gone).
+            with self.db:
+                self.db.execute("DELETE FROM listings WHERE gone IS NOT NULL AND ok = 0 AND status = 'hidden'"
+                                " AND status_if_back IS NULL")
+                self.db.execute("UPDATE listings SET status = 'saved', hide_at = strftime('%Y-%m-%dT%H:%M:%S', gone_at, ?)"
+                                " WHERE gone IS NOT NULL AND status = 'hidden' AND status_if_back = 'saved'",
+                                (f"+{SAVED_OFFLINE_DAYS} days",))
 
     def seen(self, key: str) -> bool:
         return self.db.execute("SELECT 1 FROM listings WHERE key = ?", (key,)).fetchone() is not None
@@ -65,13 +77,29 @@ class Store:
         with self.db:
             self.db.execute("UPDATE listings SET last_seen = ?,"
                             " status = CASE WHEN gone IS NULL THEN status ELSE status_if_back END,"
-                            " gone = NULL, gone_at = NULL WHERE key = ?", (_now(), key))
+                            " gone = NULL, gone_at = NULL, hide_at = NULL WHERE key = ?", (_now(), key))
 
     def mark_gone(self, keys, why: str) -> None:
-        """The ads were taken offline ('deactivated' or 'deleted'): move them to Hidden."""
+        """The ads were taken offline ('deactivated' or 'deleted'). Rejected ones
+        are deleted for good; matches move to Hidden; saved ones stay on Saved for
+        SAVED_OFFLINE_DAYS (see hide_due); ones you hid stay hidden. All but the
+        deleted ones are tagged with `why`."""
+        now = datetime.now()
+        hide_at = (now + timedelta(days=SAVED_OFFLINE_DAYS)).isoformat(timespec="seconds")
         with self.db:
-            self.db.executemany("UPDATE listings SET gone = ?, gone_at = ?, status_if_back = status, status = 'hidden'"
-                                " WHERE key = ? AND gone IS NULL", [(why, _now(), key) for key in keys])
+            self.db.executemany("DELETE FROM listings WHERE key = ? AND ok = 0 AND status IS NULL",
+                                [(key,) for key in keys])
+            self.db.executemany(
+                "UPDATE listings SET gone = ?, gone_at = ?, status_if_back = status,"
+                " status = CASE WHEN status IS NULL THEN 'hidden' ELSE status END,"
+                " hide_at = CASE WHEN status = 'saved' THEN ? END WHERE key = ? AND gone IS NULL",
+                [(why, now.isoformat(timespec="seconds"), hide_at, key) for key in keys])
+
+    def hide_due(self) -> int:
+        """Saved ads that were taken offline SAVED_OFFLINE_DAYS ago move to Hidden."""
+        with self.db:
+            return self.db.execute("UPDATE listings SET status = 'hidden', hide_at = NULL"
+                                   " WHERE hide_at <= ? AND status = 'saved'", (_now(),)).rowcount
 
     def online_keys(self, source: str) -> set[str]:
         """Keys of the source's ads not known to be offline."""
@@ -104,7 +132,7 @@ class Store:
 
     def set_status(self, key: str, status: str | None) -> bool:
         with self.db:
-            return self.db.execute("UPDATE listings SET status = ?, status_if_back = ? WHERE key = ?",
+            return self.db.execute("UPDATE listings SET status = ?, status_if_back = ?, hide_at = NULL WHERE key = ?",
                                    (status, status, key)).rowcount == 1
 
     def update_listing(self, listing: Listing) -> None:
@@ -114,7 +142,7 @@ class Store:
 
     def all_rows(self, source: str | None = None):
         """Everything (or everything from one source), newest first."""
-        rows = self.db.execute("SELECT data, verdict, first_seen, last_seen, status, gone, gone_at, status_if_back"
+        rows = self.db.execute("SELECT data, verdict, first_seen, last_seen, status, gone, gone_at, status_if_back, hide_at"
                                " FROM listings WHERE ? IS NULL OR source = ? ORDER BY first_seen DESC, rowid DESC",
                                (source, source))
         for data, verdict, *rest in rows:

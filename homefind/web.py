@@ -62,6 +62,7 @@ def payload(cfg: dict, store: Store) -> dict:
             "gone": row.gone,
             "gone_at": row.gone_at,
             "status_if_back": row.status_if_back,
+            "hide_at": row.hide_at,
             "reasons": verdict.reasons,
             "codes": verdict.codes,
             "flags": verdict.flags,

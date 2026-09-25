@@ -12,7 +12,7 @@ from .rating import rate
 from .notify import Notifier, print_match, print_reject
 from .rules import evaluate
 from .sources import enabled_sources
-from .store import Store
+from .store import SAVED_OFFLINE_DAYS, Store
 from .util import text
 
 log = logging.getLogger("homefind")
@@ -53,6 +53,8 @@ def run_once(cfg: dict, store: Store, http, notifier: Notifier, only: set[str] |
              dry_run: bool = False, scheduled: bool = False) -> None:
     """One pass. `scheduled` (the --loop mode) only runs sources that are due."""
     now = time.time()
+    if not dry_run and store.hide_due():
+        log.info("saved ads offline for %d days moved to Hidden", SAVED_OFFLINE_DAYS)
     results = []
     for src in enabled_sources(cfg, http):
         if (only and src.name not in only) or (scheduled and _due_at(cfg, store, src.name) > now):
@@ -148,7 +150,7 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False) -> dict:
     if not dry_run:
         offline = _find_offline(src, cfg, store, online)
         if offline:
-            log.info("%-14s %d ad%s taken offline, moved to Hidden", src.name, len(offline), "s" * (len(offline) > 1))
+            log.info("%-14s %d ad%s taken offline", src.name, len(offline), "s" * (len(offline) > 1))
     if first_run:
         store.meta_set(f"init:{src.name}", datetime.now().isoformat(timespec="seconds"))
     if not quiet or new or first_run:
@@ -159,8 +161,8 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False) -> dict:
 
 
 def _find_offline(src, cfg: dict, store: Store, online: set[str]) -> list[str]:
-    """Moves ads that were taken offline to Hidden (tagged 'deactivated' or
-    'deleted') and returns their keys. After a search that saw every ad on the
+    """Finds ads that were taken offline, files them away (see Store.mark_gone)
+    and returns their keys. After a search that saw every ad on the
     site, that's all the stored ones it didn't see. Otherwise a few older ads
     get looked up, `check_per_run` per run (see _to_check)."""
     if src.complete:
@@ -204,7 +206,7 @@ def _to_check(src, cfg: dict, store: Store) -> list:
 
 
 def _look_up(src, cfg: dict, store: Store, row) -> bool:
-    """Looks one ad up. Taken offline: moves it to Hidden and returns True.
+    """Looks one ad up. Taken offline: files it away and returns True.
     Raises when it can't tell; a site that blocks us is paused first."""
     try:
         why = src.offline(row.listing)

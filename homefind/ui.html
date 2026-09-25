@@ -190,7 +190,7 @@ const TABS = [
   ["rejected", "Rejected", (l) => !l.ok && !l.status],
   ["hidden", "Hidden", (l) => l.status === "hidden"],
 ];
-// Ads taken offline are moved to Hidden with one of these tags (see app.py).
+// Ads taken offline get one of these tags (rejected ones are deleted instead; see Store.mark_gone in store.py).
 const GONE = { deactivated: "Deactivated", deleted: "Deleted" };
 const EMPTY = {
   matches: "No matches right now. New ones show up here and on your phone.",
@@ -204,7 +204,7 @@ function normalize(d) {
   for (const l of d.listings) {
     l.why ??= []; l.score ??= 0; l.band ??= "weak"; l.posted ??= l.first_seen;
     l.images ??= []; l.codes ??= []; l.flags ??= []; l.notes ??= []; l.reasons ??= [];
-    l.gone ??= null; l.gone_at ??= null; l.status_if_back ??= null;
+    l.gone ??= null; l.gone_at ??= null; l.status_if_back ??= null; l.hide_at ??= null;
   }
   return d;
 }
@@ -301,7 +301,8 @@ function card(l) {
       <div class="price">${esc(l.headline)}</div>
       <a class="title" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || l.url)}</a>
       <div class="meta">${esc([l.source, l.landlord].filter(Boolean).join(" · "))} · seen ${esc(when(l.first_seen))}</div>
-      ${gone ? `<p class="offline" title="Moves back by itself if the ad comes online again">⊘ Ad ${esc(gone.toLowerCase())}, noticed ${esc(when(l.gone_at))}</p>` : ""}
+      ${gone ? `<p class="offline" title="Moves back by itself if the ad comes online again">⊘ Ad ${esc(gone.toLowerCase())}, noticed ${esc(when(l.gone_at))}` +
+               `${saved && l.hide_at ? ` · moves to Hidden ${esc(when(l.hide_at))}` : ""}</p>` : ""}
       ${l.ok ? "" : `<p class="reasons">✗ ${esc(l.reasons.join("; "))}</p>`}
       ${chips ? `<div class="chips">${chips}</div>` : ""}
       ${desc}
@@ -388,18 +389,23 @@ function toast(text, undo) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { $("toast").hidden = true; }, 6000);
 }
+const editedAt = new Map();  // listing key -> when its last Save/Hide reached the server (Infinity until then)
 async function setStatus(l, status) {
-  const before = l.status;
-  l.status = status;
+  const before = { status: l.status, hide_at: l.hide_at };
+  const later = pending?.listings.find((x) => x.key === l.key);  // the same listing in data not shown yet
+  for (const x of [l, later]) if (x) Object.assign(x, { status, hide_at: null });
+  editedAt.set(l.key, Infinity);
   render();
-  if (status === "hidden") toast("Hidden.", () => setStatus(l, before));
-  else if (status === "saved") toast("Saved. It's on the Saved tab now.", () => setStatus(l, before));
+  if (status === "hidden") toast("Hidden.", () => setStatus(l, before.status));
+  else if (status === "saved") toast("Saved. It's on the Saved tab now.", () => setStatus(l, before.status));
   try {
     const r = await fetch("/api/status", { method: "POST", headers: { "Content-Type": "application/json" },
                                            body: JSON.stringify({ key: l.key, status }) });
     if (!r.ok) throw new Error("HTTP " + r.status);
+    editedAt.set(l.key, Date.now());
   } catch {
-    l.status = before;
+    for (const x of [l, later]) if (x) Object.assign(x, before);
+    editedAt.delete(l.key);
     render();
     toast("Couldn't save that. Is homefind still running?");
   }
@@ -443,17 +449,25 @@ function showPending() {
 }
 async function poll() {
   try {
+    const asked = Date.now();
     const r = await fetch("/api/listings", { cache: "no-store" });
     if (!r.ok) return;
     const next = normalize(await r.json());
     data.subtitle = next.subtitle;
     $("sub").textContent = next.subtitle;
+    // The server's word counts (ads taken offline or back, saved ones moving to Hidden, rejected
+    // ones deleted), except for a Save/Hide made here that hadn't reached it when it answered.
+    for (const l of next.listings) {
+      const cur = byKey.get(l.key);
+      if (cur && (editedAt.get(l.key) ?? 0) >= asked) Object.assign(l, { status: cur.status, hide_at: cur.hide_at });
+    }
     const fresh = next.listings.filter((l) => !byKey.has(l.key));
-    // Ads taken offline (or back online) since: their status comes from the server, everyone else's
-    // stays as it is here, so an unsaved Save/Hide isn't undone.
-    const moved = new Set(next.listings.filter((l) => byKey.has(l.key) && byKey.get(l.key).gone !== l.gone).map((l) => l.key));
-    if (!fresh.length && !moved.size) return;
-    for (const l of next.listings) { const cur = byKey.get(l.key); if (cur && !moved.has(l.key)) l.status = cur.status; }
+    const keys = new Set(next.listings.map((l) => l.key));
+    const changed = data.listings.some((l) => !keys.has(l.key)) || next.listings.some((l) => {
+      const cur = byKey.get(l.key);
+      return cur && (cur.status !== l.status || cur.gone !== l.gone || cur.hide_at !== l.hide_at);
+    });
+    if (!fresh.length && !changed) return;
     if (!looking()) {
       for (const l of fresh.filter(alertWorthy)) unseen.add(l.key);
       markTab();

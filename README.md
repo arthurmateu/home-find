@@ -30,35 +30,25 @@ its interval, up to 6 hours) while the others carry on.
    a source was first added were stored without a push; from then on only new
    matches are pushed.
 
-## Running it from Windows (PowerShell)
+## Running it
 
-Start it hidden in the background and open the page:
+From the Ubuntu terminal:
 
-```powershell
-Start-Process wsl -ArgumentList '-d Ubuntu --cd /home/mouse/projects/home-find -- python3 -m homefind --loop --open' -WindowStyle Hidden
+```bash
+cd ~/projects/home-find
+python3 -m homefind --loop --open
 ```
 
-After that, just open **<http://localhost:8765>** whenever you like (bookmark
-it). The page is always current when opened, and while it stays open new
-listings appear by themselves (or as a "new match" banner if you've scrolled
-down). If a new match comes in while you're in another tab or window, the
-page's tab shows it: "(1) New match · Flat hunt" and a red dot on its icon,
-until you switch back. No sound, no pop-up. Stop it with:
+Ctrl+C stops it. After that, just open **<http://localhost:8765>** whenever
+you like (bookmark it). The page is always current when opened, and while it
+stays open new listings appear by themselves (or as a "new match" banner if
+you've scrolled down). If a new match comes in while you're in another tab or
+window, the page's tab shows it: "(1) New match · Flat hunt" and a red dot on
+its icon, until you switch back. No sound, no pop-up.
 
-```powershell
-wsl -d Ubuntu -- pkill -f '^python3 -m homefind'
-```
+Test notification: `python3 -m homefind --test-notify`
 
-Or keep it in a visible window instead (Ctrl+C or closing the window stops it):
-
-```powershell
-wsl -d Ubuntu --cd /home/mouse/projects/home-find -- python3 -m homefind --loop --open
-```
-
-Test notification: `wsl -d Ubuntu --cd /home/mouse/projects/home-find -- python3 -m homefind --test-notify`
-
-Only one instance runs at a time. It keeps WSL up while running; after a
-Windows restart, start it again.
+Only one instance runs at a time; after a reboot, start it again.
 
 ## The web page
 
@@ -68,10 +58,13 @@ Windows restart, start it again.
 - **Descriptions:** per card, or "Expand descriptions" for all.
 - **☆ Save / Hide** on every listing, stored in the database (both have Undo).
   Saved listings move to the Saved tab, so they don't take space under Matches.
-- **Ads taken offline move to Hidden by themselves**, saved ones included,
-  tagged **Deactivated** (switched off by the poster, may come back; mostly
-  WG-Gesucht) or **Deleted**, with a grey photo and when it was noticed; the Hidden tab
-  gets a chip per tag. If one comes back online, it moves back to where it was.
+- **Ads taken offline** are tagged **Deactivated** (switched off by the
+  poster, may come back; mostly WG-Gesucht) or **Deleted**, with a grey photo
+  and when it was noticed, and filed away by themselves: saved ones stay on
+  Saved for 2 days (`SAVED_OFFLINE_DAYS` in `homefind/store.py`), then move to
+  Hidden; matches move to Hidden right away; ones you hid stay there; rejected
+  ones are deleted for good. The Hidden tab gets a chip per tag. If one comes
+  back online, it moves back to where it was (a deleted one shows up as new).
   How it's found: each hourly check also looks up a few older ads
   (`check_per_run`: 5, WG-Gesucht 2; saved first, then matches, rejected ones
   in the area, ones you hid, the rest; skipping any seen in the last 6 hours).
@@ -106,7 +99,7 @@ python3 -m homefind --dry-run        # evaluate what's online now, print every v
 python3 -m homefind --only immoscout,kleinanzeigen
 python3 -m homefind --rejected 50    # what got filtered out, and why
 python3 -m homefind --recheck        # re-apply the rules after editing config.toml
-python3 -m homefind --check-offline  # look up every stored ad now; offline ones move to Hidden
+python3 -m homefind --check-offline  # look up every stored ad now and file away the offline ones
 python3 -m homefind --no-push        # store + print, no notifications
 ```
 
