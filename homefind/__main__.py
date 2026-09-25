@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 from . import config
-from .app import recheck, run_once, seconds_until_due
+from .app import check_offline, recheck, run_once, seconds_until_due
 from . import web
 from .net import Fetcher
 from .notify import Notifier, print_reject
@@ -36,6 +36,9 @@ def main(argv=None) -> int:
     ap.add_argument("--rejected", type=int, metavar="N", help="show the last N rejected listings and why")
     ap.add_argument("--recheck", action="store_true",
                     help="re-apply the rules to all stored listings (after editing config.toml)")
+    ap.add_argument("--check-offline", action="store_true",
+                    help="look up every stored ad now and move the ones taken offline to Hidden "
+                         "(--loop only does a few per check)")
     ap.add_argument("--test-notify", action="store_true", help="send a test notification")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
@@ -82,6 +85,9 @@ def main(argv=None) -> int:
         print("another homefind run is in progress", file=sys.stderr)
         return 1
 
+    if args.check_offline:
+        check_offline(cfg, store, http, notifier)
+        return 0
     if not notifier.configured and not (args.dry_run or args.no_push):
         log.warning("no notification channel configured; matches only show in the console and the web UI")
     if not args.loop:

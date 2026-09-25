@@ -72,11 +72,12 @@ Windows restart, start it again.
   tagged **Deactivated** (switched off by the poster, may come back; mostly
   WG-Gesucht) or **Deleted**, with a grey photo and when it was noticed; the Hidden tab
   gets a chip per tag. If one comes back online, it moves back to where it was.
-  How it's found: each hourly check also looks up a few older ads you can
-  still see (`check_per_run`: 5, WG-Gesucht 2; saved first, then matches, then
-  rejected, skipping any seen in the last 6 hours). inberlinwohnen goes through
-  all its ~40 pages every 12 hours (`sweep_every_hours`) and charlotte1907's
-  one page lists every offer, so anything missing there is gone.
+  How it's found: each hourly check also looks up a few older ads
+  (`check_per_run`: 5, WG-Gesucht 2; saved first, then matches, rejected ones
+  in the area, ones you hid, the rest; skipping any seen in the last 6 hours).
+  inberlinwohnen goes through all its ~40 pages every 12 hours
+  (`sweep_every_hours`) and charlotte1907's one page lists every offer, so
+  anything missing there is gone. `--check-offline` does all of it at once.
 - **Score (0–100)** on every listing, rejected ones included, sorted best
   first (or newest / cheapest / largest). "Why 74?" shows the points:
   value for money (warm €/m²) 35 · budget fit 15 (negative when over) ·
@@ -105,6 +106,7 @@ python3 -m homefind --dry-run        # evaluate what's online now, print every v
 python3 -m homefind --only immoscout,kleinanzeigen
 python3 -m homefind --rejected 50    # what got filtered out, and why
 python3 -m homefind --recheck        # re-apply the rules after editing config.toml
+python3 -m homefind --check-offline  # look up every stored ad now; offline ones move to Hidden
 python3 -m homefind --no-push        # store + print, no notifications
 ```
 

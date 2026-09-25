@@ -162,42 +162,99 @@ def _find_offline(src, cfg: dict, store: Store, online: set[str]) -> list[str]:
     """Moves ads that were taken offline to Hidden (tagged 'deactivated' or
     'deleted') and returns their keys. After a search that saw every ad on the
     site, that's all the stored ones it didn't see. Otherwise a few older ads
-    you can still see get looked up, `check_per_run` per run: saved ones first,
-    then matches, then rejected ones in the area, least recently seen first."""
+    get looked up, `check_per_run` per run (see _to_check)."""
     if src.complete:
         gone = store.online_keys(src.name) - online
         store.mark_gone(gone, "deleted")
         return sorted(gone)
     if not src.can_probe:
         return []
-    drop = set(cfg["search"].get("drop_reasons") or [])
-    cutoff = (datetime.now() - timedelta(hours=CHECK_AFTER_HOURS)).isoformat(timespec="seconds")
-    due = [r for r in store.all_rows(src.name)
-           if not r.gone and r.status != "hidden" and r.last_seen < cutoff and not drop & set(r.verdict.codes)]
-    due.sort(key=lambda r: (r.status != "saved", not r.verdict.ok, bool({"area", "avoid"} & set(r.verdict.codes)),
-                            r.last_seen))
     gone = []
-    for r in due[: int(src.opts.get("check_per_run", 5))]:
-        key = r.listing.key
+    for r in _to_check(src, cfg, store)[: int(src.opts.get("check_per_run", 5))]:
         try:
-            why = src.offline(r.listing)
-        except urllib.error.HTTPError as e:
-            if e.code not in (404, 410):
-                log.warning("%s: could not check %s (HTTP %s); trying again next run", src.name, r.listing.url, e.code)
-                break
-            why = "deleted"
-        except Blocked as e:
-            _blocked(store, src.name, _every(cfg, src.name), e)
+            if _look_up(src, cfg, store, r):
+                gone.append(r.listing.key)
+        except Blocked:
             break
         except Exception as e:  # noqa: BLE001 - leave the rest for next run
             log.warning("%s: could not check %s (%s); trying again next run", src.name, r.listing.url, e)
             break
-        if why:
-            store.mark_gone([key], why)
-            gone.append(key)
-        else:
-            store.touch(key)
     return gone
+
+
+def _to_check(src, cfg: dict, store: Store) -> list:
+    """Ads to look up, most useful first: saved, matches, rejected ones in the
+    area, ones you hid, the rest; least recently seen first. Leaves out ads seen
+    online in the last CHECK_AFTER_HOURS and ones never shown (drop_reasons)."""
+    drop = set(cfg["search"].get("drop_reasons") or [])
+    cutoff = (datetime.now() - timedelta(hours=CHECK_AFTER_HOURS)).isoformat(timespec="seconds")
+
+    def rank(r) -> int:
+        if r.status == "saved":
+            return 0
+        if r.status == "hidden":
+            return 3
+        if r.verdict.ok:
+            return 1
+        return 4 if {"area", "avoid"} & set(r.verdict.codes) else 2
+
+    due = [r for r in store.all_rows(src.name)
+           if not r.gone and r.last_seen < cutoff and not drop & set(r.verdict.codes)]
+    return sorted(due, key=lambda r: (rank(r), r.last_seen))
+
+
+def _look_up(src, cfg: dict, store: Store, row) -> bool:
+    """Looks one ad up. Taken offline: moves it to Hidden and returns True.
+    Raises when it can't tell; a site that blocks us is paused first."""
+    try:
+        why = src.offline(row.listing)
+    except urllib.error.HTTPError as e:
+        if e.code not in (404, 410):
+            raise
+        why = "deleted"
+    except Blocked as e:
+        _blocked(store, src.name, _every(cfg, src.name), e)
+        raise
+    if why:
+        store.mark_gone([row.listing.key], why)
+    else:
+        store.touch(row.listing.key)
+    return bool(why)
+
+
+def check_offline(cfg: dict, store: Store, http, notifier: Notifier) -> None:
+    """--check-offline: finds every ad taken offline now, instead of
+    `check_per_run` per hourly check. Lookups take turns between the sites, so
+    none gets many requests in a row; sources that can't look up a single ad
+    go through all their pages instead (a sweep)."""
+    queues, sweepers = {}, set()
+    for src in enabled_sources(cfg, http):
+        if src.can_probe:
+            queues[src] = _to_check(src, cfg, store)
+        else:
+            sweepers.add(src.name)
+            store.meta_set(f"sweep:{src.name}", "0")  # due now
+    if sweepers:
+        run_once(cfg, store, http, notifier, only=sweepers)
+    total = sum(len(q) for q in queues.values())
+    log.info("looking up %d ads (%s)", total, ", ".join(f"{s.name} {len(q)}" for s, q in queues.items()))
+    stats = {src.name: [0, 0] for src in queues}  # looked up, offline
+    while queues:
+        for src in list(queues):
+            if not queues[src]:
+                del queues[src]
+                continue
+            row = queues[src].pop(0)
+            try:
+                stats[src.name][1] += _look_up(src, cfg, store, row)
+                stats[src.name][0] += 1
+            except Blocked:
+                del queues[src]
+            except Exception as e:  # noqa: BLE001 - the hourly checks pick up the rest
+                log.warning("%s: could not check %s (%s); skipping the rest of %s", src.name, row.listing.url, e, src.name)
+                del queues[src]
+    for name, (looked, gone) in stats.items():
+        log.info("%-14s looked up %3d  taken offline %d", name, looked, gone)
 
 
 def recheck(cfg: dict, store: Store) -> tuple[int, int, int]:
