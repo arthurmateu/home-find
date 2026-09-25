@@ -10,7 +10,7 @@ pushes the rest to your phone. Python 3.11+, standard library only.
 | Source | Checked every | What it covers | How |
 |---|---|---|---|
 | `inberlinwohnen` | 60 min | All 6 municipal landlords (degewo, GESOBAU, Gewobag, HOWOGE, STADT UND LAND, WBM). Below-market rents, no scams. Many need a WBS. | Livewire JSON in the page |
-| `immoscout` | 60 min | ImmoScout24, the largest portal | The mobile app's API (the website blocks bots) |
+| `immoscout` | 15 min | ImmoScout24, the largest portal and where most matches come from | The mobile app's API (the website blocks bots) |
 | `kleinanzeigen` | 60 min | Private landlords and Nachmieter ads; also the most scams | HTML + detail page per candidate |
 | `wggesucht` | 60 min | Whole flats only, open-ended leases only | HTML + detail page per candidate |
 | `immowelt` | 60 min | Partial: 30 listings per neighbourhood page, no paging (its search API is bot-protected) | LZ-compressed JSON in the page |
@@ -18,8 +18,10 @@ pushes the rest to your phone. Python 3.11+, standard library only.
 | `[[watch]]` | 60 min | 7 more co-ops with Charlottenburg-Wilmersdorf stock | Alerts when new text appears on their offers page |
 
 Intervals are `every_minutes` in `config.toml` (hourly by default, to stay well
-clear of rate limits): roughly 20 requests an hour in total, spread over 6 sites, with ≥ 2 s between
-requests to the same site, plus up to 17 an hour to find ads that were taken
+clear of rate limits; ImmoScout every 15 minutes, since that's where most
+matches come from and each check is one request when nothing is new): roughly
+23 requests an hour in total, spread over 6 sites, with ≥ 2 s between
+requests to the same site, plus up to 20 an hour to find ads that were taken
 offline (see below). A site that blocks a request is paused (2×, 4×, …
 its interval, up to 6 hours) while the others carry on.
 

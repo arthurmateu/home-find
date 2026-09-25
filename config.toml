@@ -81,7 +81,7 @@ telegram_bot_token = ""
 telegram_chat_id = ""
 
 # every_minutes = how often --loop checks each source (kept hourly to stay well
-# clear of rate limits). A source that gets blocked pauses itself
+# clear of rate limits, except ImmoScout). A source that gets blocked pauses itself
 # (2x, 4x, ... its interval, max 6 h).
 # Ads taken offline are moved to Hidden: each check also looks up check_per_run
 # older ads (default 5, wggesucht 2); inberlinwohnen instead goes through all its
@@ -89,7 +89,8 @@ telegram_chat_id = ""
 [sources.inberlinwohnen]     # all 6 municipal landlords, no scams, often WBS
 every_minutes = 60
 [sources.immoscout]          # ImmoScout24 via its app API
-every_minutes = 60
+every_minutes = 15           # most matches come from here; one request per check when nothing's new
+check_per_run = 2            # offline lookups per check (4 checks an hour, so up to 8 an hour)
 geocodes = ["1276003001011", "1276003001076"]  # Charlottenburg (+Westend), Wilmersdorf (+Halensee)
 [sources.kleinanzeigen]
 every_minutes = 60
