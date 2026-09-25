@@ -39,7 +39,8 @@ def payload(cfg: dict, store: Store) -> dict:
     drop = set(s.get("drop_reasons") or [])
     now = datetime.now()
     listings = []
-    for listing, verdict, first_seen, last_seen, status in store.all_rows():
+    for row in store.all_rows():
+        listing, verdict, first_seen = row.listing, row.verdict, row.first_seen
         if drop & set(verdict.codes):
             continue
         images = listing.images or ([listing.image_url] if listing.image_url else [])
@@ -53,11 +54,14 @@ def payload(cfg: dict, store: Store) -> dict:
             "headline": headline(listing, verdict),
             "landlord": listing.landlord,
             "first_seen": first_seen,
-            "last_seen": last_seen,
+            "last_seen": row.last_seen,
             "images": [u for u in images if u and "%" not in u],  # skip URL templates
             "description": listing.description,
             "ok": verdict.ok,
-            "status": status,
+            "status": row.status,
+            "gone": row.gone,
+            "gone_at": row.gone_at,
+            "status_if_back": row.status_if_back,
             "reasons": verdict.reasons,
             "codes": verdict.codes,
             "flags": verdict.flags,

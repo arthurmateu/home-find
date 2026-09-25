@@ -33,7 +33,11 @@ class Fetcher:
             time.sleep(gap - elapsed)
         self._last[host] = time.monotonic()
 
-    def request(self, url, *, method="GET", data=None, headers=None, ua=BROWSER_UA) -> str:
+    def request(self, url, **kw) -> str:
+        return self.fetch(url, **kw)[1]
+
+    def fetch(self, url, *, method="GET", data=None, headers=None, ua=BROWSER_UA) -> tuple[str, str]:
+        """(URL after redirects, body)."""
         host = urllib.parse.urlsplit(url).hostname or ""
         hdrs = {
             "User-Agent": ua,
@@ -57,7 +61,7 @@ class Fetcher:
                         raw = gzip.decompress(raw)
                     elif encoding == "deflate":
                         raw = zlib.decompress(raw)
-                    return raw.decode(resp.headers.get_content_charset() or "utf-8", errors="replace")
+                    return resp.url, raw.decode(resp.headers.get_content_charset() or "utf-8", errors="replace")
             except urllib.error.HTTPError as e:
                 if e.code in (401, 403, 429):
                     raise Blocked(f"{host} answered HTTP {e.code}") from None

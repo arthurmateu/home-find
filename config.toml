@@ -83,6 +83,9 @@ telegram_chat_id = ""
 # every_minutes = how often --loop checks each source (kept hourly to stay well
 # clear of rate limits). A source that gets blocked pauses itself
 # (2x, 4x, ... its interval, max 6 h).
+# Ads taken offline are moved to Hidden: each check also looks up check_per_run
+# older ads (default 5, wggesucht 2); inberlinwohnen instead goes through all its
+# pages every sweep_every_hours (default 12).
 [sources.inberlinwohnen]     # all 6 municipal landlords, no scams, often WBS
 every_minutes = 60
 [sources.immoscout]          # ImmoScout24 via its app API

@@ -19,6 +19,7 @@ BASE = "https://www.kleinanzeigen.de"
 class Kleinanzeigen(Source):
     name = "kleinanzeigen"
     needs_enrich = True
+    can_probe = True
 
     def search(self, seen):
         cap = int(self.fetch_cap)  # the listed price is usually the cold rent
@@ -119,3 +120,7 @@ class Kleinanzeigen(Source):
         if since:
             listing.signals["account_since"] = since.group(1)
         return listing
+
+    def offline(self, listing: Listing) -> str | None:
+        url, _ = self.http.fetch(listing.url)
+        return None if listing.id in url else "deleted"  # a deleted ad redirects to its category's search

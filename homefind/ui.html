@@ -56,6 +56,8 @@ main { padding-top: 18px; padding-bottom: 80px; }
 .badges { position: absolute; left: 8px; top: 8px; display: flex; gap: 4px; }
 .badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--card); color: var(--ink); }
 .badge.new { background: var(--accent); color: var(--accent-ink); }
+.badge.gone { background: var(--ink); color: var(--bg); }
+.card.gone .photo { filter: grayscale(1); }
 .score { position: absolute; right: 8px; top: 8px; min-width: 38px; padding: 3px 9px; border-radius: 99px; font-weight: 700;
          font-size: 14px; text-align: center; color: #fff; background: #6b6b66; box-shadow: 0 1px 4px rgba(0, 0, 0, .3); }
 .score.great { background: #1b7a4c; } .score.good { background: #2a67a8; } .score.ok { background: #8a6a14; }
@@ -73,6 +75,7 @@ main { padding-top: 18px; padding-bottom: 80px; }
 .title { color: var(--ink); text-decoration: none; overflow-wrap: anywhere; } .title:hover { text-decoration: underline; }
 .meta { color: var(--muted); font-size: 13px; }
 .reasons { margin: 0; color: var(--bad); background: var(--bad-bg); padding: 6px 8px; border-radius: 8px; font-size: 13px; }
+.offline { margin: 0; color: var(--muted); font-size: 13px; font-weight: 600; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .chip { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--chip); color: var(--muted); }
 .chip.warn { background: var(--warn-bg); color: var(--warn); }
@@ -187,6 +190,8 @@ const TABS = [
   ["rejected", "Rejected", (l) => !l.ok && !l.status],
   ["hidden", "Hidden", (l) => l.status === "hidden"],
 ];
+// Ads taken offline are moved to Hidden with one of these tags (see app.py).
+const GONE = { deactivated: "Deactivated", deleted: "Deleted" };
 const EMPTY = {
   matches: "No matches right now. New ones show up here and on your phone.",
   saved: "Nothing saved yet. Use ☆ Save on a listing to keep it here.",
@@ -199,6 +204,7 @@ function normalize(d) {
   for (const l of d.listings) {
     l.why ??= []; l.score ??= 0; l.band ??= "weak"; l.posted ??= l.first_seen;
     l.images ??= []; l.codes ??= []; l.flags ??= []; l.notes ??= []; l.reasons ??= [];
+    l.gone ??= null; l.gone_at ??= null; l.status_if_back ??= null;
   }
   return d;
 }
@@ -214,7 +220,7 @@ const SORTS = {
   cheapest: (a, b) => (a.warm ?? 1e9) - (b.warm ?? 1e9),
   largest: (a, b) => (b.size ?? 0) - (a.size ?? 0),
 };
-const state = { tab: "matches", reason: "inarea", shown: PAGE, expandAll: prefs.get("expandAll", false),
+const state = { tab: "matches", chip: { rejected: "inarea", hidden: "all" }, shown: PAGE, expandAll: prefs.get("expandAll", false),
                 sort: SORTS[prefs.get("sort", "score")] ? prefs.get("sort", "score") : "score" };
 const prevSeen = prefs.get("lastSeen", "");  // newest listing at the previous visit
 
@@ -225,12 +231,24 @@ const when = (iso) => iso ? new Date(iso).toLocaleString(undefined, { day: "nume
 function index() { byKey = new Map(data.listings.map((l) => [l.key, l])); }
 function applyPending() { if (pending) { data = pending; pending = null; index(); $("banner").hidden = true; } }
 
-function visible() {
-  const test = TABS.find((t) => t[0] === state.tab)[2];
-  let list = data.listings.filter(test);
-  if (state.tab === "rejected") {
-    list = list.filter((l) => state.reason === "inarea" ? inArea(l) : l.codes.includes(state.reason));
+// Filter chips on the Rejected and Hidden tabs: [id, label, test], the first one is the default.
+function chipsFor(tab) {
+  if (tab === "rejected") {
+    return [["inarea", "All in area", inArea],
+            ...Object.entries(data.reasons).map(([c, label]) => [c, label, (l) => l.codes.includes(c)])];
   }
+  if (tab === "hidden" && data.listings.some((l) => l.gone && l.status === "hidden")) {
+    return [["all", "All", () => true], ["mine", "Hidden by you", (l) => !l.gone],
+            ...Object.entries(GONE).map(([c, label]) => [c, label, (l) => l.gone === c])];
+  }
+  return [];
+}
+const inTab = () => data.listings.filter(TABS.find((t) => t[0] === state.tab)[2]);
+
+function visible() {
+  let list = inTab();
+  const chip = chipsFor(state.tab).find((c) => c[0] === state.chip[state.tab]);
+  if (chip) list = list.filter(chip[2]);
   return list.sort(SORTS[state.sort]);
 }
 
@@ -239,15 +257,12 @@ function renderTabs() {
     `<button role="tab" class="tab" aria-selected="${id === state.tab}" data-tab="${id}">${label}<span class="n">${data.listings.filter(test).length}</span></button>`
   ).join("");
   const row = $("reasons");
-  row.hidden = state.tab !== "rejected";
-  if (row.hidden) return;
-  const rejected = data.listings.filter(TABS[2][2]);
-  const counts = {};
-  for (const l of rejected) for (const c of l.codes) counts[c] = (counts[c] || 0) + 1;
-  const chips = [["inarea", "All in area", rejected.filter(inArea).length],
-    ...Object.entries(data.reasons).filter(([c]) => counts[c]).map(([c, label]) => [c, label, counts[c]])];
+  const list = inTab();
+  const chips = chipsFor(state.tab).map(([c, label, test]) => [c, label, list.filter(test).length])
+    .filter(([c, , n], i) => n || i === 0 || c === state.chip[state.tab]);
+  row.hidden = !chips.length;
   row.innerHTML = chips.map(([c, label, n]) =>
-    `<button class="chip-btn" aria-pressed="${c === state.reason}" data-reason="${c}">${esc(label)}<span class="n">${n}</span></button>`
+    `<button class="chip-btn" aria-pressed="${c === state.chip[state.tab]}" data-chip="${c}">${esc(label)}<span class="n">${n}</span></button>`
   ).join("");
 }
 
@@ -261,8 +276,11 @@ function card(l) {
       `<span class="counter">${n > 1 ? `${i + 1} / ${n}` : "1 photo"}</span>`
     : `<div class="nophoto">No photos</div>`;
   const saved = l.status === "saved";
+  const gone = l.gone ? GONE[l.gone] || "Offline" : "";
   const badges = (prevSeen && l.first_seen > prevSeen ? `<span class="badge new">new</span>` : "") +
-                 (saved ? `<span class="badge">★ Saved</span>` : "");
+                 (saved ? `<span class="badge">★ Saved</span>` : "") +
+                 (gone ? `<span class="badge gone">${esc(gone)}</span>` : "") +
+                 (gone && l.status === "hidden" && l.status_if_back === "saved" ? `<span class="badge">★ Was saved</span>` : "");
   const chips = [...l.flags.map((f) => `<span class="chip warn">⚠ ${esc(f)}</span>`),
                  ...l.notes.map((t) => `<span class="chip">${esc(t)}</span>`)].join("");
   const open = state.expandAll || openDesc.has(l.key);
@@ -276,13 +294,14 @@ function card(l) {
     `<ul class="why"${whyOpen ? "" : " hidden"}>${whyList}</ul>` +
     (l.description ? `<div class="desc"${open ? "" : " hidden"}>${esc(l.description)}</div>`
                    : `<p class="desc-none">No description here${l.source === "inberlinwohnen" ? "; the landlord's page has the details" : ""}.</p>`);
-  return `<article class="card${l.ok ? "" : " rejected"}" data-key="${esc(l.key)}">
+  return `<article class="card${l.ok ? "" : " rejected"}${gone ? " gone" : ""}" data-key="${esc(l.key)}">
     <div class="media">${media}<div class="badges">${badges}</div>
       <span class="score ${l.band}" title="Score ${l.score}/100 (${l.band})">${l.score}</span></div>
     <div class="body">
       <div class="price">${esc(l.headline)}</div>
       <a class="title" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || l.url)}</a>
       <div class="meta">${esc([l.source, l.landlord].filter(Boolean).join(" · "))} · seen ${esc(when(l.first_seen))}</div>
+      ${gone ? `<p class="offline" title="Moves back by itself if the ad comes online again">⊘ Ad ${esc(gone.toLowerCase())}, noticed ${esc(when(l.gone_at))}</p>` : ""}
       ${l.ok ? "" : `<p class="reasons">✗ ${esc(l.reasons.join("; "))}</p>`}
       ${chips ? `<div class="chips">${chips}</div>` : ""}
       ${desc}
@@ -430,8 +449,11 @@ async function poll() {
     data.subtitle = next.subtitle;
     $("sub").textContent = next.subtitle;
     const fresh = next.listings.filter((l) => !byKey.has(l.key));
-    if (!fresh.length) return;
-    for (const l of next.listings) { const cur = byKey.get(l.key); if (cur) l.status = cur.status; }
+    // Ads taken offline (or back online) since: their status comes from the server, everyone else's
+    // stays as it is here, so an unsaved Save/Hide isn't undone.
+    const moved = new Set(next.listings.filter((l) => byKey.has(l.key) && byKey.get(l.key).gone !== l.gone).map((l) => l.key));
+    if (!fresh.length && !moved.size) return;
+    for (const l of next.listings) { const cur = byKey.get(l.key); if (cur && !moved.has(l.key)) l.status = cur.status; }
     if (!looking()) {
       for (const l of fresh.filter(alertWorthy)) unseen.add(l.key);
       markTab();
@@ -453,10 +475,11 @@ $("tabs").addEventListener("click", (e) => {
   render();
 });
 $("reasons").addEventListener("click", (e) => {
-  const b = e.target.closest("[data-reason]");
+  const b = e.target.closest("[data-chip]");
   if (!b) return;
   applyPending();
-  Object.assign(state, { reason: b.dataset.reason, shown: PAGE });
+  state.chip[state.tab] = b.dataset.chip;
+  state.shown = PAGE;
   render();
 });
 $("more").addEventListener("click", () => { state.shown += PAGE; render(); });

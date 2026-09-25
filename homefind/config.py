@@ -48,22 +48,26 @@ DEFAULTS: dict = {
         "telegram_bot_token": "",
         "telegram_chat_id": "",
     },
-    # every_minutes: how often --loop checks each source.
+    # every_minutes: how often --loop checks each source. check_per_run: how many
+    # older ads it also looks up per check, to find the ones taken offline.
+    # sweep_every_hours: how often inberlinwohnen goes through all its pages, for the same reason.
     "sources": {
-        "inberlinwohnen": {"enabled": True, "every_minutes": 60, "max_pages": 45},
-        "immoscout": {"enabled": True, "every_minutes": 60, "max_pages": 3,
+        "inberlinwohnen": {"enabled": True, "every_minutes": 60, "max_pages": 45, "sweep_every_hours": 12},
+        "immoscout": {"enabled": True, "every_minutes": 60, "max_pages": 3, "check_per_run": 5,
                       "geocodes": ["1276003001011", "1276003001076"]},  # Charlottenburg (+Westend), Wilmersdorf (+Halensee)
         "kleinanzeigen": {
             "enabled": True,
             "every_minutes": 60,
             "max_pages": 2,
+            "check_per_run": 5,
             "locations": [{"slug": "charlottenburg", "id": 3332}, {"slug": "westend", "id": 25905},
                           {"slug": "wilmersdorf", "id": 3532}],
         },
-        "wggesucht": {"enabled": True, "every_minutes": 60, "districts": [126, 192, 85083]},
+        "wggesucht": {"enabled": True, "every_minutes": 60, "check_per_run": 2, "districts": [126, 192, 85083]},
         "immowelt": {
             "enabled": True,
             "every_minutes": 60,
+            "check_per_run": 5,
             "urls": [
                 f"https://www.immowelt.de/suche/mieten/wohnung/preis--900/zimmer-1/berlin-10115/{n}"
                 for n in ("charlottenburg-13627/nbh2de91302007", "westend-14055/nbh2de91302127",

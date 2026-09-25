@@ -18,7 +18,9 @@ class Charlotte1907(Source):
     name = "charlotte1907"
 
     def search(self, seen):
-        yield from parse(self.http.get(URL))
+        items = list(parse(self.http.get(URL)))
+        self.complete = bool(items)  # the page lists every current offer (none found = layout changed?)
+        yield from items
 
 
 def _field(block: str, label: str) -> str | None:

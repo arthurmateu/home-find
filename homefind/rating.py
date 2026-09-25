@@ -8,8 +8,8 @@ scores well, so it stands out on the Rejected tab. Hard rejections (swap, WBS,
 Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over) · size 20 + rooms 5 ·
          freshness 10 · photos / trusted landlord / description 10 ·
          features (balcony, kitchen, ...) up to 8,
-         minus: scam signs (8 per point), Ablöse, estimated rent, IS24 Plus-only,
-         semi-basement.
+         minus: scam signs (8 per point), Ablöse, estimated rent, semi-basement.
+IS24 Plus-only listings aren't marked down: you're a Plus member.
 """
 
 from __future__ import annotations
@@ -124,8 +124,6 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
         parts.append((-6, "asks for Ablöse"))
     if any("estimated" in n for n in verdict.notes):
         parts.append((-2, "warm rent is an estimate"))
-    if sig.get("is24_plus_until"):
-        parts.append((-3, "ImmoScout Plus only for now"))
     if _has(r"souterrain|tiefparterre|kellerwohnung", text):
         parts.append((-5, "semi-basement (Souterrain)"))
 

@@ -6,6 +6,7 @@ import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+from typing import NamedTuple
 
 from .models import Listing
 from .rules import Verdict
@@ -32,6 +33,17 @@ def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
+class Row(NamedTuple):
+    listing: Listing
+    verdict: Verdict
+    first_seen: str
+    last_seen: str        # last time it was seen online
+    status: str | None    # None, 'saved' or 'hidden'
+    gone: str | None      # the ad was taken offline: 'deactivated' or 'deleted'
+    gone_at: str | None   # when that was noticed
+    status_if_back: str | None  # where it goes if it comes back online
+
+
 class Store:
     def __init__(self, path: str):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -39,15 +51,31 @@ class Store:
         self.db.execute("PRAGMA journal_mode=WAL")  # the web UI reads while the poller writes
         self.db.executescript(SCHEMA)
         columns = {row[1] for row in self.db.execute("PRAGMA table_info(listings)")}
-        if "status" not in columns:  # added with the web UI: NULL, 'saved' or 'hidden'
-            self.db.execute("ALTER TABLE listings ADD COLUMN status TEXT")
+        # Added later: status (the web UI: NULL, 'saved' or 'hidden'), then the offline check's columns.
+        for column in ("status", "gone", "gone_at", "status_if_back"):
+            if column not in columns:
+                self.db.execute(f"ALTER TABLE listings ADD COLUMN {column} TEXT")
 
     def seen(self, key: str) -> bool:
         return self.db.execute("SELECT 1 FROM listings WHERE key = ?", (key,)).fetchone() is not None
 
     def touch(self, key: str) -> None:
+        """Seen online just now. If it had been taken offline, it's back: it returns
+        to where it was (or wherever you moved it since)."""
         with self.db:
-            self.db.execute("UPDATE listings SET last_seen = ? WHERE key = ?", (_now(), key))
+            self.db.execute("UPDATE listings SET last_seen = ?,"
+                            " status = CASE WHEN gone IS NULL THEN status ELSE status_if_back END,"
+                            " gone = NULL, gone_at = NULL WHERE key = ?", (_now(), key))
+
+    def mark_gone(self, keys, why: str) -> None:
+        """The ads were taken offline ('deactivated' or 'deleted'): move them to Hidden."""
+        with self.db:
+            self.db.executemany("UPDATE listings SET gone = ?, gone_at = ?, status_if_back = status, status = 'hidden'"
+                                " WHERE key = ? AND gone IS NULL", [(why, _now(), key) for key in keys])
+
+    def online_keys(self, source: str) -> set[str]:
+        """Keys of the source's ads not known to be offline."""
+        return {k for (k,) in self.db.execute("SELECT key FROM listings WHERE source = ? AND gone IS NULL", (source,))}
 
     def add(self, listing: Listing, verdict: Verdict, notified: bool = False) -> None:
         now = _now()
@@ -76,19 +104,21 @@ class Store:
 
     def set_status(self, key: str, status: str | None) -> bool:
         with self.db:
-            return self.db.execute("UPDATE listings SET status = ? WHERE key = ?", (status, key)).rowcount == 1
+            return self.db.execute("UPDATE listings SET status = ?, status_if_back = ? WHERE key = ?",
+                                   (status, status, key)).rowcount == 1
 
     def update_listing(self, listing: Listing) -> None:
         with self.db:
             self.db.execute("UPDATE listings SET data = ? WHERE key = ?",
                             (json.dumps(listing.to_dict(), ensure_ascii=False), listing.key))
 
-    def all_rows(self):
-        """Everything, newest first, for the web UI."""
-        rows = self.db.execute("SELECT data, verdict, first_seen, last_seen, status FROM listings"
-                               " ORDER BY first_seen DESC, rowid DESC")
-        for data, verdict, first_seen, last_seen, status in rows:
-            yield Listing.from_dict(json.loads(data)), Verdict(**json.loads(verdict)), first_seen, last_seen, status
+    def all_rows(self, source: str | None = None):
+        """Everything (or everything from one source), newest first."""
+        rows = self.db.execute("SELECT data, verdict, first_seen, last_seen, status, gone, gone_at, status_if_back"
+                               " FROM listings WHERE ? IS NULL OR source = ? ORDER BY first_seen DESC, rowid DESC",
+                               (source, source))
+        for data, verdict, *rest in rows:
+            yield Row(Listing.from_dict(json.loads(data)), Verdict(**json.loads(verdict)), *rest)
 
     def update_verdict(self, key: str, verdict: Verdict) -> None:
         with self.db:

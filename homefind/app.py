@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime
+import urllib.error
+from datetime import datetime, timedelta
 
 from .net import Blocked
 from .rating import rate
@@ -16,6 +17,7 @@ from .util import text
 
 log = logging.getLogger("homefind")
 MAX_BACKOFF_MINUTES = 6 * 60
+CHECK_AFTER_HOURS = 6  # an ad seen online more recently than this isn't looked up to see if it's gone
 
 
 def _every(cfg: dict, name: str) -> float:
@@ -72,17 +74,28 @@ def run_once(cfg: dict, store: Store, http, notifier: Notifier, only: set[str] |
         log.info("checked %s: %s", names, f"{new} new, {matched} matching" if new else "nothing new")
 
 
+def _sweep_due(cfg: dict, store: Store, name: str) -> bool:
+    hours = cfg["sources"].get(name, {}).get("sweep_every_hours")
+    return bool(hours) and time.time() - float(store.meta_get(f"sweep:{name}") or 0) >= hours * 3600
+
+
 def _run_source(src, cfg, store, notifier, dry_run, quiet=False) -> dict:
     first_run = not dry_run and store.meta_get(f"init:{src.name}") is None
     handled: set[str] = set()
+    online: set[str] = set()  # every ad the search came across
     seen = (lambda key: key in handled) if dry_run else store.seen
+    # A sweep pages through everything (sources stop paging at ads they've seen before).
+    sweep = not dry_run and _sweep_due(cfg, store, src.name)
+    if sweep:
+        store.meta_set(f"sweep:{src.name}", str(time.time()))
     matches: set[str] = set()
     scanned = new = 0
     details_blocked = False
     started = time.monotonic()
     try:
-        for listing in src.search(seen):
+        for listing in src.search((lambda key: False) if sweep else seen):
             scanned += 1
+            online.add(listing.key)
             if listing.key in handled or seen(listing.key):
                 if not dry_run:
                     store.touch(listing.key)
@@ -129,6 +142,13 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False) -> dict:
         return {"name": src.name, "new": new, "matches": len(matches)}
     if not dry_run and store.meta_get(f"strikes:{src.name}") not in (None, "0"):
         store.meta_set(f"strikes:{src.name}", "0")
+    if sweep and not src.complete:
+        log.warning("%s: the sweep missed some ads (they shift pages as ads come and go); trying again in %s h",
+                    src.name, cfg["sources"][src.name]["sweep_every_hours"])
+    if not dry_run:
+        offline = _find_offline(src, cfg, store, online)
+        if offline:
+            log.info("%-14s %d ad%s taken offline, moved to Hidden", src.name, len(offline), "s" * (len(offline) > 1))
     if first_run:
         store.meta_set(f"init:{src.name}", datetime.now().isoformat(timespec="seconds"))
     if not quiet or new or first_run:
@@ -136,6 +156,48 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False) -> dict:
                  time.monotonic() - started,
                  "  [first run: stored, not pushed]" if first_run and matches else "")
     return {"name": src.name, "new": new, "matches": len(matches)}
+
+
+def _find_offline(src, cfg: dict, store: Store, online: set[str]) -> list[str]:
+    """Moves ads that were taken offline to Hidden (tagged 'deactivated' or
+    'deleted') and returns their keys. After a search that saw every ad on the
+    site, that's all the stored ones it didn't see. Otherwise a few older ads
+    you can still see get looked up, `check_per_run` per run: saved ones first,
+    then matches, then rejected ones in the area, least recently seen first."""
+    if src.complete:
+        gone = store.online_keys(src.name) - online
+        store.mark_gone(gone, "deleted")
+        return sorted(gone)
+    if not src.can_probe:
+        return []
+    drop = set(cfg["search"].get("drop_reasons") or [])
+    cutoff = (datetime.now() - timedelta(hours=CHECK_AFTER_HOURS)).isoformat(timespec="seconds")
+    due = [r for r in store.all_rows(src.name)
+           if not r.gone and r.status != "hidden" and r.last_seen < cutoff and not drop & set(r.verdict.codes)]
+    due.sort(key=lambda r: (r.status != "saved", not r.verdict.ok, bool({"area", "avoid"} & set(r.verdict.codes)),
+                            r.last_seen))
+    gone = []
+    for r in due[: int(src.opts.get("check_per_run", 5))]:
+        key = r.listing.key
+        try:
+            why = src.offline(r.listing)
+        except urllib.error.HTTPError as e:
+            if e.code not in (404, 410):
+                log.warning("%s: could not check %s (HTTP %s); trying again next run", src.name, r.listing.url, e.code)
+                break
+            why = "deleted"
+        except Blocked as e:
+            _blocked(store, src.name, _every(cfg, src.name), e)
+            break
+        except Exception as e:  # noqa: BLE001 - leave the rest for next run
+            log.warning("%s: could not check %s (%s); trying again next run", src.name, r.listing.url, e)
+            break
+        if why:
+            store.mark_gone([key], why)
+            gone.append(key)
+        else:
+            store.touch(key)
+    return gone
 
 
 def recheck(cfg: dict, store: Store) -> tuple[int, int, int]:

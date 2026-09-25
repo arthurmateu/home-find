@@ -17,10 +17,15 @@ from . import Source
 
 class Immowelt(Source):
     name = "immowelt"
+    can_probe = True
 
     def search(self, seen):
         for url in self.opts.get("urls", []):
             yield from parse(self.http.get(url))
+
+    def offline(self, listing: Listing) -> str | None:
+        self.http.get(listing.url)  # 404 ("Diese Anzeige ist nicht mehr verfügbar") or 410 once it's gone
+        return None
 
 
 def parse(page: str):

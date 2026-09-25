@@ -22,6 +22,7 @@ HEADERS = {"Accept": "application/json"}
 class ImmoScout(Source):
     name = "immoscout"
     needs_enrich = True
+    can_probe = True
 
     def search(self, seen):
         s = self.cfg["search"]
@@ -118,3 +119,9 @@ class ImmoScout(Source):
         if wbs is not None:
             listing.wbs_required = wbs.strip().lower() in ("ja", "erforderlich")
         return listing
+
+    def offline(self, listing: Listing) -> str | None:
+        d = self.http.json(f"{API}/expose/{listing.id}", ua=APP_UA, headers=HEADERS)  # 404 once deleted
+        # The report link says "publicationState=live" on ads that are up.
+        state = re.search(r"publicationState=(\w+)", (d.get("header") or {}).get("fraudReportUrl") or "")
+        return "deactivated" if state and state.group(1).lower() != "live" else None

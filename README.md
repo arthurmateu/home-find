@@ -19,7 +19,8 @@ pushes the rest to your phone. Python 3.11+, standard library only.
 
 Intervals are `every_minutes` in `config.toml` (hourly by default, to stay well
 clear of rate limits): roughly 20 requests an hour in total, spread over 6 sites, with ≥ 2 s between
-requests to the same site. A site that blocks a request is paused (2×, 4×, …
+requests to the same site, plus up to 17 an hour to find ads that were taken
+offline (see below). A site that blocks a request is paused (2×, 4×, …
 its interval, up to 6 hours) while the others carry on.
 
 ## Setup
@@ -67,14 +68,24 @@ Windows restart, start it again.
 - **Descriptions:** per card, or "Expand descriptions" for all.
 - **☆ Save / Hide** on every listing, stored in the database (both have Undo).
   Saved listings move to the Saved tab, so they don't take space under Matches.
+- **Ads taken offline move to Hidden by themselves**, saved ones included,
+  tagged **Deactivated** (switched off by the poster, may come back; mostly
+  WG-Gesucht) or **Deleted**, with a grey photo and when it was noticed; the Hidden tab
+  gets a chip per tag. If one comes back online, it moves back to where it was.
+  How it's found: each hourly check also looks up a few older ads you can
+  still see (`check_per_run`: 5, WG-Gesucht 2; saved first, then matches, then
+  rejected, skipping any seen in the last 6 hours). inberlinwohnen goes through
+  all its ~40 pages every 12 hours (`sweep_every_hours`) and charlotte1907's
+  one page lists every offer, so anything missing there is gone.
 - **Score (0–100)** on every listing, rejected ones included, sorted best
   first (or newest / cheapest / largest). "Why 74?" shows the points:
   value for money (warm €/m²) 35 · budget fit 15 (negative when over) ·
   size 20 + rooms 5 · freshness 10 (the first hours after posting count most) ·
   photos / verified or municipal landlord / description 10 · balcony,
   kitchen, lift, Altbau, garden up to 8; minus scam signs, Ablöse, an
-  estimated warm rent, ImmoScout Plus-only, semi-basement. Tune it in
-  `homefind/rating.py`. Push notifications start with the score.
+  estimated warm rent, semi-basement. ImmoScout Plus-only listings aren't
+  marked down (you're a member). Tune it in `homefind/rating.py`. Push
+  notifications start with the score.
 - **Rejected** has a chip per reason. **Near miss** = everything fine except
   the warm rent is over budget while the cold rent is within
   `near_miss_cold_rent` (1000 € by default); that's why the sources search up

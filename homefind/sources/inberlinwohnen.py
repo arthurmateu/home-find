@@ -2,7 +2,9 @@
 (degewo, GESOBAU, Gewobag, HOWOGE, STADT UND LAND, WBM).
 
 It is a Laravel Livewire app: each listing's data sits as JSON in a
-`wire:snapshot` attribute. Newest first, 10 per page, all of Berlin.
+`wire:snapshot` attribute. Newest first, 10 per page, all of Berlin. Every
+`sweep_every_hours` the search goes through all pages (~40), which is how ads
+that were taken offline are found.
 """
 
 from __future__ import annotations
@@ -22,14 +24,22 @@ class InBerlinWohnen(Source):
     name = "inberlinwohnen"
 
     def search(self, seen):
+        keys, total = set(), None
         for page in range(1, self.opts.get("max_pages", 45) + 1):
-            items = list(parse(self.http.get(URL if page == 1 else f"{URL}?page={page}")))
+            html_page = self.http.get(URL if page == 1 else f"{URL}?page={page}")
+            items = list(parse(html_page))
+            if total is None:
+                m = re.search(r"von (\d+) Angeboten", html_page)
+                total = int(m.group(1)) if m else None
             if not items:
                 break
+            keys.update(l.key for l in items)
             fresh = [l for l in items if not seen(l.key)]
             yield from items
             if not fresh:
                 break
+        # Paging moves under you when ads come and go, so it only counts if every one went past.
+        self.complete = total is not None and len(keys) >= total
 
 
 def _unwrap(x):

@@ -14,11 +14,13 @@ from . import Source
 
 BASE = "https://www.wg-gesucht.de"
 DESCRIPTION_END = re.compile(r"^(Benötigte Unterlagen|Angaben zum Objekt|Statistiken|Kontakt)")
+DEACTIVATED = re.compile(r"Diese Anzeige ist (momentan )?deaktiviert|Die Anzeige in [^<]{0,200} ist deaktiviert")
 
 
 class WgGesucht(Source):
     name = "wggesucht"
     needs_enrich = True
+    can_probe = True
 
     def search(self, seen):
         params = [("offer_filter", "1"), ("city_id", "8"), ("sort_order", "0"), ("noDeact", "1"),
@@ -105,3 +107,10 @@ class WgGesucht(Source):
         listing.images = images
         listing.photos = len(images)
         return listing
+
+    def offline(self, listing: Listing) -> str | None:
+        # A deactivated ad still loads, with a notice; the search leaves those out (noDeact=1).
+        url, page = self.http.fetch(listing.url)
+        if f".{listing.id}.html" not in url:
+            return "deleted"
+        return "deactivated" if DEACTIVATED.search(page) else None

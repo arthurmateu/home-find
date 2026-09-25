@@ -1,6 +1,10 @@
 """Listing sources. Each yields `Listing`s from search results; sources with
 `needs_enrich` also load the detail page, but only for new listings that pass
-the cheap pre-check, to keep request counts low."""
+the cheap pre-check, to keep request counts low.
+
+Ads that were taken offline are found one of two ways: `offline()` looks up a
+single ad (`can_probe`), or a search that went through every ad on the site
+sets `complete`, so any stored ad it didn't yield is gone."""
 
 from __future__ import annotations
 
@@ -12,6 +16,8 @@ from ..models import Listing
 class Source:
     name = ""
     needs_enrich = False
+    can_probe = False  # offline() works
+    complete = False   # set by search(): it just yielded every ad that's online
 
     def __init__(self, cfg: dict, http):
         self.cfg, self.http = cfg, http
@@ -34,6 +40,11 @@ class Source:
 
     def enrich(self, listing: Listing) -> Listing:
         return listing
+
+    def offline(self, listing: Listing) -> str | None:
+        """'deactivated' or 'deleted' if the ad was taken offline, None if it's
+        still up. HTTP 404/410 count as deleted; anything else it can't tell raises."""
+        raise NotImplementedError
 
 
 def enabled_sources(cfg: dict, http) -> list[Source]:
