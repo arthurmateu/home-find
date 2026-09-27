@@ -71,8 +71,23 @@ SWAP_TEXT = _rx(r"tauschangebot|tauschwohnung|wohnungstausch|tauschpartner|nur (
                r"|im tausch gegen|(wohnung|zimmer\w*) (zu |zum )?tauschen|tausche (meine|unsere)"
                r"|\bswap|(flat|apartment|home|house) ?exchange|exchange (my|our) (flat|apartment)")
 WANTED_TITLE = _rx(r"^\W*(ich |wir )?(suche|suchen|gesucht|gesuch)\b")
-WG_TITLE = _rx(r"\bwg\b|wg-?zimmer|mitbewohner|flat ?share|shared (flat|apartment)|\broom in (a|an|my|our)\b")
-WG_TEXT = _rx(r"wg-?zimmer|\b(in|für) (eine|unsere|meine)[nr]? \w{0,6} ?wg\b|mitbewohner(in)? gesucht|flat ?share")
+# A single room offered in someone's flat, even when not called a WG: "Zimmer zu vermieten",
+# "Helles Zimmer in ...", "vermiete ein Schlafzimmer", "Küche und Bad werden geteilt".
+# "1-Zimmer-Wohnung", "Ein Zimmer Wohnung", "Zimmer, Küche, Bad" are flats and don't match.
+_NOT_FLAT_AFTER = r"(?![- ]?(wohnung|whg|apartment|appartement|studio))"
+WG_TITLE = _rx(
+    r"\bwg\b|wg-?zimmer|mitbewohner|flat ?share|shared (flat|apartment)|\broom in (a|an|my|our)\b"
+    r"|^\W*zimmer\b(?!\W*(wohnung|whg|apartment|appartement|studio|küche|kü\b))"
+    rf"|\b\w+(es|ens) zimmer\b{_NOT_FLAT_AFTER}|studentenzimmer"
+    r"|\b(single|private|furnished) room\b|\broom (for rent|to rent|available)\b"
+)
+WG_TEXT = _rx(
+    r"wg-?zimmer|\b(in|für) (eine|unsere|meine)[nr]? \w{0,6} ?wg\b|mitbewohner(in)? gesucht|flat ?share"
+    r"|\b(die|unsere|meine|der) wg\b(?!-)"
+    r"|\b(küche|bad\w*|flur)\b[\w ,]{0,40} (werden|wird) (gemeinsam )?(geteilt|mitbenutzt|gemeinsam genutzt)"
+    r"|küchenmitbenutzung|badmitbenutzung|shared (kitchen|bathroom)"
+    rf"|\b(biete|vermiete)n? (hier )?(ein|mein|unser|das) (\w+ )?(schlaf)?zimmer\b{_NOT_FLAT_AFTER}"
+)
 TEMP_TITLE = _rx(
     r"zwischenmiete|untermiete|untervermiet|(?<!un)(?<!nicht )befristet|auf zeit\b|temporär|temporary|sublet"
     r"|short[- ]?term|kurzzeit|\bfür \d+ (monate|wochen)|\bbis (zum |ende )?\d{1,2}\.\d{1,2}\."
