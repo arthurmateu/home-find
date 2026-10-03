@@ -12,7 +12,7 @@ from pathlib import Path
 
 from . import config
 from .app import check_offline, recheck, run_once, seconds_until_due
-from . import web
+from . import geo, web
 from .net import Fetcher
 from .notify import Notifier, print_reject
 from .sources import SOURCE_NAMES
@@ -39,6 +39,8 @@ def main(argv=None) -> int:
     ap.add_argument("--check-offline", action="store_true",
                     help="look up every stored ad now and file away the ones taken offline "
                          "(--loop only does a few per check)")
+    ap.add_argument("--geocode", action="store_true",
+                    help="place every listing on the map now (--loop and --serve do it bit by bit)")
     ap.add_argument("--test-notify", action="store_true", help="send a test notification")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
@@ -88,6 +90,12 @@ def main(argv=None) -> int:
     if args.check_offline:
         check_offline(cfg, store, http, notifier)
         return 0
+    if args.geocode:
+        print("looking up places (about one a second, 1–2 per address not seen before)...")
+        asked = geo.fill(cfg, store, geo.Geocoder())
+        placed, shown = geo.coverage(cfg, store)
+        print(f"{asked} lookups; {placed} of {shown} listings are on the map")
+        return 0
     if not notifier.configured and not (args.dry_run or args.no_push):
         log.warning("no notification channel configured; matches only show in the console and the web UI")
     if not args.loop:
@@ -97,6 +105,7 @@ def main(argv=None) -> int:
     try:
         if web.serve(cfg):
             log.info("web UI: %s", web.url(cfg))
+            geo.start(cfg)
             if args.open:
                 web.open_browser(web.url(cfg))
     except OSError as e:
@@ -117,6 +126,7 @@ def serve_only(cfg: dict, open_it: bool) -> int:
         print("web UI is off (run.web_port = 0)")
         return 1
     print(f"web UI: {web.url(cfg)}  (Ctrl+C stops)")
+    geo.start(cfg)
     if open_it:
         web.open_browser(web.url(cfg))
     while True:

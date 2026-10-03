@@ -45,6 +45,21 @@ def berlin_zip(s: str | None) -> str | None:
     return m.group(1) if m else None
 
 
+# Address fields with no street in them: "Die vollständige Adresse der Immobilie erhältst du vom
+# Anbieter., 10709 Wilmersdorf, Berlin", "14059 Berlin, Charlottenburg (unvollständige Adresse)".
+_NO_STREET = re.compile(r"adresse|anbieter|auf anfrage|^\W*\d{5}\b|^\W*berlin\b", re.I)
+
+
+def street_of(address: str | None) -> str | None:
+    """The street and house number an address starts with ("Kantstr. 7", "Lehniner
+    Platz"), or None when it only names the postcode or neighbourhood."""
+    first = (address or "").split(",")[0]
+    first = " ".join(re.sub(r"\s+\d{5}\b.*$", "", first).split())  # "Schillerstraße 36 10627"
+    if not re.search(r"[a-zäöüß]{3}", first, re.I) or _NO_STREET.search(first):
+        return None
+    return first
+
+
 def to_date(value: str | None) -> date | None:
     """'2026-09-18T16:21:08Z' or '18.09.2026' -> date."""
     if not value:

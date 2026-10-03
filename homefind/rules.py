@@ -12,7 +12,7 @@ import re
 from dataclasses import asdict, dataclass, field
 
 from .models import Listing
-from .util import days_since, warm_from_text
+from .util import days_since, street_of, warm_from_text
 
 
 @dataclass
@@ -238,6 +238,33 @@ def avoided_place(listing: Listing, cfg: dict) -> str | None:
             or _place_in_title(listing.title or "", names))
 
 
+STREET_ALIASES = {"kudamm": "kurfuerstendamm"}
+
+
+def _street_key(s: str) -> str:
+    """Spelling-proof street name: "Kantstr." / "Kantstrasse" -> "kantstrasse", "Ku’damm" -> "kurfuerstendamm"."""
+    s = s.lower().replace("ß", "ss").replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
+    s = re.sub(r"['‘’`´]", "", s)
+    s = re.sub(r"str(asse\b|\.|\b)", "strasse", s)
+    s = " ".join(re.sub(r"[-\s]+", " ", s).split())
+    return re.sub(r"\b\w+\b", lambda m: STREET_ALIASES.get(m.group(0), m.group(0)), s)
+
+
+def street_budget(listing: Listing, cfg: dict) -> tuple[float, str | None]:
+    """The warm-rent budget for the listing, and the street it's on if that's one
+    of `street_max_warm_rent`. The street is taken from the address; without one,
+    from the title, when it says the flat is there ("Wohnung am Ku'damm", not
+    "nahe Kudamm"). "Neue Kantstraße" is not Kantstraße."""
+    s = cfg["search"]
+    street = street_of(listing.address)
+    where = _street_key(street) if street else _street_key(listing.title or "")
+    for name, budget in (s.get("street_max_warm_rent") or {}).items():
+        n = re.escape(_street_key(name))
+        if re.search(rf"^{n}\b" if street else rf"\b(am|an der|in der|in|auf dem|on|at) {n}\b", where):
+            return budget, name
+    return s["max_warm_rent"], None
+
+
 def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
     """`final=False` is the cheap pre-check on search-result data, before
     fetching the detail page; unknown fields pass."""
@@ -268,7 +295,9 @@ def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
     # Near misses: flats whose cold rent is within near_miss_cold_rent are fetched
     # and fully loaded even when the warm rent is over budget, so they can be
     # browsed under "Rejected".
-    cap = s["max_warm_rent"]
+    cap, street = street_budget(listing, cfg)
+    if street:
+        v.notes.append(f"on {street}: budget {cap:g} € warm")
     near = s.get("near_miss_cold_rent") or 0
     fetch_cap = max(cap, near)
     cold = listing.cold_rent

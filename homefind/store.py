@@ -26,6 +26,9 @@ CREATE INDEX IF NOT EXISTS listings_ok ON listings (ok, first_seen);
 CREATE TABLE IF NOT EXISTS pages (url TEXT PRIMARY KEY, name TEXT, lines TEXT, updated TEXT);
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
 CREATE TABLE IF NOT EXISTS fingerprints (fp TEXT PRIMARY KEY, key TEXT, url TEXT, first_seen TEXT);
+-- Geocoder answers (see geo.py), misses included (lat NULL) so they aren't asked again.
+CREATE TABLE IF NOT EXISTS places (q TEXT PRIMARY KEY, lat REAL, lon REAL, precision TEXT, locality TEXT,
+                                   radius REAL, at TEXT);
 """
 
 
@@ -167,6 +170,19 @@ class Store:
             self.db.execute("INSERT OR REPLACE INTO fingerprints VALUES (?, ?, ?, ?)",
                             (fingerprint, listing.key, listing.url, _now()))
         return None
+
+    def places(self) -> dict[str, dict | None]:
+        """Every geocoder answer: query -> {lat, lon, precision, locality, radius}, or None if it found nothing."""
+        rows = self.db.execute("SELECT q, lat, lon, precision, locality, radius FROM places")
+        return {q: (dict(lat=lat, lon=lon, precision=p, locality=loc, radius=r) if lat is not None else None)
+                for q, lat, lon, p, loc, r in rows}
+
+    def save_place(self, q: str, place: dict | None) -> None:
+        p = place or {}
+        with self.db:
+            self.db.execute("INSERT OR REPLACE INTO places VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (q, p.get("lat"), p.get("lon"), p.get("precision"), p.get("locality"), p.get("radius"),
+                             _now()))
 
     def meta_values(self, prefix: str) -> list[str]:
         return [v for (v,) in self.db.execute("SELECT v FROM meta WHERE k LIKE ?", (prefix + "%",))]

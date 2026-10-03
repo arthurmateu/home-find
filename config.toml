@@ -5,6 +5,12 @@
 
 [search]
 max_warm_rent = 1000         # € per month incl. Nebenkosten + Heizung
+# Streets worth paying more for: their own budget, and the score goes as much easier
+# on their price (1200 € there scores like 1000 € elsewhere). Matched on the address,
+# or the title when there's none ("Wohnung am Ku'damm", not "nahe Ku'damm"); spellings
+# like Kantstr. / Kudamm are fine. Flats with a cold rent over near_miss_cold_rent
+# aren't fetched at all, so raise that too to go much higher.
+street_max_warm_rent = { "Kurfürstendamm" = 1200, "Kantstraße" = 1200 }
 near_miss_cold_rent = 1000   # also load flats with cold rent up to this; if warm is over budget they
                              # show under Rejected → "Near miss". 0 = only fetch within max_warm_rent.
 min_size_sqm = 25            # drops micro-apartments / co-living rooms
@@ -70,6 +76,7 @@ avoid_names = [
 [run]
 request_delay_seconds = 2.0  # minimum gap between two requests to the same site
 web_port = 8765              # web UI at http://localhost:8765 while --loop / --serve runs; 0 = off
+highlight_sources = ["immoscout"]  # their cards get a coloured outline and badge in the web UI
 
 [notify]
 # ntfy.sh: install the ntfy app (Android/iOS) or open https://ntfy.sh/app,

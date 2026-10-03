@@ -5,7 +5,8 @@ listings too: a flat that's great apart from being 5 % over budget still
 scores well, so it stands out on the Rejected tab. Hard rejections (swap, WBS,
 ...) don't lower the score; they're shown separately.
 
-Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over) · size 20 + rooms 5 ·
+Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over; streets in
+         street_max_warm_rent have their own budget, and their €/m² count for less to match) · size 20 + rooms 5 ·
          freshness 10 · photos / trusted landlord / description 10 ·
          features (balcony, kitchen, ...) up to 8,
          minus: scam signs (8 per point), Ablöse, estimated rent, semi-basement.
@@ -18,7 +19,7 @@ import re
 from datetime import datetime
 
 from .models import Listing
-from .rules import ABLOESE, Verdict
+from .rules import ABLOESE, Verdict, street_budget
 from .util import parse_published
 
 FEATURES = [  # (points, label, pattern); "kein Balkon" / "ohne EBK" don't count
@@ -62,12 +63,16 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
     parts: list[tuple[int, str]] = []
     warm, size = verdict.warm or listing.warm_rent, listing.size_sqm
 
-    # value for money and budget fit
+    # value for money and budget fit; on a street with its own budget, prices count
+    # for less in the same proportion (1200 € there scores like 1000 € elsewhere)
+    cap, street = street_budget(listing, cfg)
+    leeway = cap / s["max_warm_rent"]
     if warm and size:
         per_sqm = warm / size
-        parts.append((round(35 * _clamp((30 - per_sqm) / 17)), f"{per_sqm:.1f} €/m² warm"))
+        parts.append((round(35 * _clamp((30 - per_sqm / leeway) / 17)),
+                      f"{per_sqm:.1f} €/m² warm" + (f" (on {street}, counts as {per_sqm / leeway:.1f})" if street else "")))
     if warm:
-        r = warm / s["max_warm_rent"]
+        r = warm / cap
         if r <= 0.8:
             pts = 15
         elif r <= 1:
@@ -75,7 +80,7 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
         else:
             pts = 10 - (r - 1) * 100  # 10 at the budget, 0 at 10 % over, -10 at 20 % over
         label = f"{(1 - r) * 100:.0f} % under budget" if r <= 1 else f"{(r - 1) * 100:.0f} % over budget"
-        parts.append((round(pts), label))
+        parts.append((round(pts), label + (f" ({cap:g} € on {street})" if street else "")))
 
     # space
     if size:

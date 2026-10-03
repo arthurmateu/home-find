@@ -16,6 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from . import geo
 from .notify import headline
 from .rating import band, rate
 from .rules import REASONS
@@ -38,6 +39,7 @@ def payload(cfg: dict, store: Store) -> dict:
     checked = datetime.fromtimestamp(max(checks)).strftime("%H:%M") if checks else "never"
     drop = set(s.get("drop_reasons") or [])
     now = datetime.now()
+    places = store.places()
     listings = []
     for row in store.all_rows():
         listing, verdict, first_seen = row.listing, row.verdict, row.first_seen
@@ -46,6 +48,7 @@ def payload(cfg: dict, store: Store) -> dict:
         images = listing.images or ([listing.image_url] if listing.image_url else [])
         score, parts = rate(listing, verdict, first_seen, cfg, now)
         posted = parse_published(listing.published, first_seen)
+        place = geo.locate(listing, places)
         listings.append({
             "key": listing.key,
             "source": listing.source,
@@ -73,9 +76,11 @@ def payload(cfg: dict, store: Store) -> dict:
             "warm": verdict.warm or listing.warm_rent,
             "size": listing.size_sqm,
             "posted": (posted.isoformat(timespec="seconds") if posted else first_seen),
+            "geo": place and {k: place[k] for k in ("lat", "lon", "precision", "radius")},  # None until looked up
+            "locality": geo.locality(listing, place),
         })
     area = " · ".join(cfg["area"]["names"])
-    return {"listings": listings, "reasons": reasons,
+    return {"listings": listings, "reasons": reasons, "highlight": cfg["run"].get("highlight_sources") or [],
             "subtitle": f"{area} · up to {s['max_warm_rent']} € warm · last check {checked}"}
 
 

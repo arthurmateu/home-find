@@ -9,6 +9,7 @@ from pathlib import Path
 DEFAULTS: dict = {
     "search": {
         "max_warm_rent": 1000,
+        "street_max_warm_rent": {},  # street -> its own budget, e.g. {"Kantstraße": 1200}
         "near_miss_cold_rent": 1000,
         "min_size_sqm": 25,
         "min_rooms": 1,
@@ -41,6 +42,7 @@ DEFAULTS: dict = {
         "request_delay_seconds": 2.0,
         "db_path": "data/homefind.db",
         "web_port": 8765,
+        "highlight_sources": [],  # the web UI makes these sources' cards stand out
     },
     "notify": {
         "ntfy_server": "https://ntfy.sh",

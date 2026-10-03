@@ -57,6 +57,21 @@ Only one instance runs at a time; after a reboot, start it again.
 - **Matches / Saved / Rejected / Hidden** tabs (bookmarkable: `/#saved`).
 - **Photos:** arrows on each card flip through all photos; click a photo for
   the full-screen viewer (arrow keys, swipe, thumbnail strip, Esc to close).
+- **Mini-map**: hover the 📍 neighbourhood line on a card (tap it on a phone)
+  and a map pops up, with a pin at the address, or a dashed circle when only
+  the postcode is known; click the map for Google Maps. Addresses are looked up
+  once on OpenStreetMap's Nominatim (about one a second, as its usage policy
+  asks) and kept in the database; while the UI runs, new listings are placed
+  within a couple of minutes (`--geocode` does all of them at once). Map tiles
+  are Stadia Maps' (light or dark, following the page), free without an API
+  key for pages on localhost.
+- **Filters**, a dropdown each under the tabs: **Locality** on every tab
+  (Ortsteil, from the address, else the portal's label; pick one or several),
+  and on Rejected also **Where** (in the area, outside, anywhere) and
+  **Reason** (pick several to see any of them). Each count in a menu is what
+  you'd get by picking it, given the other filters; "Clear" resets the tab.
+- **ImmoScout24 cards stand out** with a coloured outline and badge
+  (`highlight_sources` in `config.toml`).
 - **Descriptions:** per card, or "Expand descriptions" for all.
 - **☆ Save / Hide** on every listing, stored in the database (both have Undo).
   Saved listings move to the Saved tab, so they don't take space under Matches.
@@ -82,10 +97,10 @@ Only one instance runs at a time; after a reboot, start it again.
   estimated warm rent, semi-basement. ImmoScout Plus-only listings aren't
   marked down (you're a member). Tune it in `homefind/rating.py`. Push
   notifications start with the score.
-- **Rejected** has a chip per reason. **Near miss** = everything fine except
-  the warm rent is over budget while the cold rent is within
-  `near_miss_cold_rent` (1000 € by default); that's why the sources search up
-  to 1000 € *cold*. Sorted by score, the near misses worth a look come first.
+- **Near miss** (a reason under Rejected) = everything fine except the warm
+  rent is over budget while the cold rent is within `near_miss_cold_rent`
+  (1000 € by default); that's why the sources search up to 1000 € *cold*.
+  Sorted by score, the near misses worth a look come first.
 - WG rooms, senior housing, swap offers, WBS-only flats and anything in former
   East Berlin, Spandau or Neukölln don't show up at all (`drop_reasons` in
   `config.toml`).
@@ -102,6 +117,7 @@ python3 -m homefind --only immoscout,kleinanzeigen
 python3 -m homefind --rejected 50    # what got filtered out, and why
 python3 -m homefind --recheck        # re-apply the rules after editing config.toml
 python3 -m homefind --check-offline  # look up every stored ad now and file away the offline ones
+python3 -m homefind --geocode        # place every listing on the map now
 python3 -m homefind --no-push        # store + print, no notifications
 ```
 
@@ -118,6 +134,11 @@ postcode; East Berlin, Spandau and Neukölln, `avoid_zip_codes`, are dropped out
 wanted ads, cellars/parking/offices, WG rooms, temporary/sublet/holiday flats,
 furnished, WBS-only (unless `have_wbs`), co-op members-only (unless
 `coop_member`), senior housing, and no photos.
+
+**Streets worth paying more for** (`street_max_warm_rent`, now Kurfürstendamm
+and Kantstraße at 1200 €): their own budget, and the score goes as much easier
+on their price. The street comes from the address, or from the title when
+there's none ("Wohnung am Ku'damm" counts, "nahe Ku'damm" doesn't).
 
 **Scam points** (rejected at `scam_threshold`, default 3; below it the match is
 sent with ⚠ warnings): money before viewing, keys by post, "I'm abroad",
