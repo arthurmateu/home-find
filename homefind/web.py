@@ -158,8 +158,12 @@ def serve(cfg: dict) -> ThreadingHTTPServer | None:
 
 
 def open_browser(target: str) -> None:
-    if os.environ.get("WSL_DISTRO_NAME") and shutil.which("powershell.exe"):  # WSL: use the Windows browser
-        subprocess.Popen(["powershell.exe", "-NoProfile", "-Command", f"Start-Process '{target}'"],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    else:
-        webbrowser.open(target)
+    # Best effort: failing here must not look like the server failing (e.g. WSL with a broken /mnt/c).
+    try:
+        if os.environ.get("WSL_DISTRO_NAME") and shutil.which("powershell.exe"):  # WSL: use the Windows browser
+            subprocess.Popen(["powershell.exe", "-NoProfile", "-Command", f"Start-Process '{target}'"],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            webbrowser.open(target)
+    except OSError as e:
+        log.warning("could not open a browser (%s); go to %s yourself", e.strerror, target)
