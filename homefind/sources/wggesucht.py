@@ -15,6 +15,8 @@ from . import Source
 BASE = "https://www.wg-gesucht.de"
 DESCRIPTION_END = re.compile(r"^(Benötigte Unterlagen|Angaben zum Objekt|Statistiken|Kontakt)")
 DEACTIVATED = re.compile(r"Diese Anzeige ist (momentan )?deaktiviert|Die Anzeige in [^<]{0,200} ist deaktiviert")
+MONTHS = ["januar", "februar", "märz", "april", "mai", "juni", "juli", "august", "september", "oktober",
+          "november", "dezember"]
 
 
 class WgGesucht(Source):
@@ -87,6 +89,20 @@ class WgGesucht(Source):
             listing.published = online.group(1).strip()
         if re.search(r"(?m)^frei bis:?\s*\n?\s*\d{2}\.\d{2}\.\d{4}", t):
             listing.signals["temporary"] = True
+        abloese = num(after("Ablösevereinbarung"))  # "150€" or "n.a."
+        if abloese:
+            listing.signals["abloese"] = abloese
+        # "Angaben zum Objekt" is one line per icon: Altbau, EG, möbliert / teilmöbliert, Dusche, ...
+        details = re.split(r"(?m)^Angaben zum Objekt$", t, maxsplit=1)
+        furnished = re.search(r"(?m)^(teil)?möbliert$", details[1][:1000]) if len(details) > 1 else None
+        if furnished:
+            listing.signals["part_furnished" if furnished.group(1) else "furnished"] = True
+        # The poster's box: "Private:r Nutzer:in", "Mitglied seit Juni 2012".
+        if re.search(r"(?m)^Private:r Nutzer:in$", t):
+            listing.private = True
+        since = re.search(r"Mitglied seit (\w+) (\d{4})", t)
+        if since and since.group(1).lower() in MONTHS:  # the 1st of the month, so the age is never underestimated
+            listing.signals["account_since"] = f"01.{MONTHS.index(since.group(1).lower()) + 1:02d}.{since.group(2)}"
 
         start = page.find('id="ad_description_text"')
         if start != -1:

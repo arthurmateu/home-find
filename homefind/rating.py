@@ -120,7 +120,7 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
     # minus
     if verdict.score:
         parts.append((-8 * verdict.score, "scam warning signs"))
-    if ABLOESE.search(text):
+    if ABLOESE.search(text) or sig.get("abloese"):
         parts.append((-6, "asks for Ablöse"))
     if any("estimated" in n for n in verdict.notes):
         parts.append((-2, "warm rent is an estimate"))

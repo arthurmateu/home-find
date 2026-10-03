@@ -93,18 +93,30 @@ TEMP_TITLE = _rx(
     r"|short[- ]?term|kurzzeit|\bfür \d+ (monate|wochen)|\bbis (zum |ende )?\d{1,2}\.\d{1,2}\."
     r"|ferienwohnung|monteur|serviced|business[- ]?apartment|co-?living"
 )
+_DATE = r"\d{1,2}\.\d{1,2}\.(\d{4}|\d{2})?"
 TEMP_TEXT = _rx(
-    r"zwischenmiete|zur untermiete|(?<!un)befristete[rn]? (mietvertrag|vermietung|mietverhältnis)"
+    r"zwischenmiete|(?<!un)befristete[rn]? (mietvertrag|vermietung|mietverhältnis)"
     r"|(?<!un)(?<!nicht )befristet (bis|auf|für)"
     r"|\bfür (\d+|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf) (monate|wochen)\b"
-    r"|\btemporary\b|\bsublet|short[- ]?term|co-?living|mietdauer:? (max\.?|maximal|höchstens)"
+    r"|\btemporary\b|short[- ]?term|co-?living|mietdauer:? (max\.?|maximal|höchstens)"
+    r"|(?<!not )time[- ]limited|fixed[- ]term|\blimited to \d+ (months|years)"
+    # "Verfügbar vom 1.10.26 - 1.11.26", "Untermiete vom 01.11.2026 bis 27.06.2027"
+    r"|(verfügbar|frei|zeitraum|miete|available)\W{1,3}(vom |von |ab |from )?" + _DATE
+    + r" ?(-|–|bis|to|until) ?" + _DATE +
     r"|business[- ]?(apartment|suite)|serviced apartment|boardinghouse|€ ?/ ?nacht|pro nacht|per night"
 )
+# Subletting, in the description; see mentions_sublet.
+SUBLET = _rx(r"\bunter(ver)?miet\w*|\bunterzuvermieten\b|\bsub-?(let|leas)\w*")
+# Next to it, the landlord's terms: "keine Untervermietung", "Untervermietung nicht gestattet / nur mit Zustimmung".
+SUBLET_TERMS = _rx(r"\b(nicht|kein\w*|no|not)\b|ausgeschlossen|untersagt|verboten|unzulässig|gestattet|erlaubt"
+                   r"|möglich|zustimmung|genehmigung|absprache|allowed|permitted|prohibited")
 FURNISHED = _rx(
     r"(?<!un)(?<!teil)(?<!nicht )(?<!nicht voll )möbliert|(?<!un)furnished|all[- ]?inclusive"
     r"|(voll|komplett|hochwertig|stilvoll|modern|elegant) eingerichtete[n]? (apartment|wohnung|studio)"
     r"|(elegante|stilvolle|hochwertige|komplette|moderne|gemütliche) (einrichtung|möblierung)"
+    r"|furniture (will be |is |are )?(provided|included)"
 )
+PART_FURNISHED = _rx(r"teil(weise )?möbliert|part(ly|ially)[- ]furnished")
 # Title is about something other than a flat ("Großer Keller zu vermieten", "Stellplatz ...").
 NOT_A_FLAT = _rx(r"^\W*(\w+ ){0,2}(keller(raum)?|lager(raum|fläche)?|abstellraum|stellplatz|tiefgarage\w*|garage"
                  r"|parkplatz|büro(raum|fläche)?|gewerbe\w*|praxis\w*|ladenfläche)\b")
@@ -154,6 +166,17 @@ def mentions_wbs_required(s: str) -> bool:
         ctx = before + s[m.start(): m.end()].lower() + after
         if re.search(r"erforderlich|notwendig|nötig|benötigt|vorausgesetzt|zwingend|pflicht|nur mit|mit (einem )?wbs"
                      r"|wbs[- ]?\d{2,3}|wbs bis (zu )?\d|wbs-?berechtig|wbs-?wohnung", ctx):
+            return True
+    return False
+
+
+def mentions_sublet(s: str) -> bool:
+    """The flat is offered as a sublet ("möchte meine Wohnung untervermieten", "zur
+    Untermiete"), not just the landlord's terms ("Untervermietung nicht gestattet")."""
+    for m in SUBLET.finditer(s):
+        before = re.split(r"[.!?\n,;:]", s[max(0, m.start() - 40): m.start()])[-1]
+        after = re.split(r"[.!?\n,;:]", s[m.end(): m.end() + 40])[0]
+        if not SUBLET_TERMS.search(f"{before} {after}"):
             return True
     return False
 
@@ -279,6 +302,8 @@ def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
         v.reject("room in a shared flat (WG)", "wg")
     if sig.get("temporary") or TEMP_TITLE.search(title) or TEMP_TEXT.search(desc):
         v.reject("temporary / sublet", "temporary")
+    elif mentions_sublet(desc):
+        v.reject("sublet: the lease would be with the tenant, not the landlord", "temporary")
     if SENIOR.search(blob) and not s["include_senior_housing"]:
         v.reject("senior housing (age-restricted)", "senior")
     if sig.get("furnished") or FURNISHED.search(blob):
@@ -286,6 +311,8 @@ def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
             v.reject("furnished (in Berlin nearly always short-term and overpriced)", "furnished")
         else:
             v.notes.append("furnished")
+    elif sig.get("part_furnished") or PART_FURNISHED.search(blob):
+        v.notes.append("partly furnished")
 
     # Either counts: inberlinwohnen's field says "nicht erforderlich" on flats titled "WBS 220 erforderlich".
     if listing.wbs_required or mentions_wbs_required(blob):
@@ -308,8 +335,9 @@ def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
     # --- neutral notes
     if NACHMIETER.search(blob):
         v.notes.append("Nachmieter ad: the landlord still has to accept you")
-    if ABLOESE.search(blob):
-        v.notes.append("asks for Ablöse (paying the old tenant for furniture/kitchen)")
+    if ABLOESE.search(blob) or sig.get("abloese"):
+        amount = f" of {sig['abloese']:.0f} €" if sig.get("abloese") else ""
+        v.notes.append(f"asks for Ablöse{amount} (paying the old tenant for furniture/kitchen)")
     if sig.get("is24_plus_until"):
         v.notes.append(f"ImmoScout Plus members only until {sig['is24_plus_until']}")
     if sig.get("verified_landlord"):
