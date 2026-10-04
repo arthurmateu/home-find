@@ -32,6 +32,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding-top: 16px; flex-wrap: wrap; }
 h1 { font-size: 20px; margin: 0; }
 .sub { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.sub.bad { color: var(--bad); }
+.sub .warn { color: var(--warn); }
 .tabs { display: flex; gap: 4px; padding-top: 8px; overflow-x: auto; scrollbar-width: none; }
 .tab { appearance: none; border: 0; background: none; color: var(--muted); font: inherit; font-weight: 600;
        padding: 8px 12px; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
@@ -130,6 +132,7 @@ main { padding-top: 18px; padding-bottom: 80px; }
 .btn { appearance: none; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 14px;
        padding: 6px 12px; border-radius: 8px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
 .btn:hover { border-color: var(--muted); }
+.btn:disabled { opacity: .6; cursor: default; border-color: var(--line); }
 .btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn.ghost { border-color: transparent; background: transparent; }
 .btn.small { padding: 4px 10px; font-size: 13px; }
@@ -175,6 +178,7 @@ main { padding-top: 18px; padding-bottom: 80px; }
       <p class="sub" id="sub"></p>
     </div>
     <div class="controls">
+      <button class="btn" id="check" hidden>↻ Check now</button>
       <label class="sort">Sort
         <select id="sort">
           <option value="score">Best first</option>
@@ -190,7 +194,7 @@ main { padding-top: 18px; padding-bottom: 80px; }
   <div class="wrap filters" id="filters" hidden></div>
 </header>
 
-<div class="banner" id="banner" hidden><span id="banner-text"></span><button class="btn small" id="banner-show">Show</button></div>
+<div class="banner" id="banner" hidden><span id="banner-text"></span><button class="btn small" id="banner-act"></button></div>
 
 <main class="wrap">
   <p class="empty" id="empty" hidden></p>
@@ -233,7 +237,8 @@ const TABS = [
   ["rejected", "Rejected", (l) => !l.ok && !l.status],
   ["hidden", "Hidden", (l) => l.status === "hidden"],
 ];
-const SOURCES = { immoscout: "ImmoScout24", wggesucht: "WG-Gesucht", kleinanzeigen: "Kleinanzeigen", immowelt: "Immowelt" };
+const SOURCES = { immoscout: "ImmoScout24", wggesucht: "WG-Gesucht", kleinanzeigen: "Kleinanzeigen", immowelt: "Immowelt",
+                  inberlinwohnen: "inberlinwohnen", charlotte1907: "Charlotte 1907", watch: "the co-op pages" };
 // Ads taken offline get one of these tags (rejected ones are deleted instead; see Store.mark_gone in store.py).
 const GONE = { deactivated: "Deactivated", deleted: "Deleted" };
 const EMPTY = {
@@ -246,6 +251,7 @@ const EMPTY = {
 // Tolerate data from an older homefind process (fields added later default sensibly).
 function normalize(d) {
   d.highlight ??= [];
+  d.checks ??= { sources: [], loop: null };
   for (const l of d.listings) {
     l.why ??= []; l.score ??= 0; l.band ??= "weak"; l.posted ??= l.first_seen;
     l.images ??= []; l.codes ??= []; l.flags ??= []; l.notes ??= []; l.reasons ??= [];
@@ -255,8 +261,8 @@ function normalize(d) {
   return d;
 }
 let data = normalize(JSON.parse($("data").textContent));
+const BUILD = data.build;           // the ui.html this page was made from (see poll)
 let byKey = new Map();
-let pending = null;                 // newer data from polling, applied on the next navigation
 const photoAt = new Map();          // listing key -> photo shown on its card
 const openDesc = new Set();         // listing keys with the description open
 const openWhy = new Set();          // listing keys with the score breakdown open
@@ -275,7 +281,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const when = (iso) => iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
 
 function index() { byKey = new Map(data.listings.map((l) => [l.key, l])); }
-function applyPending() { if (pending) { data = pending; pending = null; index(); $("banner").hidden = true; } }
+const cardOf = (key) => document.querySelector(`.card[data-key="${CSS.escape(key)}"]`);
 
 // The filters above the listings, per tab: [id, label, multi, options], an option being [value, label, test].
 // A one-choice filter starts on its first option; a multi-choice one lets everything through until
@@ -488,7 +494,30 @@ function render() {
   $("empty").textContent = filtered ? "Nothing here with these filters." : EMPTY[state.tab];
   $("toggle-desc").textContent = state.expandAll ? "Collapse descriptions" : "Expand descriptions";
   $("toggle-desc").setAttribute("aria-pressed", String(state.expandAll));
-  $("sub").textContent = data.subtitle;
+  renderStatus();
+  bannerSeen();
+}
+
+// Redraws with new data without moving the page under the reader: unless it's at the very top,
+// the first card on screen stays where it was (or the next one, if that one left the list).
+// Maps that were pinned open stay open.
+function refresh() {
+  const edge = Math.max(0, document.querySelector(".top").getBoundingClientRect().bottom);
+  const onScreen = scrollY > 0
+    ? [...$("grid").children].filter((c) => c.getBoundingClientRect().bottom > edge).slice(0, 12)
+        .map((c) => [c.dataset.key, c.getBoundingClientRect().top])
+    : [];
+  const maps = [...document.querySelectorAll(".loc.open")].map((el) => el.closest(".card").dataset.key);
+  render();
+  const kept = onScreen.find(([key]) => cardOf(key));
+  if (kept) scrollBy(0, cardOf(kept[0]).getBoundingClientRect().top - kept[1]);
+  for (const key of maps) {
+    const btn = cardOf(key)?.querySelector(".loc-btn");
+    if (!btn) continue;
+    fillMap(btn);
+    btn.parentElement.classList.add("open");
+    btn.setAttribute("aria-expanded", "true");
+  }
 }
 
 // ---- photos on the card
@@ -533,7 +562,7 @@ function closeViewer() {
   $("lb").hidden = true;
   document.body.classList.remove("noscroll");
   photoAt.set(l.key, i);  // the card continues where the viewer stopped
-  const c = document.querySelector(`.card[data-key="${CSS.escape(l.key)}"]`);
+  const c = cardOf(l.key);
   if (c?.querySelector(".photo")) {
     c.querySelector(".photo").src = l.images[i];
     if (l.images.length > 1) c.querySelector(".counter").textContent = `${i + 1} / ${l.images.length}`;
@@ -553,22 +582,27 @@ function toast(text, undo) {
   toastTimer = setTimeout(() => { $("toast").hidden = true; }, 6000);
 }
 const editedAt = new Map();  // listing key -> when its last Save/Hide reached the server (Infinity until then)
-async function setStatus(l, status) {
+// The other open tabs of this page: they hear of a Save/Hide or a Check now straight away.
+const peers = "BroadcastChannel" in window ? new BroadcastChannel("homefind") : null;
+// By key, not by listing: a poll can swap the listings for new copies while the request is out.
+const put = (key, fields) => { const l = byKey.get(key); if (l) Object.assign(l, fields); };
+async function setStatus(key, status) {
+  const l = byKey.get(key);
   const before = { status: l.status, hide_at: l.hide_at };
-  const later = pending?.listings.find((x) => x.key === l.key);  // the same listing in data not shown yet
-  for (const x of [l, later]) if (x) Object.assign(x, { status, hide_at: null });
-  editedAt.set(l.key, Infinity);
+  put(key, { status, hide_at: null });
+  editedAt.set(key, Infinity);
   render();
-  if (status === "hidden") toast("Hidden.", () => setStatus(l, before.status));
-  else if (status === "saved") toast("Saved. It's on the Saved tab now.", () => setStatus(l, before.status));
+  if (status === "hidden") toast("Hidden.", () => setStatus(key, before.status));
+  else if (status === "saved") toast("Saved. It's on the Saved tab now.", () => setStatus(key, before.status));
   try {
     const r = await fetch("/api/status", { method: "POST", headers: { "Content-Type": "application/json" },
-                                           body: JSON.stringify({ key: l.key, status }) });
+                                           body: JSON.stringify({ key, status }) });
     if (!r.ok) throw new Error("HTTP " + r.status);
-    editedAt.set(l.key, Date.now());
+    editedAt.set(key, Date.now());
+    peers?.postMessage({ type: "status", key, status });
   } catch {
-    for (const x of [l, later]) if (x) Object.assign(x, before);
-    editedAt.delete(l.key);
+    put(key, before);
+    editedAt.delete(key);
     render();
     toast("Couldn't save that. Is homefind still running?");
   }
@@ -594,60 +628,157 @@ function clearTab() { if (unseen.size && looking()) { unseen.clear(); markTab();
 addEventListener("focus", clearTab);
 document.addEventListener("visibilitychange", clearTab);
 
-// ---- live updates: new listings appear on their own while the page is open
-const atTop = () => $("lb").hidden && scrollY < 300;
-function showPending() {
-  if (!pending) return;
-  const fresh = pending.listings.filter((l) => !byKey.has(l.key));
-  if (atTop()) {  // nothing to lose: update in place
-    applyPending();
-    render();
-    return;
-  }
-  const matches = fresh.filter((l) => l.ok).length;
-  if (matches) {  // don't move the page under the reader; offer it instead
-    $("banner-text").textContent = `${matches} new match${matches > 1 ? "es" : ""}`;
-    $("banner").hidden = false;
-  }
+// ---- the line under the title: how fresh the listings are, and Check now
+let reachable = true;     // the last request to homefind got an answer
+let checkAsked = false;   // Check now was pressed in this tab and that check isn't done yet
+const busy = () => !!(data.checks.loop?.running || data.checks.loop?.asked);
+const sourceName = (name) => SOURCES[name] || name;
+const clock = (t) => new Date(t * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+function ago(t) {
+  const min = Math.floor((Date.now() / 1000 - t) / 60);
+  return min < 1 ? "just now" : min < 90 ? `${min} min ago` : `at ${when(t * 1000)}`;
 }
+const every = (min) => min < 60 ? `every ${min} min` : min === 60 ? "hourly" : `every ${min / 60} h`;
+function renderStatus() {
+  const { sources, loop } = data.checks;
+  const last = Math.max(0, ...sources.map((s) => s.last || 0));
+  const paused = sources.filter((s) => s.paused_until);
+  let text;
+  if (!reachable) text = "Can't reach homefind. Is it still running?";
+  else if (busy() || checkAsked) text = loop?.source ? `Checking ${sourceName(loop.source)}…` : "Starting a check…";
+  else {
+    text = last ? `Checked ${ago(last)}` : "Not checked yet";
+    if (!loop) text += " · not checking for new ads (started with --serve)";
+    else if (loop.next) {
+      const min = Math.ceil((loop.next - Date.now() / 1000) / 60);
+      text += min > 1 ? ` · next in ${min} min` : " · next in a minute";
+    }
+  }
+  const warn = document.createElement("span");
+  warn.className = "warn";
+  if (reachable && paused.length) {
+    warn.textContent = `⚠ ${paused.map((s) => sourceName(s.name)).join(", ")} blocked us, paused until ` +
+                       clock(Math.max(...paused.map((s) => s.paused_until)));
+  }
+  $("sub").replaceChildren(text, ...(warn.textContent ? [" · ", warn] : []));
+  $("sub").classList.toggle("bad", !reachable);
+  $("sub").title = sources.map((s) => `${sourceName(s.name)}: ` +
+    (s.paused_until ? `paused until ${clock(s.paused_until)} (the site blocked us)` : s.last ? `checked ${ago(s.last)}` : "not checked yet") +
+    `, ${every(s.every)}`).join("\n");
+  const btn = $("check");
+  btn.hidden = !loop;
+  btn.disabled = !reachable || checkAsked || !!loop?.asked || !!(loop?.running && loop.forced);
+  btn.textContent = btn.disabled && reachable ? "Checking…" : "↻ Check now";
+}
+
+// While a check runs, the line above says which site it's on, and what each site found shows up as it finishes.
+let watching = false;
+async function watchCheck() {
+  if (watching) return;
+  watching = true;
+  let source = data.checks.loop?.source;
+  try {
+    while (busy()) {
+      await new Promise((done) => setTimeout(done, 2000));
+      const r = await fetch("/api/checks", { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      data.checks = await r.json();
+      reachable = true;
+      renderStatus();
+      if (busy() && data.checks.loop.source !== source) {
+        source = data.checks.loop.source;
+        poll();
+      }
+    }
+  } catch {
+    reachable = false;
+  }
+  watching = false;
+  await poll();
+  if (checkAsked && reachable) report(data.checks.loop?.result);
+  checkAsked = false;
+  renderStatus();
+}
+function report(r) {
+  if (!r?.forced) return;
+  if (!r.checked.length) return toast("Nothing checked: every site is paused after blocking us.");
+  let text = r.matches ? `Check done: ${r.matches} new match${r.matches > 1 ? "es" : ""}.` : "Check done: no new matches.";
+  if (r.failed?.length) text += ` Couldn't check ${r.failed.map(sourceName).join(", ")}.`;
+  toast(text);
+}
+
+// ---- live updates: the page keeps itself current while it's open (without jumping, see refresh)
+let stale = false;  // homefind was updated since this page loaded: only a reload gets the new page
+let bannerAct = null;
+function banner(text, label, act) {
+  $("banner-text").textContent = text;
+  $("banner-act").textContent = label;
+  bannerAct = act;
+  $("banner").hidden = false;
+}
+function showMatches() {
+  Object.assign(state, { tab: "matches", shown: PAGE });
+  history.replaceState(null, "", "#matches");
+  render();
+  scrollTo(0, 0);
+}
+// The new-matches banner goes away once they're on screen.
+function bannerSeen() { if (!stale && state.tab === "matches" && scrollY < 50) $("banner").hidden = true; }
+// Worth a redraw: any change but when an ad was last seen online, and the score with its "why"
+// lines, which move on by themselves ("posted 5 h ago"); those come along with the next change.
+const shape = (l) => JSON.stringify({ ...l, last_seen: 0, score: 0, band: 0, why: 0 });
 async function poll() {
   try {
-    const asked = Date.now();
+    const sent = Date.now();
     const r = await fetch("/api/listings", { cache: "no-store" });
-    if (!r.ok) return;
+    if (!r.ok) throw new Error("HTTP " + r.status);
     const next = normalize(await r.json());
-    data.subtitle = next.subtitle;
-    $("sub").textContent = next.subtitle;
+    reachable = true;
     // The server's word counts (ads taken offline or back, saved ones moving to Hidden, rejected
     // ones deleted), except for a Save/Hide made here that hadn't reached it when it answered.
     for (const l of next.listings) {
       const cur = byKey.get(l.key);
-      if (cur && (editedAt.get(l.key) ?? 0) >= asked) Object.assign(l, { status: cur.status, hide_at: cur.hide_at });
+      if (cur && (editedAt.get(l.key) ?? 0) >= sent) Object.assign(l, { status: cur.status, hide_at: cur.hide_at });
     }
     const fresh = next.listings.filter((l) => !byKey.has(l.key));
-    const keys = new Set(next.listings.map((l) => l.key));
-    const changed = data.listings.some((l) => !keys.has(l.key)) || next.listings.some((l) => {
-      const cur = byKey.get(l.key);
-      return cur && (cur.status !== l.status || cur.gone !== l.gone || cur.hide_at !== l.hide_at ||
-                     cur.locality !== l.locality || cur.geo?.lat !== l.geo?.lat || cur.geo?.lon !== l.geo?.lon);
-    });
-    if (!fresh.length && !changed) return;
+    const changed = next.listings.length !== data.listings.length ||
+                    next.listings.some((l) => !byKey.has(l.key) || shape(byKey.get(l.key)) !== shape(l));
+    data = next;
+    index();
+    if (changed) refresh(); else renderStatus();
     if (!looking()) {
       for (const l of fresh.filter(alertWorthy)) unseen.add(l.key);
       markTab();
     }
-    pending = next;
-    showPending();
-  } catch { /* homefind isn't running right now; try again later */ }
+    const matches = fresh.filter((l) => l.ok && !l.status).length;
+    if (stale || (next.build && next.build !== BUILD)) {
+      stale = true;
+      banner("homefind was updated.", "Reload", () => location.reload());
+    } else if (matches && (state.tab !== "matches" || scrollY >= 50)) {
+      banner(`${matches} new match${matches > 1 ? "es" : ""}`, "Show", showMatches);
+    }
+    if (busy()) watchCheck();
+  } catch {
+    reachable = false;  // homefind isn't running right now; try again later
+    renderStatus();
+  }
 }
-addEventListener("scroll", () => { if (pending && atTop()) showPending(); }, { passive: true });
+addEventListener("scroll", bannerSeen, { passive: true });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
+peers?.addEventListener("message", ({ data: m }) => {
+  if (m.type === "status") {  // saved or hidden in another tab
+    put(m.key, { status: m.status, hide_at: null });
+    editedAt.set(m.key, Date.now());
+    refresh();
+  } else if (m.type === "check") {  // Check now pressed in another tab
+    poll();
+  }
+});
 
 // ---- events
 $("tabs").addEventListener("click", (e) => {
   const b = e.target.closest("[data-tab]");
   if (!b) return;
-  applyPending();
   Object.assign(state, { tab: b.dataset.tab, shown: PAGE, menu: null });
   history.replaceState(null, "", "#" + state.tab);  // so a tab can be bookmarked, e.g. /#saved
   render();
@@ -662,7 +793,6 @@ $("filters").addEventListener("click", (e) => {
   }
   const b = e.target.closest("[data-filter], [data-clear]");
   if (!b) return;
-  applyPending();
   const p = picks(state.tab);
   if (b.matches("[data-clear]")) {
     state.picked[state.tab] = {};
@@ -700,7 +830,23 @@ $("toggle-desc").addEventListener("click", () => {
   prefs.set("expandAll", state.expandAll);
   render();
 });
-$("banner-show").addEventListener("click", () => { applyPending(); Object.assign(state, { tab: "matches", shown: PAGE }); render(); scrollTo(0, 0); });
+$("banner-act").addEventListener("click", () => { $("banner").hidden = true; bannerAct?.(); });
+$("check").addEventListener("click", async () => {
+  checkAsked = true;
+  renderStatus();
+  try {
+    const r = await fetch("/api/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+  } catch {
+    checkAsked = false;
+    renderStatus();
+    toast("Couldn't start a check. Is homefind still running?");
+    return;
+  }
+  if (data.checks.loop) data.checks.loop.asked = true;
+  peers?.postMessage({ type: "check" });
+  watchCheck();
+});
 $("grid").addEventListener("click", (e) => {
   const el = e.target.closest("[data-act]");
   if (!el) return;
@@ -710,8 +856,8 @@ $("grid").addEventListener("click", (e) => {
   const act = el.dataset.act;
   if (act === "prev" || act === "next") step(l, act === "next" ? 1 : -1, cardEl);
   else if (act === "zoom") openViewer(l, photoAt.get(l.key) || 0);
-  else if (act === "save") setStatus(l, l.status === "saved" ? null : "saved");
-  else if (act === "hide") setStatus(l, l.status === "hidden" ? null : "hidden");
+  else if (act === "save") setStatus(l.key, l.status === "saved" ? null : "saved");
+  else if (act === "hide") setStatus(l.key, l.status === "hidden" ? null : "hidden");
   else if (act === "map") {  // keeps the map up without hovering: for touch screens, and to reach its link with the keyboard
     fillMap(el);
     const open = el.parentElement.classList.toggle("open");
@@ -781,6 +927,8 @@ render();
 markTab();
 prefs.set("lastSeen", data.listings.reduce((m, l) => (l.first_seen > m ? l.first_seen : m), ""));
 setInterval(poll, 60000);
+setInterval(renderStatus, 20000);  // "3 min ago" moves on
+if (busy()) watchCheck();
 </script>
 </body>
 </html>

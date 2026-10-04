@@ -43,10 +43,13 @@ python3 -m homefind --loop --open
 
 Ctrl+C stops it. After that, just open **<http://localhost:8765>** whenever
 you like (bookmark it). The page is always current when opened, and while it
-stays open new listings appear by themselves (or as a "new match" banner if
-you've scrolled down). If a new match comes in while you're in another tab or
-window, the page's tab shows it: "(1) New match · Flat hunt" and a red dot on
-its icon, until you switch back. No sound, no pop-up.
+stays open it keeps itself current: new listings, ads taken offline, and a
+Save or Hide made in another tab (straight away) all show up without the page
+jumping under you; if new matches arrive while you're scrolled down or on
+another tab of the page, a "new match" banner offers them. After an update to
+homefind, open pages offer a Reload. If a new match comes in while you're in
+another tab or window, the page's tab shows it: "(1) New match · Flat hunt"
+and a red dot on its icon, until you switch back. No sound, no pop-up.
 
 Test notification: `python3 -m homefind --test-notify`
 
@@ -54,6 +57,11 @@ Only one instance runs at a time; after a reboot, start it again.
 
 ## The web page
 
+- **Under the title:** when the last check was and when the next one is
+  (hover for each site), or which site it's checking right now; a site that
+  blocked us shows up there as paused until when. **↻ Check now** checks
+  every site straight away (except paused ones, to let the block wear off)
+  and says what it found; only with `--loop`.
 - **Matches / Saved / Rejected / Hidden** tabs (bookmarkable: `/#saved`).
 - **Photos:** arrows on each card flip through all photos; click a photo for
   the full-screen viewer (arrow keys, swipe, thumbnail strip, Esc to close).

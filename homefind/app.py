@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 import urllib.error
 from datetime import datetime, timedelta
@@ -24,10 +25,13 @@ def _every(cfg: dict, name: str) -> float:
     return float(cfg["sources"].get(name, {}).get("every_minutes", 10)) * 60
 
 
+def _paused_until(store: Store, name: str) -> float:
+    return float(store.meta_get(f"pause:{name}") or 0)
+
+
 def _due_at(cfg: dict, store: Store, name: str) -> float:
     last = float(store.meta_get(f"last:{name}") or 0)
-    paused_until = float(store.meta_get(f"pause:{name}") or 0)
-    return max(last + _every(cfg, name) - 5, paused_until)
+    return max(last + _every(cfg, name) - 5, _paused_until(store, name))
 
 
 def _names(cfg: dict, http, only: set[str] | None) -> list[str]:
@@ -49,31 +53,96 @@ def _blocked(store: Store, name: str, every: float, err: Exception) -> None:
     log.warning("%s: blocked by the site (%s), pausing it for %.0f min", name, err, pause / 60)
 
 
+class Loop:
+    """What --loop is up to, shared with the web UI's thread: the check under way,
+    how the last one went, and Check now (`ask`)."""
+
+    def __init__(self, only: set[str] | None = None) -> None:
+        self.only = only
+        self.running = True                # a check is under way (the loop starts with one)
+        self.forced = False                # ... and it's one asked for with Check now
+        self.asked = False                 # Check now was pressed and that check hasn't started yet
+        self.source: str | None = None     # the source being checked
+        self.wakes_at: float | None = None  # when the next scheduled check starts
+        self.result: dict | None = None    # how the last check that looked at anything went
+        self._wake = threading.Event()
+
+    def ask(self) -> None:
+        """Check now: every source that isn't paused, right away (after the check under way, if any)."""
+        self.asked = True
+        self._wake.set()
+
+    def done(self, result: dict) -> None:
+        if result["checked"] or self.forced:
+            self.result = {**result, "forced": self.forced, "at": time.time()}
+        self.source = None
+        self.running = self.forced = False
+
+    def sleep(self, seconds: float) -> bool:
+        """Waits until the next check is due or Check now is pressed; True for Check now."""
+        self.wakes_at = time.time() + seconds
+        self._wake.wait(seconds)
+        self._wake.clear()
+        self.wakes_at = None
+        self.running = True
+        self.forced, self.asked = self.asked, False
+        return self.forced
+
+
+def status(cfg: dict, store: Store, loop: Loop | None) -> dict:
+    """For the web UI's header: when each source was last checked, and what --loop
+    is up to (None: the UI runs on its own, with --serve)."""
+    now = time.time()
+    sources = [{"name": name, "last": float(store.meta_get(f"last:{name}") or 0) or None,
+                "every": _every(cfg, name) / 60,
+                "paused_until": _paused_until(store, name) if _paused_until(store, name) > now else None}
+               for name in _names(cfg, None, loop.only if loop else None)]
+    live = loop and {"running": loop.running, "forced": loop.forced, "asked": loop.asked,
+                     "source": loop.source, "next": loop.wakes_at, "result": loop.result}
+    return {"sources": sources, "loop": live}
+
+
 def run_once(cfg: dict, store: Store, http, notifier: Notifier, only: set[str] | None = None,
-             dry_run: bool = False, scheduled: bool = False) -> None:
-    """One pass. `scheduled` (the --loop mode) only runs sources that are due."""
+             dry_run: bool = False, scheduled: bool = False, forced: bool = False,
+             loop: Loop | None = None) -> dict:
+    """One pass. `scheduled` (the --loop mode) only runs sources that are due; `forced`
+    (Check now) runs every one that isn't paused after the site blocked us. Tells `loop`
+    which source it's on. Returns the names checked, the ones that failed, and the counts."""
     now = time.time()
     if not dry_run and store.hide_due():
         log.info("saved ads offline for %d days moved to Hidden", SAVED_OFFLINE_DAYS)
+
+    def skip(name: str) -> bool:
+        if only and name not in only:
+            return True
+        if forced:
+            return _paused_until(store, name) > now
+        return scheduled and _due_at(cfg, store, name) > now
+
     results = []
     for src in enabled_sources(cfg, http):
-        if (only and src.name not in only) or (scheduled and _due_at(cfg, store, src.name) > now):
+        if skip(src.name):
             continue
+        if loop:
+            loop.source = src.name
         results.append(_run_source(src, cfg, store, notifier, dry_run, quiet=scheduled))
         if not dry_run:
             store.meta_set(f"last:{src.name}", str(time.time()))
-    if cfg.get("watch") and (not only or "watch" in only) and not (scheduled and _due_at(cfg, store, "watch") > now):
+    if cfg.get("watch") and not skip("watch"):
+        if loop:
+            loop.source = "watch"
         run_watches(cfg, store, http, notifier, dry_run)
         if not dry_run:
             store.meta_set("last:watch", str(time.time()))
         results.append({"name": "watch", "new": 0, "matches": 0})
-    if dry_run or not results:
-        return
-    if scheduled:
-        new = sum(r["new"] for r in results)
-        matched = sum(r["matches"] for r in results)
-        names = ", ".join(r["name"] for r in results)
-        log.info("checked %s: %s", names, f"{new} new, {matched} matching" if new else "nothing new")
+    new = sum(r["new"] for r in results)
+    matched = sum(r["matches"] for r in results)
+    summary = {"checked": [r["name"] for r in results], "failed": [r["name"] for r in results if r.get("failed")],
+               "new": new, "matches": matched}
+    if scheduled and results and not dry_run:
+        log.info("checked %s%s: %s", ", ".join(summary["checked"]), " (Check now)" if forced else "",
+                 f"{new} new, {matched} matching" if new else "nothing new")
+    return summary
 
 
 def _sweep_due(cfg: dict, store: Store, name: str) -> bool:
@@ -138,10 +207,10 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False) -> dict:
             _blocked(store, src.name, _every(cfg, src.name), e)
         else:
             log.warning("%s: blocked by the site (%s)", src.name, e)
-        return {"name": src.name, "new": new, "matches": len(matches)}
+        return {"name": src.name, "new": new, "matches": len(matches), "failed": True}
     except Exception:  # noqa: BLE001
         log.exception("%s: failed (the site may have changed its layout)", src.name)
-        return {"name": src.name, "new": new, "matches": len(matches)}
+        return {"name": src.name, "new": new, "matches": len(matches), "failed": True}
     if not dry_run and store.meta_get(f"strikes:{src.name}") not in (None, "0"):
         store.meta_set(f"strikes:{src.name}", "0")
     if sweep and not src.complete:

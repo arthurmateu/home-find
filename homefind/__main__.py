@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 from . import config
-from .app import check_offline, recheck, run_once, seconds_until_due
+from .app import Loop, check_offline, recheck, run_once, seconds_until_due
 from . import geo, web
 from .net import Fetcher
 from .notify import Notifier, print_reject
@@ -102,8 +102,9 @@ def main(argv=None) -> int:
         run_once(cfg, store, http, notifier, only=only, dry_run=args.dry_run)
         return 0
 
+    loop = Loop(only)
     try:
-        if web.serve(cfg):
+        if web.serve(cfg, loop):
             log.info("web UI: %s", web.url(cfg))
             geo.start(cfg)
             if args.open:
@@ -112,8 +113,8 @@ def main(argv=None) -> int:
         log.warning("web UI not started (port %s: %s)", cfg["run"]["web_port"], e.strerror)
     log.info("watching; each source is checked on its own schedule (sources.*.every_minutes). Ctrl+C stops.")
     while True:
-        run_once(cfg, store, http, notifier, only=only, scheduled=True)
-        time.sleep(seconds_until_due(cfg, store, only) * random.uniform(0.9, 1.15))
+        loop.done(run_once(cfg, store, http, notifier, only=only, scheduled=True, forced=loop.forced, loop=loop))
+        loop.sleep(seconds_until_due(cfg, store, only) * random.uniform(0.9, 1.15))
 
 
 def serve_only(cfg: dict, open_it: bool) -> int:

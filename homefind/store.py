@@ -184,9 +184,6 @@ class Store:
                             (q, p.get("lat"), p.get("lon"), p.get("precision"), p.get("locality"), p.get("radius"),
                              _now()))
 
-    def meta_values(self, prefix: str) -> list[str]:
-        return [v for (v,) in self.db.execute("SELECT v FROM meta WHERE k LIKE ?", (prefix + "%",))]
-
     def close(self) -> None:
         self.db.close()
 

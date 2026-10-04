@@ -4,6 +4,7 @@ photos, save or hide them. Runs inside --loop (or --serve) on 127.0.0.1 only.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -16,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from . import geo
+from . import app, geo
 from .notify import headline
 from .rating import band, rate
 from .rules import REASONS
@@ -30,13 +31,16 @@ CSP = ("default-src 'self'; img-src * data:; style-src 'unsafe-inline'; script-s
 STATUSES = (None, "saved", "hidden")
 
 
-def payload(cfg: dict, store: Store) -> dict:
+def build() -> str:
+    """Changes whenever ui.html does, so an open page can tell it's out of date."""
+    return hashlib.sha1(PAGE.read_bytes()).hexdigest()[:12]
+
+
+def payload(cfg: dict, store: Store, loop: app.Loop | None = None) -> dict:
     s = cfg["search"]
     reasons = dict(REASONS)
     if s.get("near_miss_cold_rent"):
         reasons["near_miss"] = f"Near miss (cold ≤ {s['near_miss_cold_rent']} €)"
-    checks = [float(v) for v in store.meta_values("last:")]
-    checked = datetime.fromtimestamp(max(checks)).strftime("%H:%M") if checks else "never"
     drop = set(s.get("drop_reasons") or [])
     now = datetime.now()
     places = store.places()
@@ -79,14 +83,14 @@ def payload(cfg: dict, store: Store) -> dict:
             "geo": place and {k: place[k] for k in ("lat", "lon", "precision", "radius")},  # None until looked up
             "locality": geo.locality(listing, place),
         })
-    area = " · ".join(cfg["area"]["names"])
     return {"listings": listings, "reasons": reasons, "highlight": cfg["run"].get("highlight_sources") or [],
-            "subtitle": f"{area} · up to {s['max_warm_rent']} € warm · last check {checked}"}
+            "checks": app.status(cfg, store, loop), "build": build()}
 
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "homefind"
     cfg: dict = {}
+    loop: app.Loop | None = None  # the --loop run this UI belongs to; None with --serve
 
     def log_message(self, fmt, *args):
         log.debug("web: " + fmt, *args)
@@ -106,10 +110,11 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _payload(self) -> dict:
+    def _read(self, fn) -> dict:
+        """fn(cfg, store, loop): payload, or just the status for the header."""
         store = Store(self.cfg["run"]["db_path"])
         try:
-            return payload(self.cfg, store)
+            return fn(self.cfg, store, self.loop)
         finally:
             store.close()
 
@@ -118,19 +123,25 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, b"forbidden")
         path = urlsplit(self.path).path
         if path == "/":
-            data = json.dumps(self._payload(), ensure_ascii=False).replace("</", "<\\/")
+            data = json.dumps(self._read(payload), ensure_ascii=False).replace("</", "<\\/")
             page = PAGE.read_text(encoding="utf-8").replace("__DATA__", data)
             return self._send(200, page.encode(), "text/html; charset=utf-8", {"Content-Security-Policy": CSP})
-        if path == "/api/listings":
-            return self._send(200, json.dumps(self._payload(), ensure_ascii=False).encode(),
-                              "application/json; charset=utf-8")
+        if path in ("/api/listings", "/api/checks"):  # /api/checks: polled every few seconds while a check runs
+            data = self._read(payload if path == "/api/listings" else app.status)
+            return self._send(200, json.dumps(data, ensure_ascii=False).encode(), "application/json; charset=utf-8")
         self._send(404, b"not found")
 
     def do_POST(self):
         # JSON only: a cross-site form can't send that without a CORS preflight, which we never answer.
         if not self._local() or not (self.headers.get("Content-Type") or "").startswith("application/json"):
             return self._send(403, b"forbidden")
-        if urlsplit(self.path).path != "/api/status":
+        path = urlsplit(self.path).path
+        if path == "/api/check":
+            if not self.loop:
+                return self._send(409, b"not checking for ads: homefind runs with --serve")
+            self.loop.ask()
+            return self._send(202)
+        if path != "/api/status":
             return self._send(404, b"not found")
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
@@ -151,11 +162,11 @@ def url(cfg: dict) -> str:
     return f"http://localhost:{cfg['run']['web_port']}"
 
 
-def serve(cfg: dict) -> ThreadingHTTPServer | None:
+def serve(cfg: dict, loop: app.Loop | None = None) -> ThreadingHTTPServer | None:
     """Start the UI in a background thread. Raises OSError if the port is taken."""
     if not cfg["run"].get("web_port"):
         return None
-    Handler.cfg = cfg
+    Handler.cfg, Handler.loop = cfg, loop
     server = ThreadingHTTPServer(("127.0.0.1", int(cfg["run"]["web_port"])), Handler)
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, name="web", daemon=True).start()
