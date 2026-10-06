@@ -82,13 +82,13 @@ def days_since(value: str | None) -> int | None:
 
 
 _WARM_RX = [
-    re.compile(r"warm(?:miete)?\s*[:=]?\s*(?:ca\.?|circa)?\s*(\d[\d.,]*)\s*(?:€|eur|euro)", re.I),
+    re.compile(r"(?:warm(?:miete)?|gesamtmiete)\s*(?:derzeit|aktuell)?\s*[:=]?\s*(?:ca\.?|circa)?\s*(\d[\d.,]*)\s*(?:€|eur|euro)", re.I),
     re.compile(r"(\d[\d.,]*)\s*(?:€|eur|euro)?\s*(?:warm\b|inkl\.?\s*(?:aller\s*)?(?:neben|betriebs)kosten|all[- ]?in\b)", re.I),
 ]
 
 
 def warm_from_text(s: str | None) -> float | None:
-    """Find a warm rent stated in free text ('ca. 540 € warm', 'Warmmiete: 850 €')."""
+    """Find a warm rent stated in free text ('ca. 540 € warm', 'Warmmiete: 850 €', 'Gesamtmiete: 1.119 €')."""
     for rx in _WARM_RX:
         for m in rx.finditer(s or ""):
             v = num(m.group(1))

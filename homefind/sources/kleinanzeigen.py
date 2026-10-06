@@ -1,8 +1,9 @@
 """Kleinanzeigen (ex eBay Kleinanzeigen): many private landlords and Nachmieter
 ads, and the most scams. Server-rendered HTML.
 
-The listed price may be cold or warm, so the detail page (Warmmiete,
-Nebenkosten, photos, seller account age) is loaded for every candidate.
+The listed price may be cold or warm, or a placeholder such as "1 €" with the
+rent only in the text, so the detail page (Warmmiete, Nebenkosten, photos,
+seller account age) is loaded for every candidate.
 """
 
 from __future__ import annotations
@@ -14,6 +15,12 @@ from ..util import berlin_zip, num, text
 from . import Source
 
 BASE = "https://www.kleinanzeigen.de"
+
+
+def _price(value) -> float | None:
+    """A listed price, or None for a placeholder ("1 €"): the ad then states its rent elsewhere."""
+    v = num(value)
+    return v if v and v >= 100 else None
 
 
 class Kleinanzeigen(Source):
@@ -60,7 +67,7 @@ class Kleinanzeigen(Source):
                 description=next((p for p in paras if len(p) > 25 and "€" not in p and "m²" not in p), ""),
                 image_url=img.group(1) if img else None,
             )
-            listing.signals["list_price"] = num(price)
+            listing.signals["list_price"] = _price(price)
             if "VB" in price:
                 listing.signals["negotiable"] = True
             if img:
@@ -69,11 +76,9 @@ class Kleinanzeigen(Source):
 
     def enrich(self, listing: Listing) -> Listing:
         page = self.http.get(listing.url)
-        attrs = {}
-        for m in re.finditer(r'<li class="addetailslist--detail">(.*?)</li>', page, re.S):
-            parts = text(m.group(1).replace("<span", "\n<span")).split("\n")
-            if len(parts) >= 2:
-                attrs[parts[0].strip()] = parts[1].strip()
+        attrs = {}  # "Warmmiete" -> "1.119 €"
+        for m in re.finditer(r'<li class="addetailslist--detail">([^<]*)<span[^>]*>(.*?)</span>', page, re.S):
+            attrs[text(m.group(1))] = text(m.group(2))
 
         def grab(element_id: str) -> str | None:
             m = re.search(rf'id="{element_id}"[^>]*>(.*?)</(?:p|h1|span|div)>', page, re.S)
@@ -85,7 +90,7 @@ class Kleinanzeigen(Source):
         if locality:
             listing.address = locality
             listing.zip_code = berlin_zip(locality) or listing.zip_code
-        listed = num(grab("viewad-price")) or listing.signals.get("list_price")
+        listed = _price(grab("viewad-price") or listing.signals.get("list_price"))
 
         listing.size_sqm = num(attrs.get("Wohnfläche")) or listing.size_sqm
         listing.rooms = num(attrs.get("Zimmer")) or listing.rooms
