@@ -25,10 +25,13 @@ class Source:
 
     @property
     def fetch_cap(self) -> float:
-        """Price cap for searching: also covers near misses (cold rent within
-        search.near_miss_cold_rent), which the rules then file under Rejected."""
+        """Price cap for searching: the highest budget, streets with their own
+        included, and near misses (cold rent within search.near_miss_cold_rent),
+        which the rules then file under Rejected. Searches cover the whole area, so
+        what this brings in over a listing's own limit the rules drop ("over_cap")."""
         s = self.cfg["search"]
-        return float(max(s["max_warm_rent"], s.get("near_miss_cold_rent") or 0))
+        streets = [*(s.get("street_max_warm_rent") or {}).values(), *(s.get("street_stretch_warm_rent") or {}).values()]
+        return float(max(s["max_warm_rent"], s.get("near_miss_cold_rent") or 0, *streets))
 
     @property
     def near_miss(self) -> bool:

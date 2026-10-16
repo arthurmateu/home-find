@@ -34,7 +34,7 @@ class ImmoScout(Source):
                     "geocodes": geocodes,
                     "realestatetype": "apartmentrent",
                     # With near misses on, filter on cold rent (a superset of warm <= budget).
-                    "price": f"-{self.fetch_cap:.1f}" if self.near_miss else f"-{float(s['max_warm_rent']):.1f}",
+                    "price": f"-{self.fetch_cap:.1f}",
                     "pricetype": "rentpermonth" if self.near_miss else "calculatedtotalrent",
                     "livingspace": f"{float(s['min_size_sqm']):.1f}-",
                     "numberofrooms": f"{float(s['min_rooms']):.1f}-",

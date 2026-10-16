@@ -110,6 +110,9 @@ Only one instance runs at a time; after a reboot, start it again.
   rent is over budget while the cold rent is within `near_miss_cold_rent`
   (1000 € by default); that's why the sources search up to 1000 € *cold*.
   Sorted by score, the near misses worth a look come first.
+- **Kurfürstendamm (warm ≤ 1500 €)** (a reason under Rejected) = the same for
+  a street worth stretching for (`street_stretch_warm_rent`): over its budget,
+  but within the stretch.
 - WG rooms, senior housing, swap offers, WBS-only flats and anything in former
   East Berlin, Spandau or Neukölln don't show up at all (`drop_reasons` in
   `config.toml`).
@@ -148,6 +151,11 @@ furnished, WBS-only (unless `have_wbs`), co-op members-only (unless
 and Kantstraße at 1200 €): their own budget, and the score goes as much easier
 on their price. The street comes from the address, or from the title when
 there's none ("Wohnung am Ku'damm" counts, "nahe Ku'damm" doesn't).
+**Streets worth stretching for** (`street_stretch_warm_rent`, now Kurfürstendamm
+at 1500 €): flats there over budget but within it show under Rejected, with
+their own reason. Searches cover the whole area, so they go up to the highest of
+these rents; flats elsewhere that only that brings in are dropped unseen
+(`over_cap`).
 
 **Scam points** (rejected at `scam_threshold`, default 3; below it the match is
 sent with ⚠ warnings): money before viewing, keys by post, "I'm abroad",

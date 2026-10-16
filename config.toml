@@ -8,9 +8,13 @@ max_warm_rent = 1000         # € per month incl. Nebenkosten + Heizung
 # Streets worth paying more for: their own budget, and the score goes as much easier
 # on their price (1200 € there scores like 1000 € elsewhere). Matched on the address,
 # or the title when there's none ("Wohnung am Ku'damm", not "nahe Ku'damm"); spellings
-# like Kantstr. / Kudamm are fine. Flats with a cold rent over near_miss_cold_rent
-# aren't fetched at all, so raise that too to go much higher.
+# like Kantstr. / Kudamm are fine.
 street_max_warm_rent = { "Kurfürstendamm" = 1200, "Kantstraße" = 1200 }
+# Streets worth stretching for: flats there over their budget, up to this warm rent,
+# show under Rejected → "Kurfürstendamm (warm ≤ 1500 €)". Searches cover the whole
+# area, so they go up to the highest rent named here; elsewhere, flats over budget
+# beyond near_miss_cold_rent are dropped unseen ("over_cap" in drop_reasons).
+street_stretch_warm_rent = { "Kurfürstendamm" = 1500 }
 near_miss_cold_rent = 1000   # also load flats with cold rent up to this; if warm is over budget they
                              # show under Rejected → "Near miss". 0 = only fetch within max_warm_rent.
 min_size_sqm = 25            # drops micro-apartments / co-living rooms
@@ -21,9 +25,11 @@ coop_member = false          # true = keep co-op offers marked "members only"
 reject_furnished = true      # furnished in Berlin ≈ temporary + overpriced
 include_senior_housing = false  # "Wohnen ab 50/60", Seniorenwohnungen
 # Rejected for one of these reasons = not shown anywhere (not even under Rejected).
-# Codes: near_miss budget no_rent size rooms swap wanted not_flat wg temporary
-#        furnished wbs members senior scam photos district area avoid
-drop_reasons = ["wg", "senior", "swap", "avoid", "wbs"]
+# Codes: near_miss stretch budget over_cap no_rent size rooms swap wanted not_flat wg
+#        temporary furnished wbs members senior scam photos district area avoid
+# over_cap: pricier than this listing's budget, fetched only because the search
+# covers a street with a higher one (street_stretch_warm_rent, street_max_warm_rent).
+drop_reasons = ["wg", "senior", "swap", "avoid", "wbs", "over_cap"]
 extra_costs_per_sqm = 2.5    # to estimate warm rent when only cold rent is given
 suspicious_below_eur_sqm = 10.0  # warm €/m²; new leases here are ~15–25 €/m²
 scam_threshold = 3           # scam points at which a listing is dropped (see homefind/rules.py)

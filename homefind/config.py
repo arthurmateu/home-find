@@ -10,6 +10,7 @@ DEFAULTS: dict = {
     "search": {
         "max_warm_rent": 1000,
         "street_max_warm_rent": {},  # street -> its own budget, e.g. {"Kantstraße": 1200}
+        "street_stretch_warm_rent": {},  # street -> shown under Rejected up to this, e.g. {"Kurfürstendamm": 1500}
         "near_miss_cold_rent": 1000,
         "min_size_sqm": 25,
         "min_rooms": 1,
@@ -17,7 +18,7 @@ DEFAULTS: dict = {
         "coop_member": False,
         "reject_furnished": True,
         "include_senior_housing": False,
-        "drop_reasons": ["wg", "senior", "swap", "avoid", "wbs"],
+        "drop_reasons": ["wg", "senior", "swap", "avoid", "wbs", "over_cap"],
         "extra_costs_per_sqm": 2.5,
         "suspicious_below_eur_sqm": 10.0,
         "scam_threshold": 3,

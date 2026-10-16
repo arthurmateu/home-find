@@ -41,7 +41,9 @@ class Verdict:
 # Reason code -> label, in the order the web UI lists them.
 REASONS = {
     "near_miss": "Near miss (cold rent in range)",
+    "stretch": "On a street worth stretching for",
     "budget": "Over budget",
+    "over_cap": "More than the search covers",
     "no_rent": "No rent stated",
     "size": "Too small",
     "rooms": "Too few rooms",
@@ -250,19 +252,34 @@ def _street_key(s: str) -> str:
     return re.sub(r"\b\w+\b", lambda m: STREET_ALIASES.get(m.group(0), m.group(0)), s)
 
 
-def street_budget(listing: Listing, cfg: dict) -> tuple[float, str | None]:
-    """The warm-rent budget for the listing, and the street it's on if that's one
-    of `street_max_warm_rent`. The street is taken from the address; without one,
-    from the title, when it says the flat is there ("Wohnung am Ku'damm", not
-    "nahe Kudamm"). "Neue Kantstraße" is not Kantstraße."""
-    s = cfg["search"]
+def _on_street(listing: Listing, streets) -> str | None:
+    """Which of `streets` the listing is on. The street is taken from the address;
+    without one, from the title, when it says the flat is there ("Wohnung am
+    Ku'damm", not "nahe Kudamm"). "Neue Kantstraße" is not Kantstraße."""
     street = street_of(listing.address)
     where = _street_key(street) if street else _street_key(listing.title or "")
-    for name, budget in (s.get("street_max_warm_rent") or {}).items():
+    for name in streets:
         n = re.escape(_street_key(name))
         if re.search(rf"^{n}\b" if street else rf"\b(am|an der|in der|in|auf dem|on|at) {n}\b", where):
-            return budget, name
-    return s["max_warm_rent"], None
+            return name
+    return None
+
+
+def street_budget(listing: Listing, cfg: dict) -> tuple[float, str | None]:
+    """The warm-rent budget for the listing, and the street it's on if that's one
+    of `street_max_warm_rent`."""
+    s = cfg["search"]
+    budgets = s.get("street_max_warm_rent") or {}
+    street = _on_street(listing, budgets)
+    return (budgets[street], street) if street else (s["max_warm_rent"], None)
+
+
+def street_stretch(listing: Listing, cfg: dict) -> tuple[float, str | None]:
+    """On a street of `street_stretch_warm_rent`: the warm rent up to which a flat
+    there still shows under Rejected, and the street. (0, None) elsewhere."""
+    stretch = cfg["search"].get("street_stretch_warm_rent") or {}
+    street = _on_street(listing, stretch)
+    return (stretch[street], street) if street else (0, None)
 
 
 def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
@@ -294,21 +311,30 @@ def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
     v.warm = warm
     # Near misses: flats whose cold rent is within near_miss_cold_rent are fetched
     # and fully loaded even when the warm rent is over budget, so they can be
-    # browsed under "Rejected".
+    # browsed under "Rejected". So are flats on a street you'd stretch for
+    # (street_stretch_warm_rent), up to that warm rent.
     cap, street = street_budget(listing, cfg)
     if street:
         v.notes.append(f"on {street}: budget {cap:g} € warm")
+    stretch, stretch_street = street_stretch(listing, cfg)
     near = s.get("near_miss_cold_rent") or 0
-    fetch_cap = max(cap, near)
+    # The sources search up to the highest of all these, for every street at once
+    # (Source.fetch_cap); what that brings in over this listing's own limit isn't
+    # loaded ("over_cap", in drop_reasons). A warm rent gets the leeway WG-Gesucht's
+    # search has (1.3x), for near misses.
+    limit = max(cap, near, stretch)
     cold = listing.cold_rent
-    if warm is not None and warm > cap:
-        if final or warm > fetch_cap * 1.35:
-            if near and cold is not None and cold <= near:
+    listed = cold if cold is not None else sig.get("list_price")
+    if not final and (warm is not None and warm > limit * 1.3 or warm is None and (listed or 0) > limit):
+        v.reject(f"{warm or listed:.0f} € is more than the search covers here ({limit:g} €)", "over_cap")
+    elif warm is not None and warm > cap:
+        if final:
+            if warm <= stretch:
+                v.reject(f"{warm:.0f} € warm > {cap} €, but on {stretch_street} (≤ {stretch:g} €)", "stretch")
+            elif near and cold is not None and cold <= near:
                 v.reject(f"{warm:.0f} € warm > {cap} € (cold {cold:.0f} €)", "near_miss")
             else:
                 v.reject(f"{warm:.0f} € warm > {cap} €", "budget")
-    elif warm is None and sig.get("list_price") and sig["list_price"] > fetch_cap:
-        v.reject(f"listed at {sig['list_price']:.0f} € > {fetch_cap} €", "budget")
     elif warm is None and final:
         v.reject("no rent stated", "no_rent")
 
@@ -374,9 +400,10 @@ def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
     if listing.private:
         v.notes.append("private landlord")
 
-    # A near miss is a flat that would match if it were a bit cheaper.
-    if "near_miss" in v.codes and len(v.codes) > 1:
-        v.codes[v.codes.index("near_miss")] = "budget"
+    # A near miss, or a stretch, is a flat that would match if it were a bit cheaper.
+    for code in ("near_miss", "stretch"):
+        if code in v.codes and len(v.codes) > 1:
+            v.codes[v.codes.index(code)] = "budget"
 
     v.ok = not v.reasons
     return v

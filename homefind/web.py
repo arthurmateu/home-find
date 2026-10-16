@@ -41,6 +41,9 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None) -> dict:
     reasons = dict(REASONS)
     if s.get("near_miss_cold_rent"):
         reasons["near_miss"] = f"Near miss (cold ≤ {s['near_miss_cold_rent']} €)"
+    if s.get("street_stretch_warm_rent"):
+        reasons["stretch"] = " / ".join(f"{street} (warm ≤ {budget:g} €)"
+                                        for street, budget in s["street_stretch_warm_rent"].items())
     drop = set(s.get("drop_reasons") or [])
     now = datetime.now()
     places = store.places()
