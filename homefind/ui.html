@@ -293,6 +293,9 @@ function filtersFor(tab, list) {
                                         ["any", "Anywhere", () => true]]]);
     out.push(["reason", "Reason", true, Object.entries(data.reasons).filter(([c]) => c !== "area" && c !== "avoid")
       .map(([c, label]) => [c, label, (l) => l.codes.includes(c)])]);
+    const sources = new Set([...list.map((l) => l.source), ...(picks(tab).source || [])]);
+    out.push(["source", "Provider", true, [...sources].sort((a, b) => sourceName(a).localeCompare(sourceName(b), "de"))
+      .map((s) => [s, sourceName(s), (l) => l.source === s])]);
   }
   if (tab === "hidden" && list.some((l) => l.gone)) {
     out.push(["show", "Show", false, [["all", "All", () => true], ["mine", "Hidden by you", (l) => !l.gone],
