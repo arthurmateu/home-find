@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 from . import app, geo
 from .notify import headline
 from .rating import band, rate
-from .rules import REASONS
+from .rules import REASONS, street_budget, street_stretch
 from .util import parse_published
 from .store import Store
 
@@ -85,8 +85,12 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None) -> dict:
             "posted": (posted.isoformat(timespec="seconds") if posted else first_seen),
             "geo": place and {k: place[k] for k in ("lat", "lon", "precision", "radius")},  # None until looked up
             "locality": geo.locality(listing, place),
+            "street": street_stretch(listing, cfg)[1] or street_budget(listing, cfg)[1],
         })
-    return {"listings": listings, "reasons": reasons, "highlight": cfg["run"].get("highlight_sources") or [],
+    # Streets with a budget or stretch of their own, for the Where filter.
+    streets = list(dict.fromkeys([*(s.get("street_stretch_warm_rent") or {}), *(s.get("street_max_warm_rent") or {})]))
+    return {"listings": listings, "reasons": reasons, "streets": streets,
+            "highlight": cfg["run"].get("highlight_sources") or [],
             "checks": app.status(cfg, store, loop), "build": build()}
 
 

@@ -250,13 +250,13 @@ const EMPTY = {
 
 // Tolerate data from an older homefind process (fields added later default sensibly).
 function normalize(d) {
-  d.highlight ??= [];
+  d.highlight ??= []; d.streets ??= [];
   d.checks ??= { sources: [], loop: null };
   for (const l of d.listings) {
     l.why ??= []; l.score ??= 0; l.band ??= "weak"; l.posted ??= l.first_seen;
     l.images ??= []; l.codes ??= []; l.flags ??= []; l.notes ??= []; l.reasons ??= [];
     l.gone ??= null; l.gone_at ??= null; l.status_if_back ??= null; l.hide_at ??= null;
-    l.geo ??= null; l.locality ??= null;
+    l.geo ??= null; l.locality ??= null; l.street ??= null;
   }
   return d;
 }
@@ -289,8 +289,9 @@ const cardOf = (key) => document.querySelector(`.card[data-key="${CSS.escape(key
 function filtersFor(tab, list) {
   const out = [];
   if (tab === "rejected") {
-    out.push(["where", "Where", false, [["in", "In area", inArea], ["out", "Outside area", (l) => !inArea(l)],
-                                        ["any", "Anywhere", () => true]]]);
+    out.push(["where", "Where", false, [["in", "In area", inArea],
+                                        ...data.streets.map((s) => [`street:${s}`, s, (l) => l.street === s]),
+                                        ["out", "Outside area", (l) => !inArea(l)], ["any", "Anywhere", () => true]]]);
     out.push(["reason", "Reason", true, Object.entries(data.reasons).filter(([c]) => c !== "area" && c !== "avoid")
       .map(([c, label]) => [c, label, (l) => l.codes.includes(c)])]);
     const sources = new Set([...list.map((l) => l.source), ...(picks(tab).source || [])]);

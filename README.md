@@ -75,7 +75,8 @@ Only one instance runs at a time; after a reboot, start it again.
   key for pages on localhost.
 - **Filters**, a dropdown each under the tabs: **Locality** on every tab
   (Ortsteil, from the address, else the portal's label; pick one or several),
-  and on Rejected also **Where** (in the area, outside, anywhere),
+  and on Rejected also **Where** (in the area, on Kurfürstendamm or another
+  street with its own budget, outside, anywhere),
   **Reason** and **Provider** (pick several to see any of them). Each count
   in a menu is what you'd get by picking it, given the other filters; "Clear"
   resets the tab.
