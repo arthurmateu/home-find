@@ -284,7 +284,20 @@ def street_stretch(listing: Listing, cfg: dict) -> tuple[float, str | None]:
 
 def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
     """`final=False` is the cheap pre-check on search-result data, before
-    fetching the detail page; unknown fields pass."""
+    fetching the detail page; unknown fields pass. A listing it rejects never
+    gets its detail page loaded, so if the search showed a rent (ImmoScout the
+    cold, WG-Gesucht the warm), that rent is then judged as it would be on the
+    detail page: a furnished flat at 997 € cold is over budget too (warm
+    estimated from the cold rent). Kleinanzeigen's listed price can be either,
+    so it isn't."""
+    v = _evaluate(listing, cfg, final)
+    if (not final and not v.ok and "over_cap" not in v.codes
+            and (listing.warm_rent is not None or listing.cold_rent is not None)):
+        v = _evaluate(listing, cfg, final=True)
+    return v
+
+
+def _evaluate(listing: Listing, cfg: dict, final: bool) -> Verdict:
     s, sig = cfg["search"], listing.signals
     v = Verdict()
     title, desc = listing.title or "", listing.description or ""

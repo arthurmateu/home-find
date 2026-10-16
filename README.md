@@ -148,6 +148,11 @@ wanted ads, cellars/parking/offices, WG rooms, temporary/sublet/holiday flats,
 furnished, WBS-only (unless `have_wbs`), co-op members-only (unless
 `coop_member`), senior housing, and no photos.
 
+Detail pages are only loaded for ads that pass on what the search shows, so
+an ad rejected there (say "voll möbliert" in the title) keeps the search's
+data. Its rent is still checked: ImmoScout shows only the cold rent, so the
+warm rent is estimated from it ("warm ≈ … (estimated)" on the card).
+
 **Streets worth paying more for** (`street_max_warm_rent`, now Kurfürstendamm
 and Kantstraße at 1200 €): their own budget, and the score goes as much easier
 on their price. The street comes from the address, or from the title when
