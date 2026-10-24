@@ -85,7 +85,10 @@ Only one instance runs at a time; after a reboot, start it again.
 - **Descriptions:** per card, or "Expand descriptions" for all.
 - **Mark applied / Hide** on every listing, stored in the database (both have
   Undo). Flats you applied for move to the Applied tab, so they don't take space
-  under Matches.
+  under Matches, with the day you marked them on their badge (hover for the
+  time). Hiding one keeps that date, and Unhide puts it back on Applied.
+  Ones marked before dates were kept (when it was still called Saved) show no
+  date.
 - **Ads taken offline** are tagged **Deactivated** (switched off by the
   poster, may come back; mostly WG-Gesucht) or **Deleted**, with a grey photo
   and when it was noticed, and filed away by themselves: ones you applied for

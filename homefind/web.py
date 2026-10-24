@@ -73,6 +73,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None) -> dict:
             "gone_at": row.gone_at,
             "status_if_back": row.status_if_back,
             "hide_at": row.hide_at,
+            "applied_at": row.applied_at,
             "reasons": verdict.reasons,
             "codes": verdict.codes,
             "flags": verdict.flags,
@@ -152,14 +153,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, b"not found")
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
-            key, status = body["key"], body.get("status")
+            key, status, applied_at = body["key"], body.get("status"), body.get("applied_at")
+            if applied_at is not None:
+                datetime.fromisoformat(applied_at)
         except (ValueError, KeyError, TypeError):
             return self._send(400, b"bad request")
         if status not in STATUSES:
             return self._send(400, b"bad status")
         store = Store(self.cfg["run"]["db_path"])
         try:
-            found = store.set_status(key, status)
+            found = store.set_status(key, status, applied_at)
         finally:
             store.close()
         self._send(204 if found else 404)

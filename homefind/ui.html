@@ -77,7 +77,7 @@ main { padding-top: 18px; padding-bottom: 80px; }
 @media (hover: hover) { .nav { opacity: 0; transition: opacity .15s; } .media:hover .nav, .nav:focus-visible { opacity: 1; } }
 .counter { position: absolute; right: 8px; bottom: 8px; background: rgba(0, 0, 0, .6); color: #fff; font-size: 12px;
            padding: 2px 8px; border-radius: 99px; pointer-events: none; }
-.badges { position: absolute; left: 8px; top: 8px; display: flex; gap: 4px; }
+.badges { position: absolute; left: 8px; right: 56px; top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
 .badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--card); color: var(--ink); }
 .badge.new { background: var(--accent); color: var(--accent-ink); }
 .badge.gone { background: var(--ink); color: var(--bg); }
@@ -255,7 +255,7 @@ function normalize(d) {
   for (const l of d.listings) {
     l.why ??= []; l.score ??= 0; l.band ??= "weak"; l.posted ??= l.first_seen;
     l.images ??= []; l.codes ??= []; l.flags ??= []; l.notes ??= []; l.reasons ??= [];
-    l.gone ??= null; l.gone_at ??= null; l.status_if_back ??= null; l.hide_at ??= null;
+    l.gone ??= null; l.gone_at ??= null; l.status_if_back ??= null; l.hide_at ??= null; l.applied_at ??= null;
     l.geo ??= null; l.locality ??= null; l.street ??= null;
     if (l.status === "saved") l.status = "applied";  // Applied was called Saved
     if (l.status_if_back === "saved") l.status_if_back = "applied";
@@ -430,6 +430,9 @@ function shortNote(t) {
   if (t.startsWith("same rent/size/postcode as")) return "repost";
   return tidy(t);
 }
+// The day you applied (no day on ones marked before that was kept), on Applied and on ones hidden after applying.
+const appliedBadge = (l) => `<span class="badge" title="${l.applied_at ? `Applied ${esc(when(l.applied_at))}` : "Applied"}">` +
+                            `✓ Applied${l.applied_at ? ` ${esc(day(l.applied_at))}` : ""}</span>`;
 const chip = (cls, text, full) => text ? `<span class="chip${cls}" title="${esc(full)}">${esc(text)}</span>` : "";
 // "sublet: the lease would be with ..." -> "sublet"; a scam's signs are on its own chips
 const shortReason = (r) => tidy(r).replace(/^(sublet|looks like a scam): .*/, "$1");
@@ -452,10 +455,9 @@ function card(l) {
   const fav = data.highlight.includes(l.source);
   const badges = (prevSeen && l.first_seen > prevSeen ? `<span class="badge new">new</span>` : "") +
                  (fav ? `<span class="badge fav">${esc(SOURCES[l.source] || l.source)}</span>` : "") +
-                 (applied ? `<span class="badge">✓ Applied</span>` : "") +
+                 (applied || (l.status === "hidden" && wasApplied(l)) ? appliedBadge(l) : "") +
                  (gone ? `<span class="badge gone" title="Ad ${esc(gone.toLowerCase())}, noticed ${esc(when(l.gone_at))}. ` +
-                         `Moves back by itself if it comes online again.">${esc(gone)} ${esc(day(l.gone_at))}</span>` : "") +
-                 (gone && l.status === "hidden" && l.status_if_back === "applied" ? `<span class="badge">✓ Was applied</span>` : "");
+                         `Moves back by itself if it comes online again.">${esc(gone)} ${esc(day(l.gone_at))}</span>` : "");
   const chips = [...l.flags.map((f) => chip(" warn", "⚠ " + tidy(f), f)),
                  ...l.notes.map((t) => chip("", shortNote(t), t))].join("");
   const open = state.expandAll || openDesc.has(l.key);
@@ -592,20 +594,28 @@ const editedAt = new Map();  // listing key -> when its last Applied/Hide reache
 const peers = "BroadcastChannel" in window ? new BroadcastChannel("homefind") : null;
 // By key, not by listing: a poll can swap the listings for new copies while the request is out.
 const put = (key, fields) => { const l = byKey.get(key); if (l) Object.assign(l, fields); };
-async function setStatus(key, status) {
+// Now, the way the server writes times: local, to the second.
+const stamp = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 19); };
+// You applied, then hid it (or it went offline and moved to Hidden): Unhide puts it back on Applied.
+const wasApplied = (l) => !!l.applied_at || l.status_if_back === "applied";
+// Marking an ad applied records when; Undo and Unhide pass back the date it had. Hiding it keeps
+// the date, anything else drops it (as Store.set_status does).
+async function setStatus(key, status, appliedAt = stamp()) {
   const l = byKey.get(key);
-  const before = { status: l.status, hide_at: l.hide_at };
-  put(key, { status, hide_at: null });
+  const before = { status: l.status, hide_at: l.hide_at, applied_at: l.applied_at };
+  const applied_at = status === "applied" ? appliedAt : status === "hidden" ? l.applied_at : null;
+  put(key, { status, hide_at: null, applied_at });
   editedAt.set(key, Infinity);
   render();
-  if (status === "hidden") toast("Hidden.", () => setStatus(key, before.status));
-  else if (status === "applied") toast("Marked as applied. It's on the Applied tab now.", () => setStatus(key, before.status));
+  const undo = () => setStatus(key, before.status, before.applied_at);
+  if (status === "hidden") toast("Hidden.", undo);
+  else if (status === "applied") toast(before.status === "hidden" ? "Back on the Applied tab." : "Marked as applied. It's on the Applied tab now.", undo);
   try {
     const r = await fetch("/api/status", { method: "POST", headers: { "Content-Type": "application/json" },
-                                           body: JSON.stringify({ key, status }) });
+                                           body: JSON.stringify({ key, status, applied_at }) });
     if (!r.ok) throw new Error("HTTP " + r.status);
     editedAt.set(key, Date.now());
-    peers?.postMessage({ type: "status", key, status });
+    peers?.postMessage({ type: "status", key, status, applied_at });
   } catch {
     put(key, before);
     editedAt.delete(key);
@@ -744,7 +754,7 @@ async function poll() {
     // ones deleted), except for an Applied/Hide made here that hadn't reached it when it answered.
     for (const l of next.listings) {
       const cur = byKey.get(l.key);
-      if (cur && (editedAt.get(l.key) ?? 0) >= sent) Object.assign(l, { status: cur.status, hide_at: cur.hide_at });
+      if (cur && (editedAt.get(l.key) ?? 0) >= sent) Object.assign(l, { status: cur.status, hide_at: cur.hide_at, applied_at: cur.applied_at });
     }
     const fresh = next.listings.filter((l) => !byKey.has(l.key));
     const changed = next.listings.length !== data.listings.length ||
@@ -773,7 +783,7 @@ addEventListener("scroll", bannerSeen, { passive: true });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 peers?.addEventListener("message", ({ data: m }) => {
   if (m.type === "status") {  // applied or hidden in another tab
-    put(m.key, { status: m.status, hide_at: null });
+    put(m.key, { status: m.status, hide_at: null, applied_at: m.applied_at ?? null });
     editedAt.set(m.key, Date.now());
     refresh();
   } else if (m.type === "check") {  // Check now pressed in another tab
@@ -862,8 +872,8 @@ $("grid").addEventListener("click", (e) => {
   const act = el.dataset.act;
   if (act === "prev" || act === "next") step(l, act === "next" ? 1 : -1, cardEl);
   else if (act === "zoom") openViewer(l, photoAt.get(l.key) || 0);
-  else if (act === "apply") setStatus(l.key, l.status === "applied" ? null : "applied");
-  else if (act === "hide") setStatus(l.key, l.status === "hidden" ? null : "hidden");
+  else if (act === "apply") setStatus(l.key, l.status === "applied" ? null : "applied", l.applied_at || undefined);  // from Hidden: keeps its date
+  else if (act === "hide") setStatus(l.key, l.status !== "hidden" ? "hidden" : wasApplied(l) ? "applied" : null, l.applied_at);
   else if (act === "map") {  // keeps the map up without hovering: for touch screens, and to reach its link with the keyboard
     fillMap(el);
     const open = el.parentElement.classList.toggle("open");

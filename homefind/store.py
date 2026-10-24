@@ -49,6 +49,7 @@ class Row(NamedTuple):
     gone_at: str | None   # when that was noticed
     status_if_back: str | None  # where it goes if it comes back online
     hide_at: str | None   # applied and offline: when it moves to Hidden
+    applied_at: str | None  # when you marked it applied (None if before that was kept)
 
 
 class Store:
@@ -58,8 +59,9 @@ class Store:
         self.db.execute("PRAGMA journal_mode=WAL")  # the web UI reads while the poller writes
         self.db.executescript(SCHEMA)
         columns = {row[1] for row in self.db.execute("PRAGMA table_info(listings)")}
-        # Added later: status (the web UI: NULL, 'applied' or 'hidden'), then the offline check's columns.
-        for column in ("status", "gone", "gone_at", "status_if_back", "hide_at"):
+        # Added later: status (the web UI: NULL, 'applied' or 'hidden'), then the offline check's columns,
+        # then when you applied.
+        for column in ("status", "gone", "gone_at", "status_if_back", "hide_at", "applied_at"):
             if column not in columns:
                 self.db.execute(f"ALTER TABLE listings ADD COLUMN {column} TEXT")
         if "gone" in columns and "hide_at" not in columns:
@@ -139,10 +141,13 @@ class Store:
     def rejected(self, limit: int = 100):
         return list(self._rows(False, limit))
 
-    def set_status(self, key: str, status: str | None) -> bool:
+    def set_status(self, key: str, status: str | None, applied_at: str | None = None) -> bool:
+        """Marked applied: records `applied_at`. Hidden: keeps the date it had; back to
+        Matches or Rejected: drops it."""
         with self.db:
-            return self.db.execute("UPDATE listings SET status = ?, status_if_back = ?, hide_at = NULL WHERE key = ?",
-                                   (status, status, key)).rowcount == 1
+            return self.db.execute("UPDATE listings SET status = ?, status_if_back = ?, hide_at = NULL,"
+                                   " applied_at = CASE ? WHEN 'applied' THEN ? WHEN 'hidden' THEN applied_at END"
+                                   " WHERE key = ?", (status, status, status, applied_at, key)).rowcount == 1
 
     def update_listing(self, listing: Listing) -> None:
         with self.db:
@@ -151,8 +156,8 @@ class Store:
 
     def all_rows(self, source: str | None = None):
         """Everything (or everything from one source), newest first."""
-        rows = self.db.execute("SELECT data, verdict, first_seen, last_seen, status, gone, gone_at, status_if_back, hide_at"
-                               " FROM listings WHERE ? IS NULL OR source = ? ORDER BY first_seen DESC, rowid DESC",
+        rows = self.db.execute("SELECT data, verdict, first_seen, last_seen, status, gone, gone_at, status_if_back, hide_at,"
+                               " applied_at FROM listings WHERE ? IS NULL OR source = ? ORDER BY first_seen DESC, rowid DESC",
                                (source, source))
         for data, verdict, *rest in rows:
             yield Row(Listing.from_dict(json.loads(data)), Verdict(**json.loads(verdict)), *rest)
