@@ -58,9 +58,15 @@ h1 { font-size: 20px; margin: 0; }
 .dd-opt[aria-checked="true"]::before { content: "✓"; position: absolute; left: 10px; color: var(--accent); font-weight: 700; }
 .dd-opt[data-any] { border-bottom: 1px solid var(--line); border-radius: 6px 6px 0 0; margin-bottom: 2px; }
 .filter-sum { font-size: 13px; color: var(--muted); }
+.dds { display: contents; }
+.search { flex: 1 1 200px; max-width: 300px; font: inherit; font-size: 13px; color: var(--ink); background: var(--card);
+          border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; }
+.search.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.search:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 @media (max-width: 600px) {  /* on a phone the header would take a third of the screen: let it scroll away */
   .top { position: static; }
   .filters { gap: 6px; }
+  .search { flex-basis: 100%; max-width: none; }
   .dd-btn { padding: 4px 8px; gap: 4px; }
 }
 .linkish { appearance: none; border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
@@ -191,7 +197,11 @@ main { padding-top: 18px; padding-bottom: 80px; }
     </div>
   </div>
   <nav class="wrap tabs" role="tablist" id="tabs"></nav>
-  <div class="wrap filters" id="filters" hidden></div>
+  <div class="wrap filters">
+    <input type="search" class="search" id="q" placeholder="Search address, title, text…" aria-label="Search all tabs"
+           autocomplete="off" spellcheck="false">
+    <div class="dds" id="filters"></div>
+  </div>
 </header>
 
 <div class="banner" id="banner" hidden><span id="banner-text"></span><button class="btn small" id="banner-act"></button></div>
@@ -274,7 +284,7 @@ const SORTS = {
   cheapest: (a, b) => (a.warm ?? 1e9) - (b.warm ?? 1e9),
   largest: (a, b) => (b.size ?? 0) - (a.size ?? 0),
 };
-const state = { tab: "matches", picked: {}, menu: null, shown: PAGE, expandAll: prefs.get("expandAll", false),
+const state = { tab: "matches", picked: {}, menu: null, shown: PAGE, q: "", expandAll: prefs.get("expandAll", false),
                 sort: SORTS[prefs.get("sort", "score")] ? prefs.get("sort", "score") : "score" };
 const prevSeen = prefs.get("lastSeen", "");  // newest listing at the previous visit
 
@@ -321,16 +331,33 @@ function passes(l, f, p) {
 // `list` narrowed down by every filter but `skip`.
 const narrow = (list, filters, p, skip) => list.filter((l) => filters.every((f) => f === skip || passes(l, f, p)));
 const filtering = (filters, p) => filters.some((f) => f[2] ? (p[f[0]] || []).length : (p[f[0]] ?? f[3][0][0]) !== f[3][0][0]);
-const inTab = () => data.listings.filter(TABS.find((t) => t[0] === state.tab)[2]);
+// The search box, the same on every tab: every word has to be somewhere on the card (title, address,
+// description, landlord, reasons, ...), ignoring case and accents ("strasse" finds "Straße").
+const fold = (s) => s.toLowerCase().replace(/ß/g, "ss").normalize("NFD").replace(/\p{M}/gu, "");
+const texts = new WeakMap();  // listing -> its text, folded
+function text(l) {
+  if (!texts.has(l)) {
+    texts.set(l, fold([l.headline, l.title, l.locality, l.street, l.landlord, sourceName(l.source), l.url, l.description,
+                       ...l.reasons, ...l.flags, ...l.notes].filter(Boolean).join("\n")));
+  }
+  return texts.get(l);
+}
+function searched(list) {
+  const words = fold(state.q).split(/\s+/).filter(Boolean);
+  return words.length ? list.filter((l) => words.every((w) => text(l).includes(w))) : list;
+}
+const inTabAll = () => data.listings.filter(TABS.find((t) => t[0] === state.tab)[2]);
+const inTab = () => searched(inTabAll());
 
 function visible() {
   const list = inTab();
   return narrow(list, filtersFor(state.tab, list), picks(state.tab)).sort(SORTS[state.sort]);
 }
 
-function renderTabs() {
+function renderTabs() {  // while searching, each tab counts what it has for the search
+  const list = searched(data.listings);
   $("tabs").innerHTML = TABS.map(([id, label, test]) =>
-    `<button role="tab" class="tab" aria-selected="${id === state.tab}" data-tab="${id}">${label}<span class="n">${data.listings.filter(test).length}</span></button>`
+    `<button role="tab" class="tab" aria-selected="${id === state.tab}" data-tab="${id}">${label}<span class="n">${list.filter(test).length}</span></button>`
   ).join("");
 }
 
@@ -363,12 +390,12 @@ function renderFilters() {
     return `<div class="dd"><button class="dd-btn${changed ? " on" : ""}" data-menu="${id}" aria-haspopup="menu" aria-expanded="${open}">` +
            `<span class="dd-label">${label}</span><span class="dd-value">${esc(value)}</span><span class="caret">▼</span></button>${menu}</div>`;
   });
-  if (filtering(filters, p)) {
-    parts.push(`<span class="filter-sum">${narrow(list, filters, p).length} of ${list.length} · ` +
+  if (filtering(filters, p) || state.q.trim()) {
+    parts.push(`<span class="filter-sum">${narrow(list, filters, p).length} of ${inTabAll().length} · ` +
                `<button class="linkish" data-clear>Clear</button></span>`);
   }
   $("filters").innerHTML = parts.join("");
-  $("filters").hidden = !filters.length;
+  $("q").classList.toggle("on", !!state.q.trim());
   const menu = $("filters").querySelector(".dd-menu");  // keep an open menu on screen (phones)
   if (menu) {
     const over = menu.getBoundingClientRect().right - (document.documentElement.clientWidth - 8);
@@ -499,7 +526,9 @@ function render() {
   $("more").hidden = list.length <= state.shown;
   $("more").textContent = `Show more (${list.length - state.shown} left)`;
   $("empty").hidden = list.length > 0;
-  $("empty").textContent = filtered ? "Nothing here with these filters." : EMPTY[state.tab];
+  const q = state.q.trim();
+  $("empty").textContent = q ? `Nothing here matches “${q}”${filtered ? " with these filters" : ""}.`
+                         : filtered ? "Nothing here with these filters." : EMPTY[state.tab];
   $("toggle-desc").textContent = state.expandAll ? "Collapse descriptions" : "Expand descriptions";
   $("toggle-desc").setAttribute("aria-pressed", String(state.expandAll));
   renderStatus();
@@ -813,6 +842,7 @@ $("filters").addEventListener("click", (e) => {
   if (b.matches("[data-clear]")) {
     state.picked[state.tab] = {};
     state.menu = null;
+    state.q = $("q").value = "";
   } else {
     const { filter: id, value } = b.dataset;
     const f = filtersFor(state.tab, inTab()).find((x) => x[0] === id);
@@ -829,6 +859,14 @@ $("filters").addEventListener("click", (e) => {
   }
   state.shown = PAGE;
   render();
+});
+$("q").addEventListener("input", () => {
+  state.q = $("q").value;
+  state.shown = PAGE;
+  render();
+});
+$("q").addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && $("q").value) { $("q").value = ""; $("q").dispatchEvent(new Event("input")); }
 });
 function closeMenu() { if (state.menu) { state.menu = null; renderFilters(); } }
 darkMode.addEventListener("change", render);

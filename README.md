@@ -73,6 +73,10 @@ Only one instance runs at a time; after a reboot, start it again.
   within a couple of minutes (`--geocode` does all of them at once). Map tiles
   are Stadia Maps' (light or dark, following the page), free without an API
   key for pages on localhost.
+- **Search** box under the tabs, the same on every tab: each word has to be
+  somewhere on the card (title, address, description, landlord, reasons, …),
+  ignoring case and accents ("strasse" finds "Straße"). While it's in use, the
+  tab counts show how many hits each tab has. Esc or "Clear" empties it.
 - **Filters**, a dropdown each under the tabs: **Locality** on every tab
   (Ortsteil, from the address, else the portal's label; pick one or several),
   and on Rejected also **Where** (in the area, on Kurfürstendamm or another
