@@ -43,8 +43,8 @@ python3 -m homefind --loop --open
 
 Ctrl+C stops it. After that, just open **<http://localhost:8765>** whenever
 you like (bookmark it). The page is always current when opened, and while it
-stays open it keeps itself current: new listings, ads taken offline, and a
-Save or Hide made in another tab (straight away) all show up without the page
+stays open it keeps itself current: new listings, ads taken offline, and an
+Applied or Hide made in another tab (straight away) all show up without the page
 jumping under you; if new matches arrive while you're scrolled down or on
 another tab of the page, a "new match" banner offers them. After an update to
 homefind, open pages offer a Reload. If a new match comes in while you're in
@@ -62,7 +62,7 @@ Only one instance runs at a time; after a reboot, start it again.
   blocked us shows up there as paused until when. **↻ Check now** checks
   every site straight away (except paused ones, to let the block wear off)
   and says what it found; only with `--loop`.
-- **Matches / Saved / Rejected / Hidden** tabs (bookmarkable: `/#saved`).
+- **Matches / Applied / Rejected / Hidden** tabs (bookmarkable: `/#applied`).
 - **Photos:** arrows on each card flip through all photos; click a photo for
   the full-screen viewer (arrow keys, swipe, thumbnail strip, Esc to close).
 - **Mini-map**: hover the 📍 neighbourhood line on a card (tap it on a phone)
@@ -83,17 +83,19 @@ Only one instance runs at a time; after a reboot, start it again.
 - **ImmoScout24 cards stand out** with a coloured outline and badge
   (`highlight_sources` in `config.toml`).
 - **Descriptions:** per card, or "Expand descriptions" for all.
-- **☆ Save / Hide** on every listing, stored in the database (both have Undo).
-  Saved listings move to the Saved tab, so they don't take space under Matches.
+- **Mark applied / Hide** on every listing, stored in the database (both have
+  Undo). Flats you applied for move to the Applied tab, so they don't take space
+  under Matches.
 - **Ads taken offline** are tagged **Deactivated** (switched off by the
   poster, may come back; mostly WG-Gesucht) or **Deleted**, with a grey photo
-  and when it was noticed, and filed away by themselves: saved ones stay on
-  Saved for 2 days (`SAVED_OFFLINE_DAYS` in `homefind/store.py`), then move to
-  Hidden; matches move to Hidden right away; ones you hid stay there; rejected
-  ones are deleted for good. The Hidden tab gets a chip per tag. If one comes
-  back online, it moves back to where it was (a deleted one shows up as new).
+  and when it was noticed, and filed away by themselves: ones you applied for
+  stay on Applied for 2 days (`APPLIED_OFFLINE_DAYS` in `homefind/store.py`),
+  then move to Hidden; matches move to Hidden right away; ones you hid stay
+  there; rejected ones are deleted for good. The Hidden tab gets a chip per
+  tag. If one comes back online, it moves back to where it was (a deleted one
+  shows up as new).
   How it's found: each hourly check also looks up a few older ads
-  (`check_per_run`: 5, WG-Gesucht 2; saved first, then matches, rejected ones
+  (`check_per_run`: 5, WG-Gesucht 2; applied first, then matches, rejected ones
   in the area, ones you hid, the rest; skipping any seen in the last 6 hours).
   inberlinwohnen goes through all its ~40 pages every 12 hours
   (`sweep_every_hours`) and charlotte1907's one page lists every offer, so
@@ -134,7 +136,7 @@ python3 -m homefind --geocode        # place every listing on the map now
 python3 -m homefind --no-push        # store + print, no notifications
 ```
 
-State (listings, verdicts, saved/hidden) lives in `data/homefind.db`; delete
+State (listings, verdicts, applied/hidden) lives in `data/homefind.db`; delete
 it to start over.
 
 ## Filtering

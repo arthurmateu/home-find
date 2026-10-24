@@ -93,11 +93,11 @@ class Geocoder:
 
 def _shown(cfg: dict, store: Store) -> list:
     """Listings the web UI shows, the ones you're likeliest to look at first:
-    saved, matches, rejected ones in the area, hidden, the rest."""
+    applied, matches, rejected ones in the area, hidden, the rest."""
     drop = set(cfg["search"].get("drop_reasons") or [])
 
     def rank(r) -> int:
-        if r.status == "saved":
+        if r.status == "applied":
             return 0
         if r.status == "hidden":
             return 3

@@ -13,7 +13,7 @@ from .rating import rate
 from .notify import Notifier, print_match, print_reject
 from .rules import evaluate
 from .sources import enabled_sources
-from .store import SAVED_OFFLINE_DAYS, Store
+from .store import APPLIED_OFFLINE_DAYS, Store
 from .util import text
 
 log = logging.getLogger("homefind")
@@ -110,7 +110,7 @@ def run_once(cfg: dict, store: Store, http, notifier: Notifier, only: set[str] |
     which source it's on. Returns the names checked, the ones that failed, and the counts."""
     now = time.time()
     if not dry_run and store.hide_due():
-        log.info("saved ads offline for %d days moved to Hidden", SAVED_OFFLINE_DAYS)
+        log.info("applied-to ads offline for %d days moved to Hidden", APPLIED_OFFLINE_DAYS)
 
     def skip(name: str) -> bool:
         if only and name not in only:
@@ -254,14 +254,14 @@ def _find_offline(src, cfg: dict, store: Store, online: set[str]) -> list[str]:
 
 
 def _to_check(src, cfg: dict, store: Store) -> list:
-    """Ads to look up, most useful first: saved, matches, rejected ones in the
+    """Ads to look up, most useful first: applied, matches, rejected ones in the
     area, ones you hid, the rest; least recently seen first. Leaves out ads seen
     online in the last CHECK_AFTER_HOURS and ones never shown (drop_reasons)."""
     drop = set(cfg["search"].get("drop_reasons") or [])
     cutoff = (datetime.now() - timedelta(hours=CHECK_AFTER_HOURS)).isoformat(timespec="seconds")
 
     def rank(r) -> int:
-        if r.status == "saved":
+        if r.status == "applied":
             return 0
         if r.status == "hidden":
             return 3

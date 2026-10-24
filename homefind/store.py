@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS places (q TEXT PRIMARY KEY, lat REAL, lon REAL, preci
 """
 
 
-SAVED_OFFLINE_DAYS = 2  # a saved ad taken offline stays on Saved this long, then moves to Hidden
+APPLIED_OFFLINE_DAYS = 2  # an ad you applied to that's taken offline stays on Applied this long, then moves to Hidden
 
 
 def _now() -> str:
@@ -44,11 +44,11 @@ class Row(NamedTuple):
     verdict: Verdict
     first_seen: str
     last_seen: str        # last time it was seen online
-    status: str | None    # None, 'saved' or 'hidden'
+    status: str | None    # None, 'applied' or 'hidden'
     gone: str | None      # the ad was taken offline: 'deactivated' or 'deleted'
     gone_at: str | None   # when that was noticed
     status_if_back: str | None  # where it goes if it comes back online
-    hide_at: str | None   # saved and offline: when it moves to Hidden
+    hide_at: str | None   # applied and offline: when it moves to Hidden
 
 
 class Store:
@@ -58,7 +58,7 @@ class Store:
         self.db.execute("PRAGMA journal_mode=WAL")  # the web UI reads while the poller writes
         self.db.executescript(SCHEMA)
         columns = {row[1] for row in self.db.execute("PRAGMA table_info(listings)")}
-        # Added later: status (the web UI: NULL, 'saved' or 'hidden'), then the offline check's columns.
+        # Added later: status (the web UI: NULL, 'applied' or 'hidden'), then the offline check's columns.
         for column in ("status", "gone", "gone_at", "status_if_back", "hide_at"):
             if column not in columns:
                 self.db.execute(f"ALTER TABLE listings ADD COLUMN {column} TEXT")
@@ -69,7 +69,13 @@ class Store:
                                 " AND status_if_back IS NULL")
                 self.db.execute("UPDATE listings SET status = 'saved', hide_at = strftime('%Y-%m-%dT%H:%M:%S', gone_at, ?)"
                                 " WHERE gone IS NOT NULL AND status = 'hidden' AND status_if_back = 'saved'",
-                                (f"+{SAVED_OFFLINE_DAYS} days",))
+                                (f"+{APPLIED_OFFLINE_DAYS} days",))
+        if not self.meta_get("saved_renamed"):
+            # Saved was renamed Applied.
+            with self.db:
+                for column in ("status", "status_if_back"):
+                    self.db.execute(f"UPDATE listings SET {column} = 'applied' WHERE {column} = 'saved'")
+                self.db.execute("INSERT OR REPLACE INTO meta VALUES ('saved_renamed', '1')")
 
     def seen(self, key: str) -> bool:
         return self.db.execute("SELECT 1 FROM listings WHERE key = ?", (key,)).fetchone() is not None
@@ -84,25 +90,25 @@ class Store:
 
     def mark_gone(self, keys, why: str) -> None:
         """The ads were taken offline ('deactivated' or 'deleted'). Rejected ones
-        are deleted for good; matches move to Hidden; saved ones stay on Saved for
-        SAVED_OFFLINE_DAYS (see hide_due); ones you hid stay hidden. All but the
+        are deleted for good; matches move to Hidden; ones you applied to stay on
+        Applied for APPLIED_OFFLINE_DAYS (see hide_due); ones you hid stay hidden. All but the
         deleted ones are tagged with `why`."""
         now = datetime.now()
-        hide_at = (now + timedelta(days=SAVED_OFFLINE_DAYS)).isoformat(timespec="seconds")
+        hide_at = (now + timedelta(days=APPLIED_OFFLINE_DAYS)).isoformat(timespec="seconds")
         with self.db:
             self.db.executemany("DELETE FROM listings WHERE key = ? AND ok = 0 AND status IS NULL",
                                 [(key,) for key in keys])
             self.db.executemany(
                 "UPDATE listings SET gone = ?, gone_at = ?, status_if_back = status,"
                 " status = CASE WHEN status IS NULL THEN 'hidden' ELSE status END,"
-                " hide_at = CASE WHEN status = 'saved' THEN ? END WHERE key = ? AND gone IS NULL",
+                " hide_at = CASE WHEN status = 'applied' THEN ? END WHERE key = ? AND gone IS NULL",
                 [(why, now.isoformat(timespec="seconds"), hide_at, key) for key in keys])
 
     def hide_due(self) -> int:
-        """Saved ads that were taken offline SAVED_OFFLINE_DAYS ago move to Hidden."""
+        """Ads you applied to that were taken offline APPLIED_OFFLINE_DAYS ago move to Hidden."""
         with self.db:
             return self.db.execute("UPDATE listings SET status = 'hidden', hide_at = NULL"
-                                   " WHERE hide_at <= ? AND status = 'saved'", (_now(),)).rowcount
+                                   " WHERE hide_at <= ? AND status = 'applied'", (_now(),)).rowcount
 
     def online_keys(self, source: str) -> set[str]:
         """Keys of the source's ads not known to be offline."""

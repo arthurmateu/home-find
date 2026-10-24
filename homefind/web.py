@@ -1,5 +1,5 @@
 """Local web UI at http://localhost:<web_port>: browse listings, flip through
-photos, save or hide them. Runs inside --loop (or --serve) on 127.0.0.1 only.
+photos, mark the ones you applied to or hide them. Runs inside --loop (or --serve) on 127.0.0.1 only.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ log = logging.getLogger("homefind")
 PAGE = Path(__file__).with_name("ui.html")
 CSP = ("default-src 'self'; img-src * data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
        "connect-src 'self'; base-uri 'none'; form-action 'none'")
-STATUSES = (None, "saved", "hidden")
+STATUSES = (None, "applied", "hidden")
 
 
 def build() -> str:

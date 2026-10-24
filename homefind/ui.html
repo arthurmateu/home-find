@@ -221,7 +221,7 @@ const showError = (msg) => { $("error").textContent = "Something went wrong: " +
 window.addEventListener("error", (e) => showError(e.message));
 window.addEventListener("unhandledrejection", (e) => showError(String(e.reason)));
 
-// Per-browser conveniences only; saved/hidden live in the database.
+// Per-browser conveniences only; applied/hidden live in the database.
 const prefs = {
   get(k, d) { try { const v = localStorage.getItem("homefind:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem("homefind:" + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
@@ -233,7 +233,7 @@ const BROKEN = "data:image/svg+xml," + encodeURIComponent(
   '<text x="50%" y="50%" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#888">Photo unavailable</text></svg>');
 const TABS = [
   ["matches", "Matches", (l) => l.ok && !l.status],
-  ["saved", "Saved", (l) => l.status === "saved"],
+  ["applied", "Applied", (l) => l.status === "applied"],
   ["rejected", "Rejected", (l) => !l.ok && !l.status],
   ["hidden", "Hidden", (l) => l.status === "hidden"],
 ];
@@ -243,7 +243,7 @@ const SOURCES = { immoscout: "ImmoScout24", wggesucht: "WG-Gesucht", kleinanzeig
 const GONE = { deactivated: "Deactivated", deleted: "Deleted" };
 const EMPTY = {
   matches: "No matches right now. New ones show up here and on your phone.",
-  saved: "Nothing saved yet. Use ☆ Save on a listing to keep it here.",
+  applied: "Nothing here yet. Once you've applied for a flat, use Mark applied on it to keep track of it here.",
   rejected: "Nothing rejected in the area.",
   hidden: "Nothing hidden.",
 };
@@ -257,6 +257,8 @@ function normalize(d) {
     l.images ??= []; l.codes ??= []; l.flags ??= []; l.notes ??= []; l.reasons ??= [];
     l.gone ??= null; l.gone_at ??= null; l.status_if_back ??= null; l.hide_at ??= null;
     l.geo ??= null; l.locality ??= null; l.street ??= null;
+    if (l.status === "saved") l.status = "applied";  // Applied was called Saved
+    if (l.status_if_back === "saved") l.status_if_back = "applied";
   }
   return d;
 }
@@ -445,15 +447,15 @@ function card(l) {
                `<button class="nav next" data-act="next" aria-label="Next photo">›</button>` : "") +
       `<span class="counter">${n > 1 ? `${i + 1} / ${n}` : "1 photo"}</span>`
     : `<div class="nophoto">No photos</div>`;
-  const saved = l.status === "saved";
+  const applied = l.status === "applied";
   const gone = l.gone ? GONE[l.gone] || "Offline" : "";
   const fav = data.highlight.includes(l.source);
   const badges = (prevSeen && l.first_seen > prevSeen ? `<span class="badge new">new</span>` : "") +
                  (fav ? `<span class="badge fav">${esc(SOURCES[l.source] || l.source)}</span>` : "") +
-                 (saved ? `<span class="badge">★ Saved</span>` : "") +
+                 (applied ? `<span class="badge">✓ Applied</span>` : "") +
                  (gone ? `<span class="badge gone" title="Ad ${esc(gone.toLowerCase())}, noticed ${esc(when(l.gone_at))}. ` +
                          `Moves back by itself if it comes online again.">${esc(gone)} ${esc(day(l.gone_at))}</span>` : "") +
-                 (gone && l.status === "hidden" && l.status_if_back === "saved" ? `<span class="badge">★ Was saved</span>` : "");
+                 (gone && l.status === "hidden" && l.status_if_back === "applied" ? `<span class="badge">✓ Was applied</span>` : "");
   const chips = [...l.flags.map((f) => chip(" warn", "⚠ " + tidy(f), f)),
                  ...l.notes.map((t) => chip("", shortNote(t), t))].join("");
   const open = state.expandAll || openDesc.has(l.key);
@@ -474,12 +476,12 @@ function card(l) {
       <div class="price">${esc(l.headline)}</div>
       <a class="title" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || l.url)}</a>
       <div class="meta">${where(l)}<span title="${esc(l.landlord || "")}">${esc(l.source)}</span> · seen ${esc(when(l.first_seen))}</div>
-      ${gone && saved && l.hide_at ? `<p class="offline">⊘ Offline: moves to Hidden ${esc(when(l.hide_at))}</p>` : ""}
+      ${gone && applied && l.hide_at ? `<p class="offline">⊘ Offline: moves to Hidden ${esc(when(l.hide_at))}</p>` : ""}
       ${l.ok ? "" : `<p class="reasons" title="${esc(l.reasons.join("; "))}">✗ ${esc(l.reasons.map(shortReason).join(" · "))}</p>`}
       ${chips ? `<div class="chips">${chips}</div>` : ""}
       ${desc}
       <div class="actions">
-        <button class="btn${saved ? " on" : ""}" data-act="save" aria-pressed="${saved}">${saved ? "★ Saved" : "☆ Save"}</button>
+        <button class="btn${applied ? " on" : ""}" data-act="apply" aria-pressed="${applied}">${applied ? "✓ Applied" : "Mark applied"}</button>
         <button class="btn" data-act="hide">${l.status === "hidden" ? "Unhide" : "Hide"}</button>
         <a class="btn ghost" href="${esc(l.url)}" target="_blank" rel="noopener">Open ↗</a>
       </div>
@@ -575,7 +577,7 @@ function closeViewer() {
   lb.l = null;
 }
 
-// ---- save / hide
+// ---- applied / hide
 let toastTimer;
 function toast(text, undo) {
   $("toast-text").textContent = text;
@@ -585,8 +587,8 @@ function toast(text, undo) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { $("toast").hidden = true; }, 6000);
 }
-const editedAt = new Map();  // listing key -> when its last Save/Hide reached the server (Infinity until then)
-// The other open tabs of this page: they hear of a Save/Hide or a Check now straight away.
+const editedAt = new Map();  // listing key -> when its last Applied/Hide reached the server (Infinity until then)
+// The other open tabs of this page: they hear of an Applied/Hide or a Check now straight away.
 const peers = "BroadcastChannel" in window ? new BroadcastChannel("homefind") : null;
 // By key, not by listing: a poll can swap the listings for new copies while the request is out.
 const put = (key, fields) => { const l = byKey.get(key); if (l) Object.assign(l, fields); };
@@ -597,7 +599,7 @@ async function setStatus(key, status) {
   editedAt.set(key, Infinity);
   render();
   if (status === "hidden") toast("Hidden.", () => setStatus(key, before.status));
-  else if (status === "saved") toast("Saved. It's on the Saved tab now.", () => setStatus(key, before.status));
+  else if (status === "applied") toast("Marked as applied. It's on the Applied tab now.", () => setStatus(key, before.status));
   try {
     const r = await fetch("/api/status", { method: "POST", headers: { "Content-Type": "application/json" },
                                            body: JSON.stringify({ key, status }) });
@@ -738,8 +740,8 @@ async function poll() {
     if (!r.ok) throw new Error("HTTP " + r.status);
     const next = normalize(await r.json());
     reachable = true;
-    // The server's word counts (ads taken offline or back, saved ones moving to Hidden, rejected
-    // ones deleted), except for a Save/Hide made here that hadn't reached it when it answered.
+    // The server's word counts (ads taken offline or back, applied ones moving to Hidden, rejected
+    // ones deleted), except for an Applied/Hide made here that hadn't reached it when it answered.
     for (const l of next.listings) {
       const cur = byKey.get(l.key);
       if (cur && (editedAt.get(l.key) ?? 0) >= sent) Object.assign(l, { status: cur.status, hide_at: cur.hide_at });
@@ -770,7 +772,7 @@ async function poll() {
 addEventListener("scroll", bannerSeen, { passive: true });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 peers?.addEventListener("message", ({ data: m }) => {
-  if (m.type === "status") {  // saved or hidden in another tab
+  if (m.type === "status") {  // applied or hidden in another tab
     put(m.key, { status: m.status, hide_at: null });
     editedAt.set(m.key, Date.now());
     refresh();
@@ -784,7 +786,7 @@ $("tabs").addEventListener("click", (e) => {
   const b = e.target.closest("[data-tab]");
   if (!b) return;
   Object.assign(state, { tab: b.dataset.tab, shown: PAGE, menu: null });
-  history.replaceState(null, "", "#" + state.tab);  // so a tab can be bookmarked, e.g. /#saved
+  history.replaceState(null, "", "#" + state.tab);  // so a tab can be bookmarked, e.g. /#applied
   render();
 });
 // Picking in a one-choice menu closes it; a multi-choice one stays open to pick more.
@@ -860,7 +862,7 @@ $("grid").addEventListener("click", (e) => {
   const act = el.dataset.act;
   if (act === "prev" || act === "next") step(l, act === "next" ? 1 : -1, cardEl);
   else if (act === "zoom") openViewer(l, photoAt.get(l.key) || 0);
-  else if (act === "save") setStatus(l.key, l.status === "saved" ? null : "saved");
+  else if (act === "apply") setStatus(l.key, l.status === "applied" ? null : "applied");
   else if (act === "hide") setStatus(l.key, l.status === "hidden" ? null : "hidden");
   else if (act === "map") {  // keeps the map up without hovering: for touch screens, and to reach its link with the keyboard
     fillMap(el);
@@ -924,7 +926,7 @@ $("lb").addEventListener("touchend", (e) => {
   if (Math.abs(dx) > 40) viewerStep(dx < 0 ? 1 : -1);
 });
 
-const fromHash = location.hash.slice(1);
+const fromHash = location.hash.slice(1).replace(/^saved$/, "applied");  // bookmarks from before the rename
 if (TABS.some((t) => t[0] === fromHash)) state.tab = fromHash;
 index();
 render();
