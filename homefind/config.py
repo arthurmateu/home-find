@@ -81,6 +81,14 @@ DEFAULTS: dict = {
         "watch": {"every_minutes": 60},
     },
     "watch": [],
+    # Applying from the web UI (see apply.py). What goes in the form is in `profile`,
+    # a file of its own so it stays off GitHub (it's in .gitignore).
+    "apply": {
+        "profile": "apply.toml",
+        "min_score": 60,    # auto-apply: new matches scoring at least this
+        "max_per_day": 10,  # auto-apply "send": at most this many sent a day
+        "chrome": "",       # Chrome or Chromium to use; empty = look for one
+    },
 }
 
 
@@ -101,6 +109,7 @@ def load(path: str | Path) -> dict:
             _merge(cfg, tomllib.load(f))
     cfg["path"] = str(path.resolve())  # read once, at startup: the web UI says when it changes
     root = path.resolve().parent
-    p = Path(cfg["run"]["db_path"]).expanduser()
-    cfg["run"]["db_path"] = str(p if p.is_absolute() else root / p)
+    for section, k in (("run", "db_path"), ("apply", "profile")):
+        p = Path(cfg[section][k]).expanduser()
+        cfg[section][k] = str(p if p.is_absolute() else root / p)
     return cfg

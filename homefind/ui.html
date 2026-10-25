@@ -127,6 +127,9 @@ main { padding-top: 18px; padding-bottom: 80px; }
 @media (prefers-color-scheme: dark) { .minimap .credit { background: rgba(0, 0, 0, .6); color: #bbb; } }
 .reasons { margin: 0; color: var(--bad); background: var(--bad-bg); padding: 6px 8px; border-radius: 8px; font-size: 13px; }
 .offline { margin: 0; color: var(--muted); font-size: 13px; font-weight: 600; }
+.applying { margin: 0; font-size: 13px; padding: 6px 8px; border-radius: 8px; background: var(--chip); color: var(--ink); }
+.applying.wait { background: var(--warn-bg); color: var(--warn); }
+.applying.bad { background: var(--bad-bg); color: var(--bad); }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--chip); color: var(--muted); }
 .chip.warn { background: var(--warn-bg); color: var(--warn); }
@@ -134,7 +137,8 @@ main { padding-top: 18px; padding-bottom: 80px; }
                font-size: 14px; font-weight: 600; padding: 2px 0; cursor: pointer; }
 .desc { white-space: pre-line; font-size: 14px; max-height: 360px; overflow: auto; border-left: 3px solid var(--line); padding-left: 10px; }
 .desc-none { margin: 0; color: var(--muted); font-size: 13px; }
-.actions { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; flex-wrap: wrap; }
+.actions { display: flex; gap: 6px; margin-top: auto; padding-top: 8px; flex-wrap: wrap; }
+.actions .btn.ghost { padding-inline: 8px; }
 .btn { appearance: none; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 14px;
        padding: 6px 12px; border-radius: 8px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
 .btn:hover { border-color: var(--muted); }
@@ -187,6 +191,8 @@ main { padding-top: 18px; padding-bottom: 80px; }
     </div>
     <div class="controls">
       <button class="btn" id="check" hidden>↻ Check now</button>
+      <label class="sort" id="auto-box" hidden>Auto-apply <select id="auto"></select></label>
+      <button class="btn" id="login" hidden title="Opens homefind's own Chrome window on ImmoScout24, where it fills in contact forms. Log in there once.">ImmoScout login</button>
       <label class="sort">Sort
         <select id="sort">
           <option value="score">Best first</option>
@@ -255,7 +261,7 @@ const SOURCES = { immoscout: "ImmoScout24", wggesucht: "WG-Gesucht", kleinanzeig
 const GONE = { deactivated: "Deactivated", deleted: "Deleted" };
 const EMPTY = {
   matches: "No matches right now. New ones show up here and on your phone.",
-  applied: "Nothing here yet. Once you've applied for a flat, use Mark applied on it to keep track of it here.",
+  applied: "Nothing here yet. Flats you apply to with ✉ Apply, or mark applied after applying elsewhere, show up here.",
   rejected: "Nothing rejected in the area.",
   hidden: "Nothing hidden.",
 };
@@ -265,11 +271,12 @@ function normalize(d) {
   d.highlight ??= []; d.streets ??= [];
   d.checks ??= { sources: [], loop: null };
   d.outdated ??= true;  // a homefind that doesn't say is older than this page, which is read from disk on each load
+  d.apply ??= null;
   for (const l of d.listings) {
     l.why ??= []; l.score ??= 0; l.band ??= "weak"; l.posted ??= l.first_seen;
     l.images ??= []; l.codes ??= []; l.flags ??= []; l.notes ??= []; l.reasons ??= [];
     l.gone ??= null; l.gone_at ??= null; l.status_if_back ??= null; l.hide_at ??= null; l.applied_at ??= null;
-    l.geo ??= null; l.locality ??= null; l.street ??= null;
+    l.geo ??= null; l.locality ??= null; l.street ??= null; l.applied_by ??= null; l.applying ??= null;
     if (l.status === "saved") l.status = "applied";  // Applied was called Saved
     if (l.status_if_back === "saved") l.status_if_back = "applied";
   }
@@ -461,8 +468,32 @@ function shortNote(t) {
   return tidy(t);
 }
 // The day you applied (no day on ones marked before that was kept), on Applied and on ones hidden after applying.
-const appliedBadge = (l) => `<span class="badge" title="${l.applied_at ? `Applied ${esc(when(l.applied_at))}` : "Applied"}">` +
-                            `✓ Applied${l.applied_at ? ` ${esc(day(l.applied_at))}` : ""}</span>`;
+// "Auto-applied": homefind sent it by itself.
+function appliedBadge(l) {
+  const what = l.applied_by === "homefind" ? "Auto-applied" : "Applied";
+  return `<span class="badge" title="${l.applied_by === "homefind" ? "Sent by homefind" : "Applied"}${l.applied_at ? ` ${esc(when(l.applied_at))}` : ""}">` +
+         `✓ ${what}${l.applied_at ? ` ${esc(day(l.applied_at))}` : ""}</span>`;
+}
+
+// ---- applying (apply.py): homefind fills in the ad's contact form in its own Chrome window.
+// l.applying is where that's at: a step, and a note to show on the card.
+const canApply = (l) => !!data.apply && data.apply.sources.includes(l.source) && !l.gone;
+const BUSY = { queued: "Filling in…", opening: "Filling in…", filling: "Filling in…", sending: "Sending…" };
+const waitsForYou = (l) => ["ready", "captcha"].includes(l.applying?.step);
+const applyActive = (l) => !!BUSY[l.applying?.step] || waitsForYou(l);
+function applyNote(l) {
+  const a = l.applying;
+  if (!a || a.step === "sent" || !data.apply) return "";
+  return `<p class="applying${waitsForYou(l) ? " wait" : a.step === "failed" ? " bad" : ""}">${esc(a.note)}</p>`;
+}
+function applyButton(l) {
+  if (!canApply(l) || (l.status === "applied" && !applyActive(l))) return "";
+  if (BUSY[l.applying?.step]) return `<button class="btn" disabled>${BUSY[l.applying.step]}</button>`;
+  if (waitsForYou(l)) return `<button class="btn on" data-act="show-form" title="Brings up the homefind window with this form">Show form ↗</button>`;
+  const tip = data.apply.problem ? `Can't apply: ${data.apply.problem}`
+                                 : "Fills in ImmoScout24's contact form in the homefind window, for you to check and press Abschicken";
+  return `<button class="btn" data-act="fill" title="${esc(tip)}">✉ Apply</button>`;
+}
 const chip = (cls, text, full) => text ? `<span class="chip${cls}" title="${esc(full)}">${esc(text)}</span>` : "";
 // "sublet: the lease would be with ..." -> "sublet"; a scam's signs are on its own chips
 const shortReason = (r) => tidy(r).replace(/^(sublet|looks like a scam): .*/, "$1");
@@ -512,7 +543,9 @@ function card(l) {
       ${l.ok ? "" : `<p class="reasons" title="${esc(l.reasons.join("; "))}">✗ ${esc(l.reasons.map(shortReason).join(" · "))}</p>`}
       ${chips ? `<div class="chips">${chips}</div>` : ""}
       ${desc}
+      ${applyNote(l)}
       <div class="actions">
+        ${applyButton(l)}
         <button class="btn${applied ? " on" : ""}" data-act="apply" aria-pressed="${applied}">${applied ? "✓ Applied" : "Mark applied"}</button>
         <button class="btn" data-act="hide">${l.status === "hidden" ? "Unhide" : "Hide"}</button>
         <a class="btn ghost" href="${esc(l.url)}" target="_blank" rel="noopener">Open ↗</a>
@@ -535,6 +568,7 @@ function render() {
   $("toggle-desc").textContent = state.expandAll ? "Collapse descriptions" : "Expand descriptions";
   $("toggle-desc").setAttribute("aria-pressed", String(state.expandAll));
   renderStatus();
+  renderApply();
   bannerSeen();
 }
 
@@ -719,6 +753,48 @@ function renderStatus() {
   btn.textContent = btn.disabled && reachable ? "Checking…" : "↻ Check now";
 }
 
+// Auto-apply's mode, in the header (with --loop: it acts on new matches as they're found), and the
+// window's login button.
+function renderApply() {
+  const a = data.apply;
+  $("login").hidden = !a;
+  $("auto-box").hidden = !a || !data.checks.loop;
+  if (!a) return;
+  const sel = $("auto");
+  if (sel.options.length !== Object.keys(a.modes).length) {
+    sel.innerHTML = Object.entries(a.modes).map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join("");
+  }
+  if (document.activeElement !== sel) sel.value = a.mode;
+  sel.disabled = $("login").disabled = !!a.problem;
+  $("auto-box").title = a.problem ? `Can't apply: ${a.problem}` :
+    `For new ImmoScout24 matches scoring ${a.min_score} or more, without ⚠ warnings.\n` +
+    `Fill in, I send: their form waits for you in the homefind window.\n` +
+    `Send by itself: homefind sends it (at most ${a.max_per_day} a day) and tells your phone.`;
+}
+async function post(path, body) {  // the error says what went wrong, in words
+  let r;
+  try {
+    r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  } catch {
+    throw new Error("Is homefind still running?");
+  }
+  if (!r.ok) throw new Error(r.status === 409 ? await r.text() : r.status === 404 && restart ? "homefind needs a restart first." : `HTTP ${r.status}`);
+}
+async function applyTo(key, show) {
+  if (data.apply.problem) return toast(`Can't apply: ${data.apply.problem}.`);
+  try {
+    await post("/api/apply", { key, show });
+    if (!show) {
+      put(key, { applying: { step: "queued", note: "Waiting for the homefind browser…" } });
+      render();
+      toast("Filling in the form in the homefind window. Check it there and press Abschicken.");
+    }
+  } catch (e) {
+    toast(`Couldn't apply: ${e.message}`);
+  }
+  poll();
+}
+
 // While a check runs, the line above says which site it's on, and what each site found shows up as it finishes.
 let watching = false;
 async function watchCheck() {
@@ -779,6 +855,7 @@ function bannerSeen() { if (!stale && !restart && state.tab === "matches" && scr
 // Worth a redraw: any change but when an ad was last seen online, and the score with its "why"
 // lines, which move on by themselves ("posted 5 h ago"); those come along with the next change.
 const shape = (l) => JSON.stringify({ ...l, last_seen: 0, score: 0, band: 0, why: 0 });
+let applyPoll;  // the next quick poll, while applying
 async function poll() {
   try {
     const sent = Date.now();
@@ -816,6 +893,8 @@ async function poll() {
       $("banner").hidden = true;
     }
     if (busy()) watchCheck();
+    clearTimeout(applyPoll);  // while a form is on its way or waiting for you, so the card keeps up
+    if (data.listings.some(applyActive)) applyPoll = setTimeout(poll, 3000);
   } catch {
     reachable = false;  // homefind isn't running right now; try again later
     renderStatus();
@@ -914,6 +993,33 @@ $("check").addEventListener("click", async () => {
   peers?.postMessage({ type: "check" });
   watchCheck();
 });
+$("auto").addEventListener("change", async () => {
+  const a = data.apply, mode = $("auto").value, before = a.mode;
+  if (mode === "send" && !confirm(`homefind will send your message from apply.toml to new ImmoScout24 matches scoring ` +
+                                  `${a.min_score} or more by itself, up to ${a.max_per_day} a day. Turn that on?`)) {
+    $("auto").value = before;
+    return;
+  }
+  a.mode = mode;
+  try {
+    await post("/api/apply-mode", { mode });
+    toast(mode === "off" ? "Auto-apply is off." : mode === "confirm"
+      ? `New matches scoring ${a.min_score}+ get their form filled in, for you to send.`
+      : `New matches scoring ${a.min_score}+ get your message sent by homefind.`);
+  } catch (e) {
+    a.mode = before;
+    renderApply();
+    toast(`Couldn't change that: ${e.message}`);
+  }
+});
+$("login").addEventListener("click", async () => {
+  try {
+    await post("/api/browser", {});
+    toast("Opening ImmoScout24 in the homefind window: log in there (and solve its puzzle, if it shows one).");
+  } catch (e) {
+    toast(`Couldn't open it: ${e.message}`);
+  }
+});
 $("grid").addEventListener("click", (e) => {
   const el = e.target.closest("[data-act]");
   if (!el) return;
@@ -924,6 +1030,7 @@ $("grid").addEventListener("click", (e) => {
   if (act === "prev" || act === "next") step(l, act === "next" ? 1 : -1, cardEl);
   else if (act === "zoom") openViewer(l, photoAt.get(l.key) || 0);
   else if (act === "apply") setStatus(l.key, l.status === "applied" ? null : "applied", l.applied_at || undefined);  // from Hidden: keeps its date
+  else if (act === "fill" || act === "show-form") applyTo(l.key, act === "show-form");
   else if (act === "hide") setStatus(l.key, l.status !== "hidden" ? "hidden" : wasApplied(l) ? "applied" : null, l.applied_at);
   else if (act === "map") {  // keeps the map up without hovering: for touch screens, and to reach its link with the keyboard
     fillMap(el);
@@ -998,6 +1105,7 @@ prefs.set("lastSeen", data.listings.reduce((m, l) => (l.first_seen > m ? l.first
 setInterval(poll, 60000);
 setInterval(renderStatus, 20000);  // "3 min ago" moves on
 if (busy()) watchCheck();
+if (data.listings.some(applyActive)) poll();
 </script>
 </body>
 </html>

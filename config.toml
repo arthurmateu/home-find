@@ -93,6 +93,12 @@ ntfy_topic = "homefind-2zop46awwn3mb5"
 telegram_bot_token = ""
 telegram_chat_id = ""
 
+[apply]
+# ✉ Apply on ImmoScout24 cards and Auto-apply in the web UI's header (see the README).
+# What goes in the form is in apply.toml, which stays off GitHub.
+min_score = 60               # auto-apply: new matches scoring at least this
+max_per_day = 10             # auto-apply "Send by itself": at most this many sent a day
+
 # every_minutes = how often --loop checks each source (kept hourly to stay well
 # clear of rate limits, except ImmoScout). A source that gets blocked pauses itself
 # (2x, 4x, ... its interval, max 6 h).

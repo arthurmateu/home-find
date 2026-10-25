@@ -1,0 +1,33 @@
+# What homefind puts in ImmoScout24's contact form (✉ Apply and auto-apply in the
+# web UI). Copy this file to apply.toml and fill it in: apply.toml is in .gitignore,
+# so your details stay on this machine. Read when a form is filled in, so changes
+# here need no restart.
+
+message = """Guten Tag, ich bin Max Mustermann und ... Ich würde gerne einen
+Besichtigungstermin für diese Wohnung vereinbaren."""
+
+# One line per field: its label on the form, and what to put there. A label only
+# has to match the start of the form's ("Haustiere" covers "Haustiere (außer
+# Kleintiere, z. B. Hamster)"), and case and the * don't matter. Dropdowns take the
+# option's text; switches and checkboxes true or false; amounts plain numbers.
+# Fields a form doesn't ask for are skipped, and the e-mail comes from your login.
+# A field the form asks for that's missing here stops auto-apply from sending:
+# it names the field on the card, and data/apply-last.json lists every field the
+# last form had.
+[form]
+"Anrede" = "Herr"
+"Vorname" = "Max"
+"Nachname" = "Mustermann"
+"Telefonnummer" = "+49 151 00000000"
+"Erwachsene" = 1
+"Kinder" = 0
+"Haustiere" = "Nein"
+"Beschäftigungsart" = "Unbefristet"
+"Monatliches netto Haushaltseinkommen" = 2500
+"Nutzung für gewerbliche Zwecke" = "Nein"
+"Mietrückstände in den letzten 5 Jahren" = "Nein"
+"Insolvenzverfahren in den letzten 5 Jahren" = "Nein"
+"Raucher:in" = "Nein"
+"Anbieter:in darf dein Profil sehen" = true
+"Anbieter:in folgen für Inserate & Profi-Tipps" = false
+"Erhalte Angebote von Umzugsfirmen" = false

@@ -50,6 +50,7 @@ class Row(NamedTuple):
     status_if_back: str | None  # where it goes if it comes back online
     hide_at: str | None   # applied and offline: when it moves to Hidden
     applied_at: str | None  # when you marked it applied (None if before that was kept)
+    applied_by: str | None  # 'homefind': it sent the application by itself (auto-apply, see apply.py)
 
 
 class Store:
@@ -60,8 +61,8 @@ class Store:
         self.db.executescript(SCHEMA)
         columns = {row[1] for row in self.db.execute("PRAGMA table_info(listings)")}
         # Added later: status (the web UI: NULL, 'applied' or 'hidden'), then the offline check's columns,
-        # then when you applied.
-        for column in ("status", "gone", "gone_at", "status_if_back", "hide_at", "applied_at"):
+        # then when you applied, then who sent the application.
+        for column in ("status", "gone", "gone_at", "status_if_back", "hide_at", "applied_at", "applied_by"):
             if column not in columns:
                 self.db.execute(f"ALTER TABLE listings ADD COLUMN {column} TEXT")
         if "gone" in columns and "hide_at" not in columns:
@@ -141,26 +142,35 @@ class Store:
     def rejected(self, limit: int = 100):
         return list(self._rows(False, limit))
 
-    def set_status(self, key: str, status: str | None, applied_at: str | None = None) -> bool:
-        """Marked applied: records `applied_at`. Hidden: keeps the date it had; back to
-        Matches or Rejected: drops it."""
+    def set_status(self, key: str, status: str | None, applied_at: str | None = None,
+                   applied_by: str | None = None) -> bool:
+        """Marked applied: records `applied_at` (and `applied_by`, if given). Hidden:
+        keeps what it had; back to Matches or Rejected: drops it."""
         with self.db:
             return self.db.execute("UPDATE listings SET status = ?, status_if_back = ?, hide_at = NULL,"
-                                   " applied_at = CASE ? WHEN 'applied' THEN ? WHEN 'hidden' THEN applied_at END"
-                                   " WHERE key = ?", (status, status, status, applied_at, key)).rowcount == 1
+                                   " applied_at = CASE ? WHEN 'applied' THEN ? WHEN 'hidden' THEN applied_at END,"
+                                   " applied_by = CASE ? WHEN 'applied' THEN COALESCE(?, applied_by)"
+                                   " WHEN 'hidden' THEN applied_by END WHERE key = ?",
+                                   (status, status, status, applied_at, status, applied_by, key)).rowcount == 1
 
     def update_listing(self, listing: Listing) -> None:
         with self.db:
             self.db.execute("UPDATE listings SET data = ? WHERE key = ?",
                             (json.dumps(listing.to_dict(), ensure_ascii=False), listing.key))
 
+    ROW = ("SELECT data, verdict, first_seen, last_seen, status, gone, gone_at, status_if_back, hide_at,"
+           " applied_at, applied_by FROM listings")
+
     def all_rows(self, source: str | None = None):
         """Everything (or everything from one source), newest first."""
-        rows = self.db.execute("SELECT data, verdict, first_seen, last_seen, status, gone, gone_at, status_if_back, hide_at,"
-                               " applied_at FROM listings WHERE ? IS NULL OR source = ? ORDER BY first_seen DESC, rowid DESC",
+        rows = self.db.execute(self.ROW + " WHERE ? IS NULL OR source = ? ORDER BY first_seen DESC, rowid DESC",
                                (source, source))
         for data, verdict, *rest in rows:
             yield Row(Listing.from_dict(json.loads(data)), Verdict(**json.loads(verdict)), *rest)
+
+    def row(self, key: str) -> Row | None:
+        found = self.db.execute(self.ROW + " WHERE key = ?", (key,)).fetchone()
+        return found and Row(Listing.from_dict(json.loads(found[0])), Verdict(**json.loads(found[1])), *found[2:])
 
     def update_verdict(self, key: str, verdict: Verdict) -> None:
         with self.db:

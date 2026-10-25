@@ -13,6 +13,7 @@ from pathlib import Path
 from . import config
 from .app import Loop, check_offline, recheck, run_once, seconds_until_due
 from . import geo, web
+from .apply import Applier
 from .net import Fetcher
 from .notify import Notifier, print_reject
 from .sources import SOURCE_NAMES
@@ -73,7 +74,7 @@ def main(argv=None) -> int:
     if args.dry_run and (args.loop or args.serve):
         ap.error("--dry-run is a one-off check; drop --loop/--serve")
     if args.serve:
-        return serve_only(cfg, args.open)
+        return serve_only(cfg, args.open, Applier(cfg, notifier))
     only = {s.strip() for s in args.only.split(",")} if args.only else None
     unknown = (only or set()) - set(SOURCE_NAMES) - {"watch"}
     if unknown:
@@ -103,8 +104,9 @@ def main(argv=None) -> int:
         return 0
 
     loop = Loop(only)
+    applier = Applier(cfg, notifier)
     try:
-        if web.serve(cfg, loop):
+        if web.serve(cfg, loop, applier):
             log.info("web UI: %s", web.url(cfg))
             geo.start(cfg)
             if args.open:
@@ -113,13 +115,14 @@ def main(argv=None) -> int:
         log.warning("web UI not started (port %s: %s)", cfg["run"]["web_port"], e.strerror)
     log.info("watching; each source is checked on its own schedule (sources.*.every_minutes). Ctrl+C stops.")
     while True:
-        loop.done(run_once(cfg, store, http, notifier, only=only, scheduled=True, forced=loop.forced, loop=loop))
+        loop.done(run_once(cfg, store, http, notifier, only=only, scheduled=True, forced=loop.forced, loop=loop,
+                           applier=applier))
         loop.sleep(seconds_until_due(cfg, store, only) * random.uniform(0.9, 1.15))
 
 
-def serve_only(cfg: dict, open_it: bool) -> int:
+def serve_only(cfg: dict, open_it: bool, applier: Applier) -> int:
     try:
-        server = web.serve(cfg)
+        server = web.serve(cfg, applier=applier)
     except OSError:
         print(f"port {cfg['run']['web_port']} is in use; if homefind --loop is running, the UI is already at {web.url(cfg)}")
         return 1

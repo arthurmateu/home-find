@@ -3,7 +3,8 @@
 Polls Berlin rental portals every few minutes for flats in **Charlottenburg,
 Westend, Halensee and Wilmersdorf** **under 1000 € warm**, drops the junk
 (swaps, sublets, WG rooms, furnished short-term lets, WBS-only, scams) and
-pushes the rest to your phone. Python 3.11+, standard library only.
+pushes the rest to your phone, and can fill in (or send) ImmoScout24's contact
+form for you. Python 3.11+, standard library only (applying also needs Chrome).
 
 ## Sources
 
@@ -89,6 +90,8 @@ Only one instance runs at a time; after a reboot, start it again.
 - **ImmoScout24 cards stand out** with a coloured outline and badge
   (`highlight_sources` in `config.toml`).
 - **Descriptions:** per card, or "Expand descriptions" for all.
+- **✉ Apply** on ImmoScout24 cards, and **Auto-apply** in the header: see
+  [Applying](#applying-immoscout24) below.
 - **Mark applied / Hide** on every listing, stored in the database (both have
   Undo). Flats you applied for move to the Applied tab, so they don't take space
   under Matches, with the day you marked them on their badge (hover for the
@@ -128,6 +131,54 @@ Only one instance runs at a time; after a reboot, start it again.
 - WG rooms, senior housing, swap offers, WBS-only flats and anything in former
   East Berlin, Spandau or Neukölln don't show up at all (`drop_reasons` in
   `config.toml`).
+
+## Applying (ImmoScout24)
+
+homefind can fill in ImmoScout24's contact form for you, in a Chrome window of
+its own, with the message and details in `apply.toml`:
+
+- **✉ Apply** on an ImmoScout24 card opens the ad there, fills in the form and
+  stops at Abschicken: check it (change anything you like) and press it. Once
+  ImmoScout says it's sent, the card moves to Applied. Until then the card says
+  what it's waiting for, and **Show form ↗** brings the window up.
+- **Auto-apply** in the header (with `--loop`) does that by itself for new
+  matches: ImmoScout24 ones scoring at least `min_score` (60), without ⚠
+  warnings, and not reposts.
+  - **Fill in, I send**: their form waits in the window for you to press Abschicken.
+  - **Send by itself**: homefind presses it too, at most `max_per_day` (10) a
+    day, and your phone gets "✓ Applied". Their badge says "Auto-applied".
+
+  A form that asks for something `apply.toml` doesn't cover, or finds you logged
+  out, isn't sent: it waits in the window, with the field named on the card (and
+  on your phone, with Send by itself). `min_score` and `max_per_day` are under
+  `[apply]` in `config.toml`.
+
+Setting it up, once:
+
+1. Chrome in Ubuntu (its window shows up on the Windows desktop):
+   ```bash
+   wget -P /tmp https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+   ```
+   ```bash
+   sudo apt install /tmp/google-chrome-stable_current_amd64.deb
+   ```
+   A Chromium that Playwright downloaded (`~/.cache/ms-playwright`) works too,
+   after `sudo apt-get install libnss3 libnspr4 libasound2t64`; or name one with
+   `chrome` under `[apply]`.
+2. Copy `apply.example.toml` to `apply.toml` and fill it in: the message, and
+   each field's label on the form with what to put there. `apply.toml` is in
+   `.gitignore`, so your details stay on this machine.
+3. **ImmoScout login** in the header opens the window on ImmoScout24: log in
+   there. The window has a profile of its own (`data/browser`), so that sticks.
+
+ImmoScout shows a puzzle ("Ich bin kein Roboter") to a browser it doesn't know
+yet, and maybe now and then after that. homefind doesn't solve it: the card
+(and your phone, with auto-apply) asks you to, in the window, and homefind
+carries on from there.
+
+If a field doesn't get filled in, `data/apply-last.json` lists every field the
+last form had, with its label as homefind read it: that's the label to use in
+`apply.toml`.
 
 ## Commands
 
@@ -190,6 +241,8 @@ within 30 days), are recorded but not pushed a second time.
 - Sites change their markup; a source that breaks logs an error and the others keep running. Most parsers are ~50 lines in `homefind/sources/`.
 - The ImmoScout24 app API is unofficial. If it stops working, set up a saved search with e-mail alerts on immobilienscout24.de.
 - Automated access is against most portals' terms; the request rate above is kept low, keep it to personal use.
+- Auto-apply sends messages from your ImmoScout24 account under your name. ImmoScout may not like automated contact requests: keep `max_per_day` low.
+- The contact form is filled in by its labels, as they are on screen; if ImmoScout renames one, update `apply.toml`.
 - Many good ImmoScout listings are "Plus members only" for their first days; the push says so.
 
 ## Tips for the search itself

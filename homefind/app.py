@@ -104,10 +104,11 @@ def status(cfg: dict, store: Store, loop: Loop | None) -> dict:
 
 def run_once(cfg: dict, store: Store, http, notifier: Notifier, only: set[str] | None = None,
              dry_run: bool = False, scheduled: bool = False, forced: bool = False,
-             loop: Loop | None = None) -> dict:
+             loop: Loop | None = None, applier=None) -> dict:
     """One pass. `scheduled` (the --loop mode) only runs sources that are due; `forced`
     (Check now) runs every one that isn't paused after the site blocked us. Tells `loop`
-    which source it's on. Returns the names checked, the ones that failed, and the counts."""
+    which source it's on, and `applier` (apply.Applier) of new matches, for auto-apply.
+    Returns the names checked, the ones that failed, and the counts."""
     now = time.time()
     if not dry_run and store.hide_due():
         log.info("applied-to ads offline for %d days moved to Hidden", APPLIED_OFFLINE_DAYS)
@@ -125,7 +126,7 @@ def run_once(cfg: dict, store: Store, http, notifier: Notifier, only: set[str] |
             continue
         if loop:
             loop.source = src.name
-        results.append(_run_source(src, cfg, store, notifier, dry_run, quiet=scheduled))
+        results.append(_run_source(src, cfg, store, notifier, dry_run, quiet=scheduled, applier=applier))
         if not dry_run:
             store.meta_set(f"last:{src.name}", str(time.time()))
     if cfg.get("watch") and not skip("watch"):
@@ -150,7 +151,7 @@ def _sweep_due(cfg: dict, store: Store, name: str) -> bool:
     return bool(hours) and time.time() - float(store.meta_get(f"sweep:{name}") or 0) >= hours * 3600
 
 
-def _run_source(src, cfg, store, notifier, dry_run, quiet=False) -> dict:
+def _run_source(src, cfg, store, notifier, dry_run, quiet=False, applier=None) -> dict:
     first_run = not dry_run and store.meta_get(f"init:{src.name}") is None
     handled: set[str] = set()
     online: set[str] = set()  # every ad the search came across
@@ -191,7 +192,7 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False) -> dict:
             if dry_run:
                 (print_match if verdict.ok else print_reject)(listing, verdict)
                 continue
-            pushed = False
+            pushed = fresh = False
             if verdict.ok:
                 matches.add(listing.key)
                 earlier = store.repost_of(listing, fingerprint(listing, verdict))
@@ -199,9 +200,12 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False) -> dict:
                     verdict.notes.append(f"same rent/size/postcode as {earlier}")
                 score, _ = rate(listing, verdict, datetime.now().isoformat(timespec="seconds"), cfg)
                 print_match(listing, verdict, score)
-                if not first_run and not earlier:
+                fresh = not first_run and not earlier
+                if fresh:
                     pushed = notifier.listing(listing, verdict, score)
             store.add(listing, verdict, notified=pushed)
+            if fresh and applier:
+                applier.auto(listing, verdict, score, store)
     except Blocked as e:
         if not dry_run:
             _blocked(store, src.name, _every(cfg, src.name), e)
