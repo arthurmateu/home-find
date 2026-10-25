@@ -47,7 +47,9 @@ stays open it keeps itself current: new listings, ads taken offline, and an
 Applied or Hide made in another tab (straight away) all show up without the page
 jumping under you; if new matches arrive while you're scrolled down or on
 another tab of the page, a "new match" banner offers them. After an update to
-homefind, open pages offer a Reload. If a new match comes in while you're in
+homefind, open pages offer a Reload, or say to restart it when the update
+needs that (a change to its Python code or to `config.toml`, which are only
+read at startup). If a new match comes in while you're in
 another tab or window, the page's tab shows it: "(1) New match · Flat hunt"
 and a red dot on its icon, until you switch back. No sound, no pop-up.
 

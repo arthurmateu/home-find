@@ -36,6 +36,15 @@ def build() -> str:
     return hashlib.sha1(PAGE.read_bytes()).hexdigest()[:12]
 
 
+def code(cfg: dict) -> str:
+    """The Python code and the config file as they are on disk now. Both are only read
+    at startup (ui.html on every page load), so when this changes homefind needs a restart."""
+    h = hashlib.sha1()
+    for f in [*sorted(Path(__file__).parent.rglob("*.py")), Path(cfg.get("path") or "")]:
+        h.update(f.read_bytes() if f.is_file() else b"")
+    return h.hexdigest()[:12]
+
+
 def payload(cfg: dict, store: Store, loop: app.Loop | None = None) -> dict:
     s = cfg["search"]
     reasons = dict(REASONS)
@@ -92,13 +101,15 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None) -> dict:
     streets = list(dict.fromkeys([*(s.get("street_stretch_warm_rent") or {}), *(s.get("street_max_warm_rent") or {})]))
     return {"listings": listings, "reasons": reasons, "streets": streets,
             "highlight": cfg["run"].get("highlight_sources") or [],
-            "checks": app.status(cfg, store, loop), "build": build()}
+            "checks": app.status(cfg, store, loop), "build": build(),
+            "outdated": code(cfg) != Handler.started}
 
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "homefind"
     cfg: dict = {}
     loop: app.Loop | None = None  # the --loop run this UI belongs to; None with --serve
+    started = ""                  # code() when it started
 
     def log_message(self, fmt, *args):
         log.debug("web: " + fmt, *args)
@@ -176,7 +187,7 @@ def serve(cfg: dict, loop: app.Loop | None = None) -> ThreadingHTTPServer | None
     """Start the UI in a background thread. Raises OSError if the port is taken."""
     if not cfg["run"].get("web_port"):
         return None
-    Handler.cfg, Handler.loop = cfg, loop
+    Handler.cfg, Handler.loop, Handler.started = cfg, loop, code(cfg)
     server = ThreadingHTTPServer(("127.0.0.1", int(cfg["run"]["web_port"])), Handler)
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, name="web", daemon=True).start()

@@ -99,6 +99,7 @@ def load(path: str | Path) -> dict:
     if path.exists():
         with path.open("rb") as f:
             _merge(cfg, tomllib.load(f))
+    cfg["path"] = str(path.resolve())  # read once, at startup: the web UI says when it changes
     root = path.resolve().parent
     p = Path(cfg["run"]["db_path"]).expanduser()
     cfg["run"]["db_path"] = str(p if p.is_absolute() else root / p)

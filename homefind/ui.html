@@ -146,7 +146,9 @@ main { padding-top: 18px; padding-bottom: 80px; }
 .more { text-align: center; margin-top: 20px; }
 
 .banner { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 20; background: var(--accent); color: var(--accent-ink);
-          padding: 6px 6px 6px 16px; border-radius: 99px; display: flex; gap: 10px; align-items: center; box-shadow: 0 4px 16px rgba(0, 0, 0, .2); }
+          padding: 6px 6px 6px 16px; border-radius: 99px; display: flex; gap: 10px; align-items: center; box-shadow: 0 4px 16px rgba(0, 0, 0, .2);
+          width: max-content; max-width: calc(100vw - 32px); min-height: 40px; }
+.banner.note { padding-right: 16px; border-radius: 20px; }
 .banner .btn { background: var(--accent-ink); color: var(--accent); border: 0; border-radius: 99px; }
 .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 20; background: var(--ink); color: var(--bg);
          padding: 6px 6px 6px 16px; border-radius: 10px; display: flex; gap: 10px; align-items: center; min-height: 40px; }
@@ -262,6 +264,7 @@ const EMPTY = {
 function normalize(d) {
   d.highlight ??= []; d.streets ??= [];
   d.checks ??= { sources: [], loop: null };
+  d.outdated ??= true;  // a homefind that doesn't say is older than this page, which is read from disk on each load
   for (const l of d.listings) {
     l.why ??= []; l.score ??= 0; l.band ??= "weak"; l.posted ??= l.first_seen;
     l.images ??= []; l.codes ??= []; l.flags ??= []; l.notes ??= []; l.reasons ??= [];
@@ -649,7 +652,7 @@ async function setStatus(key, status, appliedAt = stamp()) {
     put(key, before);
     editedAt.delete(key);
     render();
-    toast("Couldn't save that. Is homefind still running?");
+    toast(restart ? "Couldn't save that: homefind needs a restart first." : "Couldn't save that. Is homefind still running?");
   }
 }
 
@@ -754,10 +757,14 @@ function report(r) {
 
 // ---- live updates: the page keeps itself current while it's open (without jumping, see refresh)
 let stale = false;  // homefind was updated since this page loaded: only a reload gets the new page
+let restart = false;  // its code or config.toml changed since it started: only a restart gets them
+const RESTART = "homefind was updated: restart it (Ctrl+C in its terminal, then start it again).";
 let bannerAct = null;
-function banner(text, label, act) {
+function banner(text, label, act) {  // without a label: a notice, no button
   $("banner-text").textContent = text;
-  $("banner-act").textContent = label;
+  $("banner-act").textContent = label || "";
+  $("banner-act").hidden = !label;
+  $("banner").classList.toggle("note", !label);
   bannerAct = act;
   $("banner").hidden = false;
 }
@@ -768,7 +775,7 @@ function showMatches() {
   scrollTo(0, 0);
 }
 // The new-matches banner goes away once they're on screen.
-function bannerSeen() { if (!stale && state.tab === "matches" && scrollY < 50) $("banner").hidden = true; }
+function bannerSeen() { if (!stale && !restart && state.tab === "matches" && scrollY < 50) $("banner").hidden = true; }
 // Worth a redraw: any change but when an ad was last seen online, and the score with its "why"
 // lines, which move on by themselves ("posted 5 h ago"); those come along with the next change.
 const shape = (l) => JSON.stringify({ ...l, last_seen: 0, score: 0, band: 0, why: 0 });
@@ -796,11 +803,17 @@ async function poll() {
       markTab();
     }
     const matches = fresh.filter((l) => l.ok && !l.status).length;
-    if (stale || (next.build && next.build !== BUILD)) {
+    const wasRestart = restart;
+    restart = next.outdated;
+    if (restart) {
+      banner(RESTART);
+    } else if (stale || (next.build && next.build !== BUILD)) {
       stale = true;
       banner("homefind was updated.", "Reload", () => location.reload());
     } else if (matches && (state.tab !== "matches" || scrollY >= 50)) {
       banner(`${matches} new match${matches > 1 ? "es" : ""}`, "Show", showMatches);
+    } else if (wasRestart) {
+      $("banner").hidden = true;
     }
     if (busy()) watchCheck();
   } catch {
@@ -977,7 +990,9 @@ $("lb").addEventListener("touchend", (e) => {
 const fromHash = location.hash.slice(1).replace(/^saved$/, "applied");  // bookmarks from before the rename
 if (TABS.some((t) => t[0] === fromHash)) state.tab = fromHash;
 index();
+restart = data.outdated;
 render();
+if (restart) banner(RESTART);
 markTab();
 prefs.set("lastSeen", data.listings.reduce((m, l) => (l.first_seen > m ? l.first_seen : m), ""));
 setInterval(poll, 60000);
