@@ -18,20 +18,28 @@
 // apply.toml when homefind opened the ad for that (#homefind=fill from ✉ Apply, =auto or =send
 // from auto-apply; send also presses Abschicken), or when you press "✉ Fill in" in the corner.
 // Whenever Abschicken goes through on an ad, it tells homefind, which moves the ad to Applied.
+// It knows ImmoScout24's English ad pages (/en/expose/…, where homefind's links go) too: Send
+// there counts as Abschicken, and "✉ Fill in" switches to the ad's German page, whose form
+// apply.toml goes by.
 (() => {
   "use strict";
   const HOMEFIND = "http://localhost:__PORT__";
   const VERSION = "__VERSION__";
-  const adId = () => location.pathname.match(/^\/expose\/(\d+)/)?.[1];
+  const adId = () => location.pathname.match(/^\/(?:en\/)?expose\/(\d+)/)?.[1];
+  const english = () => location.pathname.startsWith("/en/");
+  const germanPage = () => location.origin + location.pathname.replace(/^\/en\//, "/") + location.search + "#homefind=fill";
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
   const norm = (s) => String(s ?? "").replace(/[*\s]+/g, " ").trim().toLowerCase();
   const digits = (s) => String(s ?? "").replace(/\D/g, "");
   const shown = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
   const textOf = (el) => (el?.innerText ?? el?.textContent ?? "").replace(/\s+/g, " ").trim();
   const CONTROLS = "input, select, textarea, [role=switch], [role=checkbox], [role=combobox], button[aria-haspopup=listbox]";
-  const SUBMIT = /^(abschicken|absenden|senden|nachricht senden|anfrage senden)$/i;
-  // What ImmoScout says once a message is sent.
-  const sentTexts = () => textOf(document.body).match(/(nachricht|anfrage)[^.]{0,60}(gesendet|versendet|verschickt|übermittelt)|erfolgreich (gesendet|versendet|verschickt|übermittelt)/gi) || [];
+  const SUBMIT = /^(abschicken|absenden|senden|nachricht senden|anfrage senden|send|send (message|request|enquiry|inquiry)|submit)$/i;
+  // What ImmoScout says once a message is sent (in German, then on its English pages).
+  const sentTexts = () => textOf(document.body).match(new RegExp(
+    "(nachricht|anfrage)[^.]{0,60}(gesendet|versendet|verschickt|übermittelt)|erfolgreich (gesendet|versendet|verschickt|übermittelt)|" +
+    "\\b(message|request|enquiry|inquiry)\\b[^.]{0,60}\\b(sent|delivered|submitted)\\b|\\b(successfully (sent|delivered|submitted)|(sent|delivered|submitted) successfully)\\b",
+    "gi")) || [];
 
   // ---- talking to homefind
   const call = (method, path, body) => new Promise((done, fail) => GM_xmlhttpRequest({
@@ -66,7 +74,7 @@
     </style><div class="box"><div class="head"><b>homefind</b><button id="go">✉ Fill in</button></div><p id="say" hidden></p></div>`;
     document.documentElement.append(host);
     box = { host, say: root.getElementById("say"), go: root.getElementById("go") };
-    box.go.addEventListener("click", () => run("fill"));
+    box.go.addEventListener("click", () => english() ? location.assign(germanPage()) : run("fill"));
     return box;
   }
   function say(text, kind = "") {
@@ -98,7 +106,9 @@
   const opener = () => {  // the ad's button for writing to the landlord
     const buttons = [...document.querySelectorAll("button, a, [role=button]")].filter(shown);
     return buttons.find((b) => /^(nachricht( schreiben| senden)?|anbieter:?(in)? kontaktieren|kontaktieren|kontakt aufnehmen|anfrage senden|e-mail senden)$/i.test(textOf(b))) ||
-           buttons.find((b) => /nachricht|kontaktieren/i.test(textOf(b)) && !/hilfe|melden|teilen/i.test(textOf(b)));
+           buttons.find((b) => /^(((send|write)( a)? )?message|contact( the)?( provider| landlord| agent| owner)?|send (an )?(e-?mail|request|enquiry|inquiry))$/i.test(textOf(b))) ||
+           buttons.find((b) => /nachricht|kontaktieren|message|contact/i.test(textOf(b)) &&
+                               !/hilfe|melden|teilen|help|report|share|contact us|^messages$/i.test(textOf(b)));
   };
   const messageBox = () => {
     const boxes = [...document.querySelectorAll("textarea")].filter((t) => shown(t) && !t.disabled);
@@ -125,7 +135,8 @@
   // Fills in the form (opening it first if need be) and returns what it did, with the Abschicken button.
   // With `auto`, an ad ImmoScout says you've contacted before is left alone.
   async function fill({ message, fields }, auto) {
-    const already = textOf(document.body).match(/(bereits|schon) (kontaktiert|angefragt|eine nachricht)[^.]{0,40}|du hast [^.]{0,40}(kontaktiert|angefragt|eine nachricht gesendet)|nachricht (gesendet|verschickt) am [\d.]+/i)?.[0];
+    const already = textOf(document.body).match(/(bereits|schon) (kontaktiert|angefragt|eine nachricht)[^.]{0,40}|du hast [^.]{0,40}(kontaktiert|angefragt|eine nachricht gesendet)|nachricht (gesendet|verschickt) am [\d.]+/i)?.[0] ||
+                    textOf(document.body).match(/already (contacted|enquired|inquired|messaged)[^.]{0,40}|(you've|you have) (contacted|messaged)[^.]{0,40}|message sent on [\d./]+/i)?.[0];
     if (already && auto) return { already };
     let msg = messageBox();
     if (!msg) {
@@ -281,6 +292,7 @@
       if (adId() === shownFor) return;
       shownFor = adId();
       panel().host.hidden = !shownFor;
+      panel().go.title = english() ? "Fills it in on the ad's German page, whose form apply.toml goes by" : "";
       say("");
       if (shownFor) call("GET", `/api/apply-hello?version=${VERSION}`).catch(() => {});
     };
