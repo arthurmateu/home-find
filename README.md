@@ -3,8 +3,8 @@
 Polls Berlin rental portals every few minutes for flats in **Charlottenburg,
 Westend, Halensee and Wilmersdorf** **under 1000 € warm**, drops the junk
 (swaps, sublets, WG rooms, furnished short-term lets, WBS-only, scams) and
-pushes the rest to your phone, and can fill in (or send) ImmoScout24's contact
-form for you. Python 3.11+, standard library only (applying uses Tampermonkey in Firefox).
+pushes the rest to your phone, and can fill in (or send) the contact form for
+you (ImmoScout24 only, for now). Python 3.11+, standard library only (applying uses Tampermonkey in Firefox).
 
 ## Sources
 
@@ -136,7 +136,11 @@ Only one instance runs at a time; after a reboot, start it again.
 
 homefind can fill in ImmoScout24's contact form for you, in Firefox, with the
 message and details in `apply.toml`. A small Tampermonkey script, the **Firefox
-helper**, does the filling in on ImmoScout24's own page, where you're logged in:
+helper**, does the filling in on ImmoScout24's own page, where you're logged in.
+
+**Only ImmoScout24 for now.** Cards from the other sites have no ✉ Apply, and
+auto-apply leaves their new matches alone: apply to those on the site itself
+(and Mark applied).
 
 - **✉ Apply** on an ImmoScout24 card opens the ad in a new tab, fills in the form
   and stops at Abschicken: check it (change anything you like) and press it. The
