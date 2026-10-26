@@ -8,6 +8,7 @@ import time
 import urllib.error
 from datetime import datetime, timedelta
 
+from .apply import SOURCES
 from .net import Blocked
 from .rating import rate
 from .notify import Notifier, print_match, print_reject
@@ -196,6 +197,9 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False, applier=None) -
             if verdict.ok:
                 matches.add(listing.key)
                 earlier = store.repost_of(listing, fingerprint(listing, verdict))
+                if earlier and _first_here(store, listing, verdict):
+                    verdict.notes.append(f"new on {listing.source}, same rent/size/postcode as {earlier}")
+                    earlier = None
                 if earlier:
                     verdict.notes.append(f"same rent/size/postcode as {earlier}")
                 score, _ = rate(listing, verdict, datetime.now().isoformat(timespec="seconds"), cfg)
@@ -354,6 +358,19 @@ def recheck(cfg: dict, store: Store) -> tuple[int, int, int]:
 def fingerprint(listing, verdict) -> str:
     """Same flat reposted, or listed on two portals: same rent, size and postcode."""
     return f"{round(verdict.warm or 0)}|{round(listing.size_sqm or 0)}|{listing.zip_code or listing.district}"
+
+
+def _first_here(store: Store, listing, verdict, days: int = 30) -> bool:
+    """A match with the fingerprint of an earlier one (Store.repost_of): is it the flat's first
+    on a site you apply on (apply.SOURCES), with you having neither applied to it nor hidden it
+    on the other site? That's news: you wait for it to turn up there."""
+    if listing.source not in SOURCES:
+        return False
+    fp = fingerprint(listing, verdict)
+    since = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")
+    before = [r for r in store.all_rows() if r.first_seen >= since and r.verdict.ok
+              and fingerprint(r.listing, r.verdict) == fp]
+    return not any(r.listing.source == listing.source or r.choice for r in before)
 
 
 def run_watches(cfg, store, http, notifier, dry_run=False) -> None:

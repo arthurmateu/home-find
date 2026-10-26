@@ -474,6 +474,7 @@ function shortNote(t) {
   if (t.startsWith("warm rent taken from")) return "warm rent from the text";
   if (t.startsWith("Nachmieter ad")) return "Nachmieter";
   if (t.startsWith("same rent/size/postcode as")) return "repost";
+  if (/^new on \w+, same rent\/size\/postcode as/.test(t)) return "on another site first";
   return tidy(t);
 }
 // The day you applied (no day on ones marked before that was kept), on Applied and on ones hidden after applying.
@@ -555,8 +556,8 @@ function card(l) {
                  (applied || (l.status === "hidden" && wasApplied(l)) ? appliedBadge(l) : "") +
                  (gone ? `<span class="badge gone" title="Ad ${esc(gone.toLowerCase())}, noticed ${esc(when(l.gone_at))}. ` +
                          `Moves back by itself if it comes online again.">${esc(gone)} ${esc(day(l.gone_at))}</span>` : "");
-  const chips = [...l.flags.map((f) => chip(" warn", "⚠ " + tidy(f), f)),  // "repost" of an ad that's on this card: no news
-                 ...l.notes.filter((t) => !l.ads.some((a) => t === `same rent/size/postcode as ${a.url}`))
+  const chips = [...l.flags.map((f) => chip(" warn", "⚠ " + tidy(f), f)),  // same as an ad that's on this card: no news
+                 ...l.notes.filter((t) => !l.ads.some((a) => t.endsWith(`same rent/size/postcode as ${a.url}`)))
                    .map((t) => chip("", shortNote(t), t))].join("");
   const sites = l.ads.length ? `\nThe same flat on ${l.ads.map((a) => sourceName(a.source)).join(" and ")} ` +
                                `(same rent, size and postcode): ▾ next to Open has each one` : "";
@@ -738,7 +739,8 @@ const icon = (dot) => "data:image/svg+xml," + encodeURIComponent(
   '<path d="M16 6 4 16h3.5v10h6.5v-7h4v7h6.5V16H28z" fill="#fff"/>' +
   (dot ? '<circle cx="25" cy="7" r="6.5" fill="#e5484d" stroke="#fff" stroke-width="2"/>' : "") + "</svg>");
 const looking = () => !document.hidden && document.hasFocus();
-// Same as what gets pushed to your phone: a match that isn't a repost of one you've seen.
+// Same as what gets pushed to your phone: a match that isn't a repost of one you've seen (a flat's first
+// ImmoScout24 ad after another site's isn't: "new on immoscout, same rent/size/postcode as ...").
 const alertWorthy = (l) => l.ok && !l.notes.some((t) => t.startsWith("same rent/size/postcode"));
 function markTab() {
   const n = unseen.size;
@@ -908,9 +910,10 @@ async function poll() {
       const cur = byKey.get(l.key);
       if (cur && (editedAt.get(l.key) ?? 0) >= sent) Object.assign(l, { status: cur.status, hide_at: cur.hide_at, applied_at: cur.applied_at });
     }
-    // A flat none of whose ads were here before (a card can change ads: ImmoScout24's turned up, or went offline).
+    // A flat none of whose ads were here before, or one whose ImmoScout24 ad just turned up after another
+    // site's (alertWorthy: see _first_here in app.py). Not a card that only switched ads, its first one gone offline.
     const known = new Set(data.listings.flatMap((l) => adsOf(l).map((a) => a.key)));
-    const fresh = next.listings.filter((l) => !adsOf(l).some((a) => known.has(a.key)));
+    const fresh = next.listings.filter((l) => !known.has(l.key) && (alertWorthy(l) || !adsOf(l).some((a) => known.has(a.key))));
     const changed = next.listings.length !== data.listings.length ||
                     next.listings.some((l) => !byKey.has(l.key) || shape(byKey.get(l.key)) !== shape(l));
     data = next;

@@ -99,20 +99,15 @@ def flats(cfg: dict, store: Store) -> list[list[Row]]:
 CHOICE_RANK = {"applied": 2, "hidden": 1}
 
 
-def _choice(r: Row) -> str | None:
-    """Where you put the ad (None: nowhere). One taken offline keeps that in status_if_back."""
-    return r.status_if_back if r.gone else r.status
-
-
 def _state(flat: list[Row]) -> dict:
     """Where the flat's card goes: where you put any of its ads, Applied before Hidden (Mark
     applied and Hide go to all of them, but an ad that came later, or the one the Firefox helper
     marked applied, may be alone in it). Taken offline once every ad is."""
-    s = max(flat, key=lambda r: (CHOICE_RANK.get(_choice(r), 0), r.applied_at is not None))
+    s = max(flat, key=lambda r: (CHOICE_RANK.get(r.choice, 0), r.applied_at is not None))
     state = {k: getattr(s, k) for k in ("status", "gone", "gone_at", "status_if_back", "hide_at", "applied_at",
                                         "applied_by")}
     if s.gone and not flat[0].gone:  # still online on another site
-        state.update(status=_choice(s), status_if_back=_choice(s), gone=None, gone_at=None, hide_at=None)
+        state.update(status=s.choice, status_if_back=s.choice, gone=None, gone_at=None, hide_at=None)
     return state
 
 
@@ -155,7 +150,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "title": listing.title,
             "headline": headline(listing, verdict),
             "landlord": listing.landlord,
-            "first_seen": min(r.first_seen for r in flat),  # when the flat was first seen, on any site
+            "first_seen": first_seen,  # this ad's: one on ImmoScout24 after another site had the flat is news
             "last_seen": row.last_seen,
             "images": [u for u in images if u and "%" not in u],  # skip URL templates
             "description": listing.description,

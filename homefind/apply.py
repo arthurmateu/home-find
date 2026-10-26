@@ -7,7 +7,7 @@ is sent there, so the ad moves to Applied (also when you apply without it).
 filled in, for you to check and press Abschicken. Auto-apply (Off / Fill in, I
 send / Send by itself, in the header) opens new matches in Firefox by itself:
 ImmoScout24 ones scoring at least apply.min_score, without ⚠ warnings and not
-reposts. "Send by itself" (#homefind=send) presses Abschicken too, at most
+reposts (a flat's first ad on ImmoScout24 isn't one, see app._first_here). "Send by itself" (#homefind=send) presses Abschicken too, at most
 apply.max_per_day a day; a form that asks for something apply.toml doesn't
 cover is left waiting for you instead.
 

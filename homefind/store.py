@@ -52,6 +52,11 @@ class Row(NamedTuple):
     applied_at: str | None  # when you marked it applied (None if before that was kept)
     applied_by: str | None  # 'homefind': it sent the application by itself (auto-apply, see apply.py)
 
+    @property
+    def choice(self) -> str | None:
+        """Where you put it (None: nowhere). One taken offline keeps that in status_if_back."""
+        return self.status_if_back if self.gone else self.status
+
 
 class Store:
     def __init__(self, path: str):
