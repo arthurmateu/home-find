@@ -71,6 +71,12 @@ def userscript(cfg: dict) -> str:
                                                   .replace("__VERSION__", version())
 
 
+def form_page(url: str) -> str:
+    """The ad's German page, for applying: links go to ImmoScout24's English one, but the userscript
+    and apply.toml go by the German form's wording."""
+    return url.replace("immobilienscout24.de/en/expose/", "immobilienscout24.de/expose/")
+
+
 def open_in_firefox(url: str, configured: str = "") -> None:
     """In a new tab of Firefox (Windows' one under WSL), or else the default browser."""
     exe = configured or next((p for p in (FIREFOX, shutil.which("firefox")) if p and os.access(p, os.X_OK)), None)
@@ -124,7 +130,7 @@ class Applier:
         log.info("auto-apply (%s): %s, score %d", "send" if send else "fill in", listing.url, score)
         self.steps[listing.key] = {"step": "opening", "note": "Opening the ad in Firefox…", "at": time.time(),
                                    "auto": True, "send": send}
-        open_in_firefox(f"{listing.url}#homefind={'send' if send else 'auto'}", self.opts.get("firefox") or "")
+        open_in_firefox(f"{form_page(listing.url)}#homefind={'send' if send else 'auto'}", self.opts.get("firefox") or "")
 
     def report(self, key: str, body: dict, store: Store) -> bool:
         """What the userscript says about an ad: a step with a note (and `by` for sent: homefind or

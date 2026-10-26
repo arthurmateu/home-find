@@ -147,6 +147,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "key": listing.key,
             "source": listing.source,
             "url": listing.url,
+            "form_url": apply.form_page(listing.url),  # where ✉ Apply goes
             "title": listing.title,
             "headline": headline(listing, verdict),
             "landlord": listing.landlord,

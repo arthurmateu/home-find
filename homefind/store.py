@@ -84,6 +84,14 @@ class Store:
                 for column in ("status", "status_if_back"):
                     self.db.execute(f"UPDATE listings SET {column} = 'applied' WHERE {column} = 'saved'")
                 self.db.execute("INSERT OR REPLACE INTO meta VALUES ('saved_renamed', '1')")
+        if not self.meta_get("is24_english"):
+            # ImmoScout24 links went to its English pages: the ones kept already too (repost notes' included).
+            old, new = "https://www.immobilienscout24.de/expose/", "https://www.immobilienscout24.de/en/expose/"
+            with self.db:
+                self.db.execute("UPDATE listings SET data = replace(data, ?, ?), verdict = replace(verdict, ?, ?)",
+                                (old, new, old, new))
+                self.db.execute("UPDATE fingerprints SET url = replace(url, ?, ?)", (old, new))
+                self.db.execute("INSERT OR REPLACE INTO meta VALUES ('is24_english', '1')")
 
     def seen(self, key: str) -> bool:
         return self.db.execute("SELECT 1 FROM listings WHERE key = ?", (key,)).fetchone() is not None

@@ -497,13 +497,13 @@ function applyNote(l) {
   if (!a || a.step === "sent" || !data.apply) return "";
   return `<p class="applying${waitsForYou(l) ? " wait" : a.step === "failed" ? " bad" : ""}">${esc(a.note)}</p>`;
 }
-// ✉ Apply opens the ad in a new tab, where the helper fills in the form (#homefind=fill).
+// ✉ Apply opens the ad (its German page, see apply.form_page) in a new tab, where the helper fills in the form (#homefind=fill).
 function applyButton(l) {
   if (!canApply(l) || l.status === "applied") return "";
   if (BUSY[l.applying?.step]) return `<button class="btn" disabled>${BUSY[l.applying.step]}</button>`;
   const tip = data.apply.problem ? `Can't apply: ${data.apply.problem}`
     : "Opens the ad in a new tab and fills in ImmoScout24's contact form there, for you to check and press Abschicken";
-  return `<a class="btn" data-act="fill" href="${esc(l.url)}#homefind=fill" target="_blank" rel="noopener" title="${esc(tip)}">✉ Apply</a>`;
+  return `<a class="btn" data-act="fill" href="${esc(l.form_url)}#homefind=fill" target="_blank" rel="noopener" title="${esc(tip)}">✉ Apply</a>`;
 }
 // Open ↗ goes to the card's ad (ImmoScout24's, while it's online there); on a flat that's on several sites,
 // ▾ beside it lists each one's ad. openSites: the card whose list is open (it stays open when the page redraws).

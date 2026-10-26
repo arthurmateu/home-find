@@ -59,7 +59,7 @@ class ImmoScout(Source):
         listing = Listing(
             source=self.name,
             id=str(it["id"]),
-            url=f"https://www.immobilienscout24.de/expose/{it['id']}",
+            url=f"https://www.immobilienscout24.de/en/expose/{it['id']}",  # the English page (apply.form_page: German)
             title=it.get("title", ""),
             cold_rent=next((num(a) for a in attrs if "€" in a), None),  # the list shows cold rent
             size_sqm=next((num(a) for a in attrs if "m²" in a), None),

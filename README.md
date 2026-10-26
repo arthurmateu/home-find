@@ -159,6 +159,9 @@ auto-apply leaves their new matches alone: apply to those on the site itself
 - On any ImmoScout24 ad, **✉ Fill in** in the corner does the same. And whenever
   you press Abschicken on an ad (filled in by hand or not), the helper tells
   homefind, which moves it to Applied: no Mark applied needed.
+- homefind's links to ImmoScout24 ads (Open ↗, notifications) go to its English
+  pages, but applying opens the German one: the helper and `apply.toml` go by
+  the German form's wording, and the helper only runs on German ad pages.
 - **Auto-apply** in the header (with `--loop`) opens new matches in Firefox by
   itself: ImmoScout24 ones scoring at least `min_score` (60), without ⚠
   warnings, and not reposts (a flat that was on another site first counts as
