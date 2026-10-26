@@ -89,6 +89,17 @@ Only one instance runs at a time; after a reboot, start it again.
   resets the tab.
 - **ImmoScout24 cards stand out** with a coloured outline and badge
   (`highlight_sources` in `config.toml`).
+- **The same flat on several sites** gets one card, with its ImmoScout24 ad
+  (or, once that's offline, one that's still online): the title and
+  **Open ↗** go there, and **▾** next to Open lists its ad on each site. The
+  line under the title names them all ("immoscout + immowelt"), as do the
+  search and the Provider filter. Mark applied and Hide go for every one of
+  them, and the card only counts as offline once all of them are. Same flat
+  = same warm rent, size and postcode, first seen within 30 days of each
+  other, with no cold rent, street or house number that differs; when one
+  site has two ads that could be it (identical flats in one building), they
+  all keep their own cards. `FIRST_CHOICE` in `homefind/web.py` is the site
+  that's opened first.
 - **Descriptions:** per card, or "Expand descriptions" for all.
 - **✉ Apply** on ImmoScout24 cards, and **Auto-apply** in the header: see
   [Applying](#applying-immoscout24) below.
@@ -232,7 +243,8 @@ listing online > 180 days, private landlord based outside Berlin (1 each).
 Municipal and co-op listings skip the scam checks.
 
 Reposts, or the same flat on two portals (same warm rent, size and postcode
-within 30 days), are recorded but not pushed a second time.
+within 30 days), are recorded but not pushed a second time. On the web page,
+the same flat on two portals shares one card (see above).
 
 ## Limitations
 

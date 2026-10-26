@@ -137,8 +137,12 @@ main { padding-top: 18px; padding-bottom: 80px; }
                font-size: 14px; font-weight: 600; padding: 2px 0; cursor: pointer; }
 .desc { white-space: pre-line; font-size: 14px; max-height: 360px; overflow: auto; border-left: 3px solid var(--line); padding-left: 10px; }
 .desc-none { margin: 0; color: var(--muted); font-size: 13px; }
-.actions { display: flex; gap: 6px; margin-top: auto; padding-top: 8px; flex-wrap: wrap; }
+.actions { position: relative; display: flex; gap: 6px; margin-top: auto; padding-top: 8px; flex-wrap: wrap; }
 .actions .btn.ghost { padding-inline: 8px; }
+.split { display: inline-flex; }
+/* ▾ next to Open: the flat's ad on each site. Opens upwards, inside the card (which clips). */
+.dd-menu.up { top: auto; bottom: calc(100% + 4px); left: auto; right: 0; }
+.sites .dd-opt { padding-left: 10px; text-decoration: none; }
 .btn { appearance: none; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 14px;
        padding: 6px 12px; border-radius: 8px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
 .btn:hover { border-color: var(--muted); }
@@ -277,7 +281,7 @@ function normalize(d) {
     l.why ??= []; l.score ??= 0; l.band ??= "weak"; l.posted ??= l.first_seen;
     l.images ??= []; l.codes ??= []; l.flags ??= []; l.notes ??= []; l.reasons ??= [];
     l.gone ??= null; l.gone_at ??= null; l.status_if_back ??= null; l.hide_at ??= null; l.applied_at ??= null;
-    l.geo ??= null; l.locality ??= null; l.street ??= null; l.applied_by ??= null; l.applying ??= null;
+    l.geo ??= null; l.locality ??= null; l.street ??= null; l.applied_by ??= null; l.applying ??= null; l.ads ??= [];
     if (l.status === "saved") l.status = "applied";  // Applied was called Saved
     if (l.status_if_back === "saved") l.status_if_back = "applied";
   }
@@ -306,6 +310,8 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const when = (iso) => iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
 
 function index() { byKey = new Map(data.listings.map((l) => [l.key, l])); }
+// The flat's ad on each site it's on, this card's first (see flats in web.py); one that's only on one site is its own ad.
+const adsOf = (l) => l.ads.length ? l.ads : [l];
 const cardOf = (key) => document.querySelector(`.card[data-key="${CSS.escape(key)}"]`);
 
 // The filters above the listings, per tab: [id, label, multi, options], an option being [value, label, test].
@@ -319,9 +325,9 @@ function filtersFor(tab, list) {
                                         ["out", "Outside area", (l) => !inArea(l)], ["any", "Anywhere", () => true]]]);
     out.push(["reason", "Reason", true, Object.entries(data.reasons).filter(([c]) => c !== "area" && c !== "avoid")
       .map(([c, label]) => [c, label, (l) => l.codes.includes(c)])]);
-    const sources = new Set([...list.map((l) => l.source), ...(picks(tab).source || [])]);
+    const sources = new Set([...list.flatMap((l) => adsOf(l).map((a) => a.source)), ...(picks(tab).source || [])]);
     out.push(["source", "Provider", true, [...sources].sort((a, b) => sourceName(a).localeCompare(sourceName(b), "de"))
-      .map((s) => [s, sourceName(s), (l) => l.source === s])]);
+      .map((s) => [s, sourceName(s), (l) => adsOf(l).some((a) => a.source === s)])]);
   }
   if (tab === "hidden" && list.some((l) => l.gone)) {
     out.push(["show", "Show", false, [["all", "All", () => true], ["mine", "Hidden by you", (l) => !l.gone],
@@ -350,8 +356,8 @@ const fold = (s) => s.toLowerCase().replace(/ß/g, "ss").normalize("NFD").replac
 const texts = new WeakMap();  // listing -> its text, folded
 function text(l) {
   if (!texts.has(l)) {
-    texts.set(l, fold([l.headline, l.title, l.locality, l.street, l.landlord, sourceName(l.source), l.url, l.description,
-                       ...l.reasons, ...l.flags, ...l.notes].filter(Boolean).join("\n")));
+    texts.set(l, fold([l.headline, l.title, l.locality, l.street, l.landlord, ...adsOf(l).flatMap((a) => [sourceName(a.source), a.url]),
+                       l.description, ...l.reasons, ...l.flags, ...l.notes].filter(Boolean).join("\n")));
   }
   return texts.get(l);
 }
@@ -498,6 +504,32 @@ function applyButton(l) {
     : "Opens the ad in a new tab and fills in ImmoScout24's contact form there, for you to check and press Abschicken";
   return `<a class="btn" data-act="fill" href="${esc(l.url)}#homefind=fill" target="_blank" rel="noopener" title="${esc(tip)}">✉ Apply</a>`;
 }
+// Open ↗ goes to the card's ad (ImmoScout24's, while it's online there); on a flat that's on several sites,
+// ▾ beside it lists each one's ad. openSites: the card whose list is open (it stays open when the page redraws).
+let openSites = null;
+function openLinks(l) {
+  const open = `<a class="btn ghost" href="${esc(l.url)}" target="_blank" rel="noopener"` +
+               `${l.ads.length ? ` title="Open on ${esc(sourceName(l.source))}"` : ""}>Open ↗</a>`;
+  if (!l.ads.length) return open;
+  const on = openSites === l.key;
+  const items = l.ads.map((a, i) => {
+    const gone = a.gone ? `${GONE[a.gone] || "Offline"} ${day(a.gone_at)}` : "";
+    const note = gone || (i === 0 ? "default" : !a.ok && l.ok ? `✗ ${a.reasons.map(shortReason).join(" · ")}` : "");
+    return `<a class="dd-opt" role="menuitem" href="${esc(a.url)}" target="_blank" rel="noopener" data-act="site"` +
+           `${a.ok ? "" : ` title="${esc(a.reasons.join("; "))}"`}>${esc(sourceName(a.source))} ↗<span class="n">${esc(note)}</span></a>`;
+  }).join("");
+  return `<span class="split">${open}<button class="btn ghost" data-act="sites" aria-haspopup="menu" aria-expanded="${on}" ` +
+         `title="Open it on another site">▾</button></span>` +
+         `<div class="dd-menu up sites" role="menu" aria-label="Open on"${on ? "" : " hidden"}>${items}</div>`;
+}
+function showSites(key) {
+  openSites = key;
+  for (const b of document.querySelectorAll('[data-act="sites"]')) {
+    const on = b.closest(".card").dataset.key === key;
+    b.setAttribute("aria-expanded", String(on));
+    b.closest(".actions").querySelector(".sites").hidden = !on;
+  }
+}
 const chip = (cls, text, full) => text ? `<span class="chip${cls}" title="${esc(full)}">${esc(text)}</span>` : "";
 // "sublet: the lease would be with ..." -> "sublet"; a scam's signs are on its own chips
 const shortReason = (r) => tidy(r).replace(/^(sublet|looks like a scam): .*/, "$1");
@@ -523,8 +555,11 @@ function card(l) {
                  (applied || (l.status === "hidden" && wasApplied(l)) ? appliedBadge(l) : "") +
                  (gone ? `<span class="badge gone" title="Ad ${esc(gone.toLowerCase())}, noticed ${esc(when(l.gone_at))}. ` +
                          `Moves back by itself if it comes online again.">${esc(gone)} ${esc(day(l.gone_at))}</span>` : "");
-  const chips = [...l.flags.map((f) => chip(" warn", "⚠ " + tidy(f), f)),
-                 ...l.notes.map((t) => chip("", shortNote(t), t))].join("");
+  const chips = [...l.flags.map((f) => chip(" warn", "⚠ " + tidy(f), f)),  // "repost" of an ad that's on this card: no news
+                 ...l.notes.filter((t) => !l.ads.some((a) => t === `same rent/size/postcode as ${a.url}`))
+                   .map((t) => chip("", shortNote(t), t))].join("");
+  const sites = l.ads.length ? `\nThe same flat on ${l.ads.map((a) => sourceName(a.source)).join(" and ")} ` +
+                               `(same rent, size and postcode): ▾ next to Open has each one` : "";
   const open = state.expandAll || openDesc.has(l.key);
   const whyOpen = openWhy.has(l.key);
   const whyList = l.why.map(([p, t]) =>
@@ -542,7 +577,7 @@ function card(l) {
     <div class="body">
       <div class="price">${esc(l.headline)}</div>
       <a class="title" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || l.url)}</a>
-      <div class="meta">${where(l)}<span title="${esc(l.landlord || "")}">${esc(l.source)}</span> · seen ${esc(when(l.first_seen))}</div>
+      <div class="meta">${where(l)}<span title="${esc((l.landlord || "") + sites)}">${esc(adsOf(l).map((a) => a.source).join(" + "))}</span> · seen ${esc(when(l.first_seen))}</div>
       ${gone && applied && l.hide_at ? `<p class="offline">⊘ Offline: moves to Hidden ${esc(when(l.hide_at))}</p>` : ""}
       ${l.ok ? "" : `<p class="reasons" title="${esc(l.reasons.join("; "))}">✗ ${esc(l.reasons.map(shortReason).join(" · "))}</p>`}
       ${chips ? `<div class="chips">${chips}</div>` : ""}
@@ -552,7 +587,7 @@ function card(l) {
         ${applyButton(l)}
         <button class="btn${applied ? " on" : ""}" data-act="apply" aria-pressed="${applied}">${applied ? "✓ Applied" : "Mark applied"}</button>
         <button class="btn" data-act="hide">${l.status === "hidden" ? "Unhide" : "Hide"}</button>
-        <a class="btn ghost" href="${esc(l.url)}" target="_blank" rel="noopener">Open ↗</a>
+        ${openLinks(l)}
       </div>
     </div>
   </article>`;
@@ -873,7 +908,9 @@ async function poll() {
       const cur = byKey.get(l.key);
       if (cur && (editedAt.get(l.key) ?? 0) >= sent) Object.assign(l, { status: cur.status, hide_at: cur.hide_at, applied_at: cur.applied_at });
     }
-    const fresh = next.listings.filter((l) => !byKey.has(l.key));
+    // A flat none of whose ads were here before (a card can change ads: ImmoScout24's turned up, or went offline).
+    const known = new Set(data.listings.flatMap((l) => adsOf(l).map((a) => a.key)));
+    const fresh = next.listings.filter((l) => !adsOf(l).some((a) => known.has(a.key)));
     const changed = next.listings.length !== data.listings.length ||
                     next.listings.some((l) => !byKey.has(l.key) || shape(byKey.get(l.key)) !== shape(l));
     data = next;
@@ -1030,6 +1067,8 @@ $("grid").addEventListener("click", (e) => {
     if (data.apply.problem) { e.preventDefault(); toast(`Can't apply: ${data.apply.problem}.`); } else applying(l.key);
   }
   else if (act === "hide") setStatus(l.key, l.status !== "hidden" ? "hidden" : wasApplied(l) ? "applied" : null, l.applied_at);
+  else if (act === "sites") showSites(openSites === l.key ? null : l.key);
+  else if (act === "site") showSites(null);  // the link opens the ad in a new tab
   else if (act === "map") {  // keeps the map up without hovering: for touch screens, and to reach its link with the keyboard
     fillMap(el);
     const open = el.parentElement.classList.toggle("open");
@@ -1058,11 +1097,14 @@ function closeMaps(except) {
     loc.querySelector(".loc-btn").setAttribute("aria-expanded", "false");
   }
 }
-document.addEventListener("click", (e) => {  // a click elsewhere puts an open map or filter menu away
+document.addEventListener("click", (e) => {  // a click elsewhere puts an open map, filter menu or list of sites away
   closeMaps(e.target);
   if (!e.target.closest(".dd")) closeMenu();
+  if (openSites && !e.target.closest(".split, .sites")) showSites(null);
 });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeMaps(null); closeMenu(); } });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { closeMaps(null); closeMenu(); if (openSites) showSites(null); }
+});
 document.addEventListener("error", (e) => {
   const img = e.target;
   if (img.tagName !== "IMG") return;

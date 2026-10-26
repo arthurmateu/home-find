@@ -243,7 +243,7 @@ def avoided_place(listing: Listing, cfg: dict) -> str | None:
 STREET_ALIASES = {"kudamm": "kurfuerstendamm"}
 
 
-def _street_key(s: str) -> str:
+def street_key(s: str) -> str:
     """Spelling-proof street name: "Kantstr." / "Kantstrasse" -> "kantstrasse", "Ku’damm" -> "kurfuerstendamm"."""
     s = s.lower().replace("ß", "ss").replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
     s = re.sub(r"['‘’`´]", "", s)
@@ -257,9 +257,9 @@ def _on_street(listing: Listing, streets) -> str | None:
     without one, from the title, when it says the flat is there ("Wohnung am
     Ku'damm", not "nahe Kudamm"). "Neue Kantstraße" is not Kantstraße."""
     street = street_of(listing.address)
-    where = _street_key(street) if street else _street_key(listing.title or "")
+    where = street_key(street) if street else street_key(listing.title or "")
     for name in streets:
-        n = re.escape(_street_key(name))
+        n = re.escape(street_key(name))
         if re.search(rf"^{n}\b" if street else rf"\b(am|an der|in der|in|auf dem|on|at) {n}\b", where):
             return name
     return None
