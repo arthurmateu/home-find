@@ -87,7 +87,7 @@ DEFAULTS: dict = {
         "profile": "apply.toml",
         "min_score": 60,    # auto-apply: new matches scoring at least this
         "max_per_day": 10,  # auto-apply "send": at most this many sent a day
-        "chrome": "",       # Chrome or Chromium to use; empty = look for one
+        "firefox": "",      # Firefox to open ads in (auto-apply); empty = Windows' one under WSL, else any
     },
 }
 

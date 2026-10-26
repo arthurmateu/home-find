@@ -192,7 +192,7 @@ main { padding-top: 18px; padding-bottom: 80px; }
     <div class="controls">
       <button class="btn" id="check" hidden>↻ Check now</button>
       <label class="sort" id="auto-box" hidden>Auto-apply <select id="auto"></select></label>
-      <button class="btn" id="login" hidden title="Opens homefind's own Chrome window on ImmoScout24, where it fills in contact forms. Log in there once.">ImmoScout login</button>
+      <a class="btn" id="helper" href="/homefind.user.js" hidden>Install Firefox helper</a>
       <label class="sort">Sort
         <select id="sort">
           <option value="score">Best first</option>
@@ -478,24 +478,25 @@ function appliedBadge(l) {
          `✓ ${what}${l.applied_at ? ` ${esc(day(l.applied_at))}` : ""}</span>`;
 }
 
-// ---- applying (apply.py): homefind fills in the ad's contact form in its own Chrome window.
+// ---- applying (apply.py): the Firefox helper fills in the ad's contact form on ImmoScout24.
 // l.applying is where that's at: a step, and a note to show on the card.
 const canApply = (l) => !!data.apply && data.apply.sources.includes(l.source) && !l.gone;
-const BUSY = { queued: "Filling in…", opening: "Filling in…", filling: "Filling in…", sending: "Sending…" };
-const waitsForYou = (l) => ["ready", "captcha"].includes(l.applying?.step);
-const applyActive = (l) => !!BUSY[l.applying?.step] || waitsForYou(l);
+const BUSY = { opening: "Opening…", filling: "Filling in…", sending: "Sending…" };
+const waitsForYou = (l) => l.applying?.step === "ready";
+// Worth following closely (see poll): on its way, or waiting for you since less than half an hour.
+const applyActive = (l) => !!BUSY[l.applying?.step] || (waitsForYou(l) && Date.now() / 1000 - l.applying.at < 1800);
 function applyNote(l) {
   const a = l.applying;
   if (!a || a.step === "sent" || !data.apply) return "";
   return `<p class="applying${waitsForYou(l) ? " wait" : a.step === "failed" ? " bad" : ""}">${esc(a.note)}</p>`;
 }
+// ✉ Apply opens the ad in a new tab, where the helper fills in the form (#homefind=fill).
 function applyButton(l) {
-  if (!canApply(l) || (l.status === "applied" && !applyActive(l))) return "";
+  if (!canApply(l) || l.status === "applied") return "";
   if (BUSY[l.applying?.step]) return `<button class="btn" disabled>${BUSY[l.applying.step]}</button>`;
-  if (waitsForYou(l)) return `<button class="btn on" data-act="show-form" title="Brings up the homefind window with this form">Show form ↗</button>`;
   const tip = data.apply.problem ? `Can't apply: ${data.apply.problem}`
-                                 : "Fills in ImmoScout24's contact form in the homefind window, for you to check and press Abschicken";
-  return `<button class="btn" data-act="fill" title="${esc(tip)}">✉ Apply</button>`;
+    : "Opens the ad in a new tab and fills in ImmoScout24's contact form there, for you to check and press Abschicken";
+  return `<a class="btn" data-act="fill" href="${esc(l.url)}#homefind=fill" target="_blank" rel="noopener" title="${esc(tip)}">✉ Apply</a>`;
 }
 const chip = (cls, text, full) => text ? `<span class="chip${cls}" title="${esc(full)}">${esc(text)}</span>` : "";
 // "sublet: the lease would be with ..." -> "sublet"; a scam's signs are on its own chips
@@ -757,22 +758,25 @@ function renderStatus() {
 }
 
 // Auto-apply's mode, in the header (with --loop: it acts on new matches as they're found), and the
-// window's login button.
+// Firefox helper's install link, until it's installed (or when there's a newer one).
 function renderApply() {
   const a = data.apply;
-  $("login").hidden = !a;
+  $("helper").hidden = !a || a.helper === "current";
   $("auto-box").hidden = !a || !data.checks.loop;
   if (!a) return;
+  $("helper").textContent = a.helper === "outdated" ? "Update Firefox helper" : "Install Firefox helper";
+  $("helper").title = "The Tampermonkey script that fills in ImmoScout24's contact form, and tells homefind once you've " +
+                      "sent it. Click, then Install (Tampermonkey shows the script first).";
   const sel = $("auto");
   if (sel.options.length !== Object.keys(a.modes).length) {
     sel.innerHTML = Object.entries(a.modes).map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join("");
   }
   if (document.activeElement !== sel) sel.value = a.mode;
-  sel.disabled = $("login").disabled = !!a.problem;
+  sel.disabled = !!a.problem;
   $("auto-box").title = a.problem ? `Can't apply: ${a.problem}` :
-    `For new ImmoScout24 matches scoring ${a.min_score} or more, without ⚠ warnings.\n` +
-    `Fill in, I send: their form waits for you in the homefind window.\n` +
-    `Send by itself: homefind sends it (at most ${a.max_per_day} a day) and tells your phone.`;
+    `For new ImmoScout24 matches scoring ${a.min_score} or more, without ⚠ warnings: homefind opens them in Firefox.\n` +
+    `Fill in, I send: their form gets filled in, for you to press Abschicken.\n` +
+    `Send by itself: it presses Abschicken too (at most ${a.max_per_day} a day), and tells your phone.`;
 }
 async function post(path, body) {  // the error says what went wrong, in words
   let r;
@@ -783,17 +787,14 @@ async function post(path, body) {  // the error says what went wrong, in words
   }
   if (!r.ok) throw new Error(r.status === 409 ? await r.text() : r.status === 404 && restart ? "homefind needs a restart first." : `HTTP ${r.status}`);
 }
-async function applyTo(key, show) {
-  if (data.apply.problem) return toast(`Can't apply: ${data.apply.problem}.`);
+// ✉ Apply: the link opens the ad; homefind hears of it, so the card can follow along.
+async function applying(key) {
+  put(key, { applying: { step: "opening", note: "Opening the ad…", at: Date.now() / 1000 } });
+  refresh();
   try {
-    await post("/api/apply", { key, show });
-    if (!show) {
-      put(key, { applying: { step: "queued", note: "Waiting for the homefind browser…" } });
-      render();
-      toast("Filling in the form in the homefind window. Check it there and press Abschicken.");
-    }
+    await post("/api/apply", { key });
   } catch (e) {
-    toast(`Couldn't apply: ${e.message}`);
+    toast(`homefind didn't hear of it: ${e.message}`);
   }
   poll();
 }
@@ -1015,14 +1016,6 @@ $("auto").addEventListener("change", async () => {
     toast(`Couldn't change that: ${e.message}`);
   }
 });
-$("login").addEventListener("click", async () => {
-  try {
-    await post("/api/browser", {});
-    toast("Opening ImmoScout24 in the homefind window: log in there (and solve its puzzle, if it shows one).");
-  } catch (e) {
-    toast(`Couldn't open it: ${e.message}`);
-  }
-});
 $("grid").addEventListener("click", (e) => {
   const el = e.target.closest("[data-act]");
   if (!el) return;
@@ -1033,7 +1026,9 @@ $("grid").addEventListener("click", (e) => {
   if (act === "prev" || act === "next") step(l, act === "next" ? 1 : -1, cardEl);
   else if (act === "zoom") openViewer(l, photoAt.get(l.key) || 0);
   else if (act === "apply") setStatus(l.key, l.status === "applied" ? null : "applied", l.applied_at || undefined);  // from Hidden: keeps its date
-  else if (act === "fill" || act === "show-form") applyTo(l.key, act === "show-form");
+  else if (act === "fill") {
+    if (data.apply.problem) { e.preventDefault(); toast(`Can't apply: ${data.apply.problem}.`); } else applying(l.key);
+  }
   else if (act === "hide") setStatus(l.key, l.status !== "hidden" ? "hidden" : wasApplied(l) ? "applied" : null, l.applied_at);
   else if (act === "map") {  // keeps the map up without hovering: for touch screens, and to reach its link with the keyboard
     fillMap(el);

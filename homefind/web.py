@@ -16,7 +16,7 @@ import webbrowser
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from . import app, apply, geo
 from .notify import headline
@@ -85,7 +85,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "hide_at": row.hide_at,
             "applied_at": row.applied_at,
             "applied_by": row.applied_by,
-            "applying": applier and applier.steps.get(listing.key),
+            "applying": applier and applier.step(listing.key),
             "reasons": verdict.reasons,
             "codes": verdict.codes,
             "flags": verdict.flags,
@@ -107,8 +107,14 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "checks": app.status(cfg, store, loop), "build": build(),
             "apply": applier and {"mode": apply.mode(store), "modes": apply.MODES, "problem": applier.problem(),
                                   "sources": apply.SOURCES, "min_score": cfg["apply"]["min_score"],
-                                  "max_per_day": cfg["apply"]["max_per_day"]},
+                                  "max_per_day": cfg["apply"]["max_per_day"], "helper": helper(store)},
             "outdated": code(cfg) != Handler.started}
+
+
+def helper(store: Store) -> str | None:
+    """The Firefox helper (apply.user.js) as last heard from: None (never), "current" or "outdated"."""
+    seen = json.loads(store.meta_get("apply_helper") or "null")
+    return seen and ("current" if seen["version"] == apply.version() else "outdated")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -155,6 +161,21 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/api/listings", "/api/checks"):  # /api/checks: polled every few seconds while a check runs
             data = self._read(listings=path == "/api/listings")
             return self._send(200, json.dumps(data, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+        if self.applier and path == "/homefind.user.js":  # the Firefox helper, for Tampermonkey to install
+            return self._send(200, apply.userscript(self.cfg).encode(), "text/javascript; charset=utf-8")
+        if self.applier and path == "/api/apply-profile":  # the helper, about to fill in a form
+            profile, problem = apply.load_profile(self.cfg["apply"]["profile"])
+            if problem:
+                return self._send(409, problem.encode())
+            return self._send(200, json.dumps(profile, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+        if self.applier and path == "/api/apply-hello":  # the helper, on an ad: it's installed, and which version
+            version = parse_qs(urlsplit(self.path).query).get("version", [""])[0]
+            store = Store(self.cfg["run"]["db_path"])
+            try:
+                store.meta_set("apply_helper", json.dumps({"version": version, "at": datetime.now().isoformat()}))
+            finally:
+                store.close()
+            return self._send(204)
         self._send(404, b"not found")
 
     def do_POST(self):
@@ -173,7 +194,7 @@ class Handler(BaseHTTPRequestHandler):
             body = None
         if not isinstance(body, dict):
             return self._send(400, b"bad request")
-        if path in ("/api/apply", "/api/apply-mode", "/api/browser"):
+        if path in ("/api/apply", "/api/apply-mode", "/api/apply-report"):
             return self._apply(path, body)
         if path != "/api/status":
             return self._send(404, b"not found")
@@ -193,32 +214,28 @@ class Handler(BaseHTTPRequestHandler):
         self._send(204 if found else 404)
 
     def _apply(self, path: str, body: dict):
-        """Apply on a card ({key}, or {key, show} to bring its form up), auto-apply's
-        mode ({mode}), and the window itself, to log in to ImmoScout24."""
+        """✉ Apply on a card ({key}: it opened the ad for the Firefox helper), auto-apply's
+        mode ({mode}), and what the helper reports ({key, step, ...}, see Applier.report)."""
         if not self.applier:
             return self._send(409, b"applying is off")
-        if path == "/api/apply-mode":
-            if body.get("mode") not in apply.MODES:
-                return self._send(400, b"bad mode")
-            store = Store(self.cfg["run"]["db_path"])
-            try:
-                store.meta_set("apply_mode", body["mode"])
-            finally:
-                store.close()
-            log.info("auto-apply: %s", apply.MODES[body["mode"]].lower())
-            return self._send(204)
-        problem = self.applier.problem()
-        if problem:
-            return self._send(409, problem.encode())
-        if path == "/api/browser":
-            self.applier.window()
-        elif not isinstance(body.get("key"), str):
+        if path == "/api/apply-mode" and body.get("mode") not in apply.MODES:
+            return self._send(400, b"bad mode")
+        if path != "/api/apply-mode" and not isinstance(body.get("key"), str):
             return self._send(400, b"bad request")
-        elif body.get("show"):
-            self.applier.show(body["key"])
-        else:
-            self.applier.fill(body["key"])
-        self._send(202)
+        if path == "/api/apply-report" and body.get("step") not in (*apply.STEPS, "form"):
+            return self._send(400, b"bad step")
+        store = Store(self.cfg["run"]["db_path"])
+        try:
+            if path == "/api/apply-mode":
+                store.meta_set("apply_mode", body["mode"])
+                log.info("auto-apply: %s", apply.MODES[body["mode"]].lower())
+            elif path == "/api/apply-report":
+                return self._send(204 if self.applier.report(body["key"], body, store) else 404)
+            else:
+                self.applier.opened(body["key"])
+        finally:
+            store.close()
+        self._send(204)
 
 
 def url(cfg: dict) -> str:

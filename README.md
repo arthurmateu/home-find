@@ -4,7 +4,7 @@ Polls Berlin rental portals every few minutes for flats in **Charlottenburg,
 Westend, Halensee and Wilmersdorf** **under 1000 € warm**, drops the junk
 (swaps, sublets, WG rooms, furnished short-term lets, WBS-only, scams) and
 pushes the rest to your phone, and can fill in (or send) ImmoScout24's contact
-form for you. Python 3.11+, standard library only (applying also needs Chrome).
+form for you. Python 3.11+, standard library only (applying uses Tampermonkey in Firefox).
 
 ## Sources
 
@@ -134,51 +134,45 @@ Only one instance runs at a time; after a reboot, start it again.
 
 ## Applying (ImmoScout24)
 
-homefind can fill in ImmoScout24's contact form for you, in a Chrome window of
-its own, with the message and details in `apply.toml`:
+homefind can fill in ImmoScout24's contact form for you, in Firefox, with the
+message and details in `apply.toml`. A small Tampermonkey script, the **Firefox
+helper**, does the filling in on ImmoScout24's own page, where you're logged in:
 
-- **✉ Apply** on an ImmoScout24 card opens the ad there, fills in the form and
-  stops at Abschicken: check it (change anything you like) and press it. Once
-  ImmoScout says it's sent, the card moves to Applied. Until then the card says
-  what it's waiting for, and **Show form ↗** brings the window up.
-- **Auto-apply** in the header (with `--loop`) does that by itself for new
-  matches: ImmoScout24 ones scoring at least `min_score` (60), without ⚠
+- **✉ Apply** on an ImmoScout24 card opens the ad in a new tab, fills in the form
+  and stops at Abschicken: check it (change anything you like) and press it. The
+  card says what it's up to, and moves to Applied once ImmoScout says it's sent.
+- On any ImmoScout24 ad, **✉ Fill in** in the corner does the same. And whenever
+  you press Abschicken on an ad (filled in by hand or not), the helper tells
+  homefind, which moves it to Applied: no Mark applied needed.
+- **Auto-apply** in the header (with `--loop`) opens new matches in Firefox by
+  itself: ImmoScout24 ones scoring at least `min_score` (60), without ⚠
   warnings, and not reposts.
-  - **Fill in, I send**: their form waits in the window for you to press Abschicken.
-  - **Send by itself**: homefind presses it too, at most `max_per_day` (10) a
-    day, and your phone gets "✓ Applied". Their badge says "Auto-applied".
+  - **Fill in, I send**: their form gets filled in, for you to press Abschicken.
+  - **Send by itself**: the helper presses it too, at most `max_per_day` (10) a
+    day, closes the tab and your phone gets "✓ Applied". Their badge says
+    "Auto-applied".
 
   A form that asks for something `apply.toml` doesn't cover, or finds you logged
-  out, isn't sent: it waits in the window, with the field named on the card (and
-  on your phone, with Send by itself). `min_score` and `max_per_day` are under
-  `[apply]` in `config.toml`.
+  out, isn't sent: it's left open in Firefox, with the field named on the page,
+  on the card and (with Send by itself) on your phone. `min_score` and
+  `max_per_day` are under `[apply]` in `config.toml`.
 
 Setting it up, once:
 
-1. Chrome in Ubuntu (its window shows up on the Windows desktop):
-   ```bash
-   wget -P /tmp https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-   ```
-   ```bash
-   sudo apt install /tmp/google-chrome-stable_current_amd64.deb
-   ```
-   A Chromium that Playwright downloaded (`~/.cache/ms-playwright`) works too,
-   after `sudo apt-get install libnss3 libnspr4 libasound2t64`; or name one with
-   `chrome` under `[apply]`.
-2. Copy `apply.example.toml` to `apply.toml` and fill it in: the message, and
+1. Copy `apply.example.toml` to `apply.toml` and fill it in: the message, and
    each field's label on the form with what to put there. `apply.toml` is in
-   `.gitignore`, so your details stay on this machine.
-3. **ImmoScout login** in the header opens the window on ImmoScout24: log in
-   there. The window has a profile of its own (`data/browser`), so that sticks.
+   `.gitignore`, so your details stay on this machine. It's read each time a
+   form is filled in, so changes need no restart.
+2. **Install Firefox helper** in the header (while homefind runs), then Install
+   in Tampermonkey. The link goes away once the helper has been on an ad; it's
+   back as **Update Firefox helper** when homefind has a newer one (Tampermonkey
+   also updates it by itself, once a day).
+3. Be logged in to ImmoScout24 in Firefox.
 
-ImmoScout shows a puzzle ("Ich bin kein Roboter") to a browser it doesn't know
-yet, and maybe now and then after that. homefind doesn't solve it: the card
-(and your phone, with auto-apply) asks you to, in the window, and homefind
-carries on from there.
-
-If a field doesn't get filled in, `data/apply-last.json` lists every field the
-last form had, with its label as homefind read it: that's the label to use in
-`apply.toml`.
+Auto-apply opens ads with Windows' Firefox (`firefox` under `[apply]` names
+another). If a field doesn't get filled in, `data/apply-last.json` lists every
+field the last form had, with its label as the helper read it: that's the label
+to use in `apply.toml`.
 
 ## Commands
 
@@ -242,7 +236,7 @@ within 30 days), are recorded but not pushed a second time.
 - The ImmoScout24 app API is unofficial. If it stops working, set up a saved search with e-mail alerts on immobilienscout24.de.
 - Automated access is against most portals' terms; the request rate above is kept low, keep it to personal use.
 - Auto-apply sends messages from your ImmoScout24 account under your name. ImmoScout may not like automated contact requests: keep `max_per_day` low.
-- The contact form is filled in by its labels, as they are on screen; if ImmoScout renames one, update `apply.toml`.
+- The contact form is filled in by its labels, as they are on screen; if ImmoScout renames one, update `apply.toml`. If the helper stops filling in or noticing sends altogether, ImmoScout changed the page: `homefind/apply.user.js` needs a look.
 - Many good ImmoScout listings are "Plus members only" for their first days; the push says so.
 
 ## Tips for the search itself
