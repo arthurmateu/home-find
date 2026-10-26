@@ -197,6 +197,7 @@ main { padding-top: 18px; padding-bottom: 80px; }
         <select id="sort">
           <option value="score">Best first</option>
           <option value="newest">Newest</option>
+          <option value="applied">Date applied</option>
           <option value="cheapest">Cheapest</option>
           <option value="largest">Largest</option>
         </select>
@@ -291,6 +292,8 @@ const openWhy = new Set();          // listing keys with the score breakdown ope
 const SORTS = {
   score: (a, b) => b.score - a.score || b.posted.localeCompare(a.posted),
   newest: (a, b) => b.posted.localeCompare(a.posted),
+  // Latest first; ones without a date (marked before dates were kept, or not applied) after, newest first.
+  applied: (a, b) => (b.applied_at ?? "").localeCompare(a.applied_at ?? "") || b.posted.localeCompare(a.posted),
   cheapest: (a, b) => (a.warm ?? 1e9) - (b.warm ?? 1e9),
   largest: (a, b) => (b.size ?? 0) - (a.size ?? 0),
 };

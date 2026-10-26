@@ -113,7 +113,7 @@ Only one instance runs at a time; after a reboot, start it again.
   (`sweep_every_hours`) and charlotte1907's one page lists every offer, so
   anything missing there is gone. `--check-offline` does all of it at once.
 - **Score (0–100)** on every listing, rejected ones included, sorted best
-  first (or newest / cheapest / largest). "Why 74?" shows the points:
+  first (or newest / date applied / cheapest / largest). "Why 74?" shows the points:
   value for money (warm €/m²) 35 · budget fit 15 (negative when over) ·
   size 20 + rooms 5 · freshness 10 (the first hours after posting count most) ·
   photos / verified or municipal landlord / description 10 · balcony,
