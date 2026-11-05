@@ -104,9 +104,12 @@ class Kleinanzeigen(Source):
         if "nur tausch" in attrs.get("Tauschangebot", "").lower():
             listing.signals["swap_only"] = True
 
-        # Gallery slides only: the page also shows other ads' thumbnails.
+        # Gallery slides only: the page also shows other ads' thumbnails. Each
+        # slide opens with JSON-LD repeating the whole description, which would
+        # push the slide's own image past the window, so that goes first.
         ids = []
-        for slide in re.split(r'class="galleryimage-element(?=[\s"])', page)[1:]:
+        gallery = re.sub(r'<script type="application/ld\+json">.*?</script>', "", page, flags=re.S)
+        for slide in re.split(r'class="galleryimage-element(?=[\s"])', gallery)[1:]:
             m = re.search(r"prod-ads/images/(\w\w/[0-9a-f-]{36})", slide[:3000])
             if m and m.group(1) not in ids:
                 ids.append(m.group(1))
