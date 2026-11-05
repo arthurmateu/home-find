@@ -131,6 +131,25 @@
     : el.matches("input, textarea") ? el.value : textOf(el);
   const same = (have, want) => typeof want === "boolean" ? have === want
     : norm(have) === norm(want) || (typeof want === "number" && digits(have) === digits(want));
+  // Whether an amount falls in an option that names a range ("2.000 - 3.000 €", "< 500 €", "> 5.000 €"):
+  // first going by from-up-to (500 in "500 - 1.000"), then taking either end (5000 in "4.000 - 5.000").
+  const holds = (text, n, ends) => {
+    const t = text.replace(/(\d)\.(?=\d{3}(?!\d))/g, "$1");  // 2.000 → 2000
+    const nums = (t.match(/\d+/g) || []).map(Number);
+    if (nums.length === 2 && /\d\s*[-–]\s*\d/.test(t)) return nums[0] <= n && (ends ? n <= nums[1] : n < nums[1]);
+    if (nums.length !== 1) return false;
+    if (/^\s*(<|≤|unter|bis|weniger als|under|up to|less than)/i.test(t)) return ends ? n <= nums[0] : n < nums[0];
+    if (/^\s*(>|≥|über|ab|mehr als|over|from|more than)/i.test(t)) return ends ? n >= nums[0] : n > nums[0];
+    return false;
+  };
+  // The option to pick for `want`: by its text (or value), else, for an amount, the range it's in.
+  const pick = (opts, want, text) => {
+    const w = norm(want);
+    return opts.find((o) => norm(text(o)) === w || (o.value !== undefined && norm(o.value) === w)) ||
+           opts.find((o) => norm(text(o)).startsWith(w)) ||
+           (typeof want === "number" ? opts.find((o) => holds(text(o), want, false)) ||
+                                       opts.find((o) => holds(text(o), want, true)) : undefined);
+  };
 
   // Fills in the form (opening it first if need be) and returns what it did, with the Abschicken button.
   // With `auto`, an ad ImmoScout says you've contacted before is left alone.
@@ -163,25 +182,24 @@
                  controls.find((c) => fits(c) && norm(labels.get(c)).startsWith(key));
       if (!el) continue;  // this ad's form doesn't ask for it
       used.add(el);
-      let why = "";
+      let why = "", expect = want;  // what the field should show then: for a dropdown, the option picked
       if (el.matches("input[type=checkbox], [role=switch], [role=checkbox]")) {
         if (isOn(el) !== !!want) el.click();
       } else if (el.tagName === "SELECT") {
         const opts = [...el.options];
-        const opt = opts.find((o) => norm(o.text) === norm(want) || norm(o.value) === norm(want)) ||
-                    opts.find((o) => norm(o.text).startsWith(norm(want)));
-        if (opt) put(el, opt.value);
+        const opt = pick(opts, want, (o) => o.text);
+        if (opt) { put(el, opt.value); expect = opt.text.trim(); }
         else why = `no option “${want}” (it has ${opts.map((o) => o.text.trim()).filter(Boolean).join(", ")})`;
       } else if (!el.matches("input, textarea")) {  // a dropdown of its own making: open it, pick the option
         el.click();
         await sleep(400);
-        const opt = [...document.querySelectorAll("[role=option]")].filter(shown).find((o) => norm(textOf(o)) === norm(want));
-        if (opt) opt.click(); else { why = `no option “${want}”`; el.click(); }
+        const opt = pick([...document.querySelectorAll("[role=option]")].filter(shown), want, textOf);
+        if (opt) { expect = textOf(opt); opt.click(); } else { why = `no option “${want}”`; el.click(); }
       } else {
         put(el, String(want));
       }
       await sleep(60);
-      if (!why && !same(valueOf(el), want)) why = `shows “${valueOf(el)}” instead`;
+      if (!why && !same(valueOf(el), expect)) why = `shows “${valueOf(el)}” instead`;
       if (why) unset.push([labels.get(el), why]); else filled.push(labels.get(el));
     }
 

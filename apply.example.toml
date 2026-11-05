@@ -9,7 +9,8 @@ Besichtigungstermin für diese Wohnung vereinbaren."""
 # One line per field: its label on the form, and what to put there. A label only
 # has to match the start of the form's ("Haustiere" covers "Haustiere (außer
 # Kleintiere, z. B. Hamster)"), and case and the * don't matter. Dropdowns take the
-# option's text; switches and checkboxes true or false; amounts plain numbers.
+# option's text; switches and checkboxes true or false; amounts plain numbers (a
+# dropdown of ranges, like the income one, gets the range the amount is in).
 # Fields a form doesn't ask for are skipped, and the e-mail comes from your login.
 # A field the form asks for that's missing here stops auto-apply from sending:
 # it names the field on the card, and data/apply-last.json lists every field the
