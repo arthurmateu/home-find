@@ -46,7 +46,7 @@ SHOP, SHOP_MINUTES = 10, 5  # a supermarket: worth a lot to you
 GREEN, GREEN_MINUTES = 3, 5  # a park, woods, a lake or the river
 QUIET = 2        # the quiet side: back buildings, rooms facing the courtyard
 DAILY, DAILY_KM = 6, (2, 8)  # [bonus] daily: all points up to 2 km away (straight line), none from 8 km
-BANDS = [(75, "great"), (60, "good"), (45, "ok"), (0, "weak")]
+BANDS = [(95, "great"), (75, "good"), (55, "ok"), (0, "weak")]  # each as rare as 75 / 60 / 45 were before the bonuses
 
 # The floor in the ad's text, when the portal doesn't say: "im 3. OG", "Etage: 2", "zweite Etage",
 # "Dachgeschoss". Plain "im Erdgeschoss" is often about a shop downstairs, so a numbered floor

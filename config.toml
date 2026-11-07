@@ -116,7 +116,7 @@ telegram_chat_id = ""
 # ✉ Apply on ImmoScout24 cards and Auto-apply in the web UI's header, through the
 # Firefox helper (see the README). What goes in the form is in apply.toml, which
 # stays off GitHub.
-min_score = 60               # auto-apply: new matches scoring at least this
+min_score = 75               # auto-apply: new matches scoring at least this (60 before the bonuses)
 max_per_day = 10             # auto-apply "Send by itself": at most this many sent a day
 
 # every_minutes = how often --loop checks each source (kept hourly to stay well
