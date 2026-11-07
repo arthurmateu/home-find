@@ -280,7 +280,7 @@ def street_key(s: str) -> str:
     return re.sub(r"\b\w+\b", lambda m: STREET_ALIASES.get(m.group(0), m.group(0)), s)
 
 
-def _on_street(listing: Listing, streets) -> str | None:
+def on_street(listing: Listing, streets) -> str | None:
     """Which of `streets` the listing is on. The street is taken from the address;
     without one, from the title, when it says the flat is there ("Wohnung am
     Ku'damm", not "nahe Kudamm"). "Neue Kantstraße" is not Kantstraße."""
@@ -298,7 +298,7 @@ def street_budget(listing: Listing, cfg: dict) -> tuple[float, str | None]:
     of `street_max_warm_rent`."""
     s = cfg["search"]
     budgets = s.get("street_max_warm_rent") or {}
-    street = _on_street(listing, budgets)
+    street = on_street(listing, budgets)
     return (budgets[street], street) if street else (s["max_warm_rent"], None)
 
 
@@ -306,7 +306,7 @@ def street_stretch(listing: Listing, cfg: dict) -> tuple[float, str | None]:
     """On a street of `street_stretch_warm_rent`: the warm rent up to which a flat
     there still shows under Rejected, and the street. (0, None) elsewhere."""
     stretch = cfg["search"].get("street_stretch_warm_rent") or {}
-    street = _on_street(listing, stretch)
+    street = on_street(listing, stretch)
     return (stretch[street], street) if street else (0, None)
 
 

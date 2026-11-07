@@ -84,6 +84,15 @@ old_area = [
   "14050", "14052", "14053", "14055", "14057", "14059",           # Westend
   "10707", "10709", "10711", "10713", "10715", "10717", "10719", "10777", "14197",  # Halensee, Wilmersdorf
 ]
+# Streets you'd like to live on, matched like street_max_warm_rent's (from the address,
+# or the title when there's none: "Wohnung am Savignyplatz").
+streets = [
+  "Kurfürstendamm", "Kantstraße", "Otto-Suhr-Allee", "Wilmersdorfer Straße", "Bismarckstraße", "Kaiserdamm",
+  "Savignyplatz", "Grolmanstraße", "Knesebeckstraße", "Bleibtreustraße", "Carmerstraße", "Mommsenstraße",
+  "Schloßstraße",   # Steglitz's shopping street, and Charlottenburg's to the palace
+  "Turmstraße",     # Moabit
+  "Rheinstraße", "Hauptstraße",  # Friedenau, Schöneberg
+]
 
 [run]
 request_delay_seconds = 2.0  # minimum gap between two requests to the same site

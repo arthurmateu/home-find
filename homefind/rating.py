@@ -9,7 +9,7 @@ Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over; stre
          street_max_warm_rent have their own budget, and their €/m² count for less to match) · size 20 + rooms 5 ·
          freshness 10 · photos / trusted landlord / description 10 ·
          features (balcony 5, kitchen, ...) up to 10 · not on the ground floor 3 ·
-         where it is ([bonus] in config.toml): the old area 5,
+         where it is ([bonus] in config.toml): the old area 5 · a street you like 4,
          minus: scam signs (8 per point), Ablöse, estimated rent, semi-basement.
 IS24 Plus-only listings aren't marked down: you're a Plus member.
 """
@@ -20,7 +20,7 @@ import re
 from datetime import datetime
 
 from .models import Listing
-from .rules import ABLOESE, Verdict, street_budget
+from .rules import ABLOESE, Verdict, on_street, street_budget
 from .util import parse_published
 
 FEATURES = [  # (points, label, pattern); "kein Balkon" / "ohne EBK" don't count
@@ -33,6 +33,7 @@ FEATURES = [  # (points, label, pattern); "kein Balkon" / "ohne EBK" don't count
 MAX_FEATURES = 10
 UPPER_FLOOR = 3  # not on the ground floor
 OLD_AREA = 5     # [bonus] old_area: a postcode you were after before
+BIG_STREET = 4   # [bonus] streets
 BANDS = [(75, "great"), (60, "good"), (45, "ok"), (0, "weak")]
 
 # The floor in the ad's text, when the portal doesn't say: "im 3. OG", "Etage: 2", "zweite Etage",
@@ -185,6 +186,9 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
     bonus = cfg.get("bonus") or {}
     if listing.zip_code and listing.zip_code in bonus.get("old_area", []):
         parts.append((OLD_AREA, f"in the old area ({listing.zip_code})"))
+    street = on_street(listing, bonus.get("streets", []))
+    if street:
+        parts.append((BIG_STREET, f"on {street}"))
 
     # minus
     if verdict.score:

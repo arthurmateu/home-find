@@ -44,6 +44,7 @@ DEFAULTS: dict = {
     # Extra points in the score (rating.py) for where a flat is.
     "bonus": {
         "old_area": [],  # postcodes
+        "streets": [],   # matched like street_max_warm_rent's
     },
     "run": {
         "request_delay_seconds": 2.0,

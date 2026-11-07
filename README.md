@@ -133,7 +133,8 @@ Only one instance runs at a time; after a reboot, start it again.
   floor the portal states, else the one the ad's text names; "Why" says
   which) · where it is, from `[bonus]` in `config.toml`: in the old area
   (Charlottenburg, Westend, Halensee, Wilmersdorf, the matches until 7 Nov
-  2026) 5; minus scam signs, Ablöse, an estimated warm rent, semi-basement. ImmoScout Plus-only listings aren't
+  2026) 5, on one of the streets you like (Ku'damm, Kantstraße,
+  Otto-Suhr-Allee, Savignyplatz, Schloßstraße, ...) 4; minus scam signs, Ablöse, an estimated warm rent, semi-basement. ImmoScout Plus-only listings aren't
   marked down (you're a member). Tune it in `homefind/rating.py`. Push
   notifications start with the score.
 - **Over budget (warm ≤ 1200 €)** (a reason under Rejected) = everything fine
