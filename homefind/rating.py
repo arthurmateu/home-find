@@ -9,6 +9,7 @@ Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over; stre
          street_max_warm_rent have their own budget, and their €/m² count for less to match) · size 20 + rooms 10 (2+; 1.5 gets 4) ·
          freshness 10 · photos / trusted landlord / description 10 ·
          features (balcony 5, kitchen, ...) up to 10 · not on the ground floor 3 ·
+         quiet side (Hinterhaus, Seitenflügel, facing the courtyard) 2 ·
          where it is ([bonus] in config.toml): the old area 5 · a street you like 4 ·
          U/S-Bahn within 5 min on foot 4 · bus/tram stop within 2 min 2 ·
          supermarket within 5 min 10 · park or water within 5 min 3 (nearby.py),
@@ -41,6 +42,7 @@ RAIL, RAIL_MINUTES = 4, 5  # a U-Bahn or S-Bahn station at most this many minute
 STOP, STOP_MINUTES = 2, 2  # a bus or tram stop
 SHOP, SHOP_MINUTES = 10, 5  # a supermarket: worth a lot to you
 GREEN, GREEN_MINUTES = 3, 5  # a park, woods, a lake or the river
+QUIET = 2        # the quiet side: back buildings, rooms facing the courtyard
 BANDS = [(75, "great"), (60, "good"), (45, "ok"), (0, "weak")]
 
 # The floor in the ad's text, when the portal doesn't say: "im 3. OG", "Etage: 2", "zweite Etage",
@@ -58,6 +60,15 @@ GROUND_TEXT = re.compile(r"erdgeschoss|\bparterre\b|ground floor|\bim eg\b", re.
 UPPER_TYPES = re.compile(r"roof|penthouse|dach", re.I)        # the portal's flat type
 GROUND_TYPES = re.compile(r"ground|erdgeschoss|parterre", re.I)
 BASEMENT_TYPES = re.compile(r"basement|souterrain", re.I)
+
+# Away from the street: the first building the text names (not the Vorderhaus), or rooms that
+# face the courtyard ("Balkon zum ruhigen Innenhof", "Schlafzimmer liegen nach hinten zum Hof").
+BUILDING = re.compile(r"\b(vorderhaus|hinterhaus|seitenflügel|gartenhaus|quergebäude|quergebaeude)", re.I)
+COURTYARD = re.compile(
+    r"\b(fenster|balkon|loggia|terrasse|\w*zimmer|räume|zimmern|ausrichtung|ausgerichtet|orientiert|liegt|liegen"
+    r"|gelegen|lage)\s+(\w+\s+){0,3}(zum|zur|in den|richtung)\s+(ruhigen\s+)?(innen|garten)?(hof|hofseite|gartenseite)\b"
+    r"|hofseitig\w*|\bzur hofseite|ruhige[nr]? (innen)?hoflage|\b(hof|garten)seitige[nrs]?\b"
+    r"|(facing|overlooks?|overlooking|towards?) the (inner |quiet )?(court)?yard|courtyard[- ]facing|rear building", re.I)
 
 
 def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -106,6 +117,15 @@ def storey(listing: Listing) -> tuple[int | None, str]:
         if GROUND_TEXT.search(text):
             return 0, "ground floor"
     return None, ""
+
+
+def quiet_side(listing: Listing) -> str | None:
+    """Why the flat is on the quiet side of the house, if the ad says it is."""
+    text = f"{listing.title}\n{listing.description}"
+    building = BUILDING.search(text)
+    if building and building.group(1).lower() != "vorderhaus":
+        return f"{building.group(1).capitalize()}: the quiet side"
+    return "faces the courtyard" if COURTYARD.search(text) else None
 
 
 def _ago(hours: float) -> str:
@@ -199,6 +219,9 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
     floor, floor_label = storey(listing)
     if floor and floor > 0:
         parts.append((UPPER_FLOOR, floor_label))
+    quiet = quiet_side(listing)
+    if quiet:
+        parts.append((QUIET, quiet))
 
     # where it is ([bonus] in the config)
     bonus = cfg.get("bonus") or {}

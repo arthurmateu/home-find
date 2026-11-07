@@ -132,7 +132,8 @@ Only one instance runs at a time; after a reboot, start it again.
   photos / verified or municipal landlord / description 10 · balcony 5,
   kitchen, lift, Altbau, garden up to 10 · not on the ground floor 3 (the
   floor the portal states, else the one the ad's text names; "Why" says
-  which) · where it is, from `[bonus]` in `config.toml`: in the old area
+  which) · on the quiet side, says the text (Hinterhaus, Seitenflügel,
+  Gartenhaus, Quergebäude, or rooms facing the courtyard) 2 · where it is, from `[bonus]` in `config.toml`: in the old area
   (Charlottenburg, Westend, Halensee, Wilmersdorf, the matches until 7 Nov
   2026) 5, on one of the streets you like (Ku'damm, Kantstraße,
   Otto-Suhr-Allee, Savignyplatz, Schloßstraße, ...) 4 · a U-Bahn or S-Bahn
