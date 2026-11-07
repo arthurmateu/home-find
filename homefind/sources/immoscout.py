@@ -37,7 +37,7 @@ class ImmoScout(Source):
                     "price": f"-{self.fetch_cap:.1f}",
                     "pricetype": "rentpermonth" if self.near_miss else "calculatedtotalrent",
                     "livingspace": f"{float(s['min_size_sqm']):.1f}-",
-                    "numberofrooms": f"{float(s['min_rooms']):.1f}-",
+                    # No rooms filter: flats with fewer than min_rooms show under Rejected.
                     "exclusioncriteria": "swapflat",
                     "sorting": "-firstactivation",
                     "pagenumber": page,

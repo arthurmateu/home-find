@@ -1,7 +1,7 @@
 # homefind
 
-Polls Berlin rental portals every few minutes for flats in **Charlottenburg,
-Westend, Halensee and Wilmersdorf** **under 982 € warm**, drops the junk
+Polls Berlin rental portals every few minutes for flats with **2+ rooms** in
+**Charlottenburg, Westend, Halensee and Wilmersdorf** **under 982 € warm**, drops the junk
 (swaps, sublets, WG rooms, furnished short-term lets, WBS-only, scams) and
 pushes the rest to your phone, and can fill in (or send) the contact form for
 you (ImmoScout24 only, for now). Python 3.11+, standard library only (applying uses Tampermonkey in Firefox).
@@ -141,6 +141,8 @@ Only one instance runs at a time; after a reboot, start it again.
 - **Kurfürstendamm (warm ≤ 1500 €)** (a reason under Rejected) = the same for
   a street worth stretching for (`street_stretch_warm_rent`): over its budget,
   but within the stretch.
+- **Too few rooms** = under `min_rooms` (2): 1 and 1.5 rooms. The searches
+  don't filter on rooms, so these do show up.
 - WG rooms, senior housing, swap offers, WBS-only flats and anything in former
   East Berlin, Spandau or Neukölln don't show up at all (`drop_reasons` in
   `config.toml`).

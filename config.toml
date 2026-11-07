@@ -21,7 +21,7 @@ street_stretch_warm_rent = { "Kurfürstendamm" = 1500 }
 near_miss_cold_rent = 0      # with stretch_warm_rent = 0: also load flats with cold rent up to this; if
                              # warm is over budget they show under Rejected → "Near miss", whatever it is
 min_size_sqm = 25            # drops micro-apartments / co-living rooms
-min_rooms = 1
+min_rooms = 2                # fewer (1, 1.5) show under Rejected → "Too few rooms"
 have_wbs = false             # true = keep listings that need a Wohnberechtigungsschein
                              # (with it false, also take "wbs" out of drop_reasons to see them under Rejected)
 coop_member = false          # true = keep co-op offers marked "members only"
