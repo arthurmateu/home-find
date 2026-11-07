@@ -8,7 +8,8 @@ scores well, so it stands out on the Rejected tab. Hard rejections (swap, WBS,
 Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over; streets in
          street_max_warm_rent have their own budget, and their €/m² count for less to match) · size 20 + rooms 5 ·
          freshness 10 · photos / trusted landlord / description 10 ·
-         features (balcony 5, kitchen, ...) up to 10 · not on the ground floor 3,
+         features (balcony 5, kitchen, ...) up to 10 · not on the ground floor 3 ·
+         where it is ([bonus] in config.toml): the old area 5,
          minus: scam signs (8 per point), Ablöse, estimated rent, semi-basement.
 IS24 Plus-only listings aren't marked down: you're a Plus member.
 """
@@ -31,6 +32,7 @@ FEATURES = [  # (points, label, pattern); "kein Balkon" / "ohne EBK" don't count
 ]
 MAX_FEATURES = 10
 UPPER_FLOOR = 3  # not on the ground floor
+OLD_AREA = 5     # [bonus] old_area: a postcode you were after before
 BANDS = [(75, "great"), (60, "good"), (45, "ok"), (0, "weak")]
 
 # The floor in the ad's text, when the portal doesn't say: "im 3. OG", "Etage: 2", "zweite Etage",
@@ -178,6 +180,11 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
     floor, floor_label = storey(listing)
     if floor and floor > 0:
         parts.append((UPPER_FLOOR, floor_label))
+
+    # where it is ([bonus] in the config)
+    bonus = cfg.get("bonus") or {}
+    if listing.zip_code and listing.zip_code in bonus.get("old_area", []):
+        parts.append((OLD_AREA, f"in the old area ({listing.zip_code})"))
 
     # minus
     if verdict.score:

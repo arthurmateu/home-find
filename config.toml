@@ -75,6 +75,16 @@ edge_names = [
 ]
 exclude_names = []           # names to ignore in a label, if they'd match one of the above by mistake
 
+[bonus]
+# Extra points in the score for where a flat is; they never make or break a match.
+# The points themselves are in homefind/rating.py.
+# The old area, the matches until 7 Nov 2026: Charlottenburg, Westend, Halensee, Wilmersdorf.
+old_area = [
+  "10585", "10587", "10589", "10623", "10625", "10627", "10629",  # Charlottenburg
+  "14050", "14052", "14053", "14055", "14057", "14059",           # Westend
+  "10707", "10709", "10711", "10713", "10715", "10717", "10719", "10777", "14197",  # Halensee, Wilmersdorf
+]
+
 [run]
 request_delay_seconds = 2.0  # minimum gap between two requests to the same site
 web_port = 8765              # web UI at http://localhost:8765 while --loop / --serve runs; 0 = off

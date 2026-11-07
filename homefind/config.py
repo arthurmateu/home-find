@@ -41,6 +41,10 @@ DEFAULTS: dict = {
         "edge_names": [],
         "exclude_names": ["Charlottenburg-Nord"],
     },
+    # Extra points in the score (rating.py) for where a flat is.
+    "bonus": {
+        "old_area": [],  # postcodes
+    },
     "run": {
         "request_delay_seconds": 2.0,
         "db_path": "data/homefind.db",
