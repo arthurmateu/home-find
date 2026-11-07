@@ -1,5 +1,5 @@
 """What's near a flat, for the score: U-Bahn and S-Bahn stations (and their
-entrances), bus and tram stops. From OpenStreetMap, through the Overpass API:
+entrances), bus and tram stops, supermarkets. From OpenStreetMap, through the Overpass API:
 each layer is fetched for all of Berlin into data/nearby.json, and again once
 it's REFRESH_DAYS old, by the web UI's map thread (geo.start) or --geocode.
 Until a layer is there, the score just leaves it out.
@@ -62,6 +62,16 @@ def _stops(elements: list[dict]) -> list[list]:
     return [[k, round(lat, 5), round(lon, 5), name] for k, lat, lon, name in stations + stops]
 
 
+def _shops(elements: list[dict]) -> list[list]:
+    """Supermarkets (discounters and organic ones too): ["supermarket", lat, lon, name]."""
+    out = []
+    for e in elements:
+        t, at = e.get("tags") or {}, e.get("center") or e
+        if at.get("lat") is not None:
+            out.append(["supermarket", round(at["lat"], 5), round(at["lon"], 5), t.get("name") or t.get("brand") or ""])
+    return out
+
+
 # Layer name -> (Overpass query for Berlin, parser); each one is fetched and kept on its own.
 LAYERS = {
     "stops": ("""(
@@ -70,6 +80,7 @@ LAYERS = {
   node["highway"="bus_stop"](area.b);
   node["railway"="tram_stop"](area.b);
 ); out center tags;""", _stops),
+    "shops": ("""nwr["shop"="supermarket"](area.b); out center tags;""", _shops),
 }
 
 
