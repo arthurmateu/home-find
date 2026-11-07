@@ -73,7 +73,7 @@ h1 { font-size: 20px; margin: 0; }
 
 main { padding-top: 18px; padding-bottom: 80px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.card { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
 .media { position: relative; aspect-ratio: 4 / 3; overflow: hidden; background: var(--chip); }
 .photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; }
 .nophoto { height: 100%; display: grid; place-items: center; color: var(--muted); font-size: 14px; }
@@ -90,15 +90,22 @@ main { padding-top: 18px; padding-bottom: 80px; }
 .badge.fav { background: var(--fav); color: var(--fav-ink); }
 .card.fav { border-color: var(--fav); box-shadow: 0 0 0 1px var(--fav); background: color-mix(in srgb, var(--fav) 6%, var(--card)); }
 .card.gone .photo { filter: grayscale(1); }
-.score { position: absolute; right: 8px; top: 8px; min-width: 38px; padding: 3px 9px; border-radius: 99px; font-weight: 700;
-         font-size: 14px; text-align: center; color: #fff; background: #6b6b66; box-shadow: 0 1px 4px rgba(0, 0, 0, .3); }
+.score { position: absolute; right: 8px; top: 8px; z-index: 4; min-width: 38px; padding: 3px 9px; border: 0; border-radius: 99px;
+         font: inherit; font-weight: 700; font-size: 14px; text-align: center; color: #fff; background: #6b6b66;
+         box-shadow: 0 1px 4px rgba(0, 0, 0, .3); cursor: help; }
 .score.great { background: #1b7a4c; } .score.good { background: #2a67a8; } .score.ok { background: #8a6a14; }
 .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .sort { font-size: 14px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
 .sort select { font: inherit; font-size: 14px; color: var(--ink); background: var(--card); border: 1px solid var(--line);
                border-radius: 8px; padding: 5px 8px; }
 .toggles { display: flex; gap: 16px; flex-wrap: wrap; }
-.why { list-style: none; margin: 0; padding: 6px 10px; border-left: 3px solid var(--line); font-size: 13px; display: grid; gap: 2px; }
+/* The points behind the score pop up under it on hover or keyboard focus, or stay up after a click (touch). */
+.why-pop { position: absolute; left: 8px; right: 8px; top: 30px; z-index: 4; padding-top: 6px;
+           visibility: hidden; opacity: 0; transition: opacity .12s, visibility 0s .12s; }
+.score:hover + .why-pop, .score:focus-visible + .why-pop, .why-pop:hover, .score[aria-expanded="true"] + .why-pop {
+  visibility: visible; opacity: 1; transition: opacity .12s .1s, visibility 0s .1s; }
+.why { list-style: none; margin: 0; padding: 8px 10px; font-size: 13px; display: grid; gap: 2px; color: var(--ink);
+       background: var(--card); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 24px rgba(0, 0, 0, .35); }
 .why .pts { display: inline-block; min-width: 34px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .why .plus { color: var(--accent); } .why .minus { color: var(--bad); } .why .zero { color: var(--muted); }
 .body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
@@ -292,7 +299,6 @@ const BUILD = data.build;           // the ui.html this page was made from (see 
 let byKey = new Map();
 const photoAt = new Map();          // listing key -> photo shown on its card
 const openDesc = new Set();         // listing keys with the description open
-const openWhy = new Set();          // listing keys with the score breakdown open
 const SORTS = {
   score: (a, b) => b.score - a.score || b.posted.localeCompare(a.posted),
   newest: (a, b) => b.posted.localeCompare(a.posted),
@@ -562,19 +568,17 @@ function card(l) {
   const sites = l.ads.length ? `\nThe same flat on ${l.ads.map((a) => sourceName(a.source)).join(" and ")} ` +
                                `(same rent, size and postcode): ▾ next to Open has each one` : "";
   const open = state.expandAll || openDesc.has(l.key);
-  const whyOpen = openWhy.has(l.key);
   const whyList = l.why.map(([p, t]) =>
     `<li><span class="pts ${p > 0 ? "plus" : p < 0 ? "minus" : "zero"}">${p > 0 ? "+" : ""}${p}</span>${esc(t)}</li>`).join("");
-  const toggles = `<div class="toggles">` +
-    (l.description ? `<button class="desc-toggle" data-act="desc" aria-expanded="${open}">${open ? "Hide description" : "Show description"}</button>` : "") +
-    `<button class="desc-toggle" data-act="why" aria-expanded="${whyOpen}">Why ${l.score}?</button></div>`;
-  const desc = toggles +
-    `<ul class="why"${whyOpen ? "" : " hidden"}>${whyList}</ul>` +
+  const desc = (l.description
+      ? `<div class="toggles"><button class="desc-toggle" data-act="desc" aria-expanded="${open}">` +
+        `${open ? "Hide description" : "Show description"}</button></div>` : "") +
     (l.description ? `<div class="desc"${open ? "" : " hidden"}>${esc(l.description)}</div>`
                    : `<p class="desc-none">No description here${l.source === "inberlinwohnen" ? "; the landlord's page has the details" : ""}.</p>`);
   return `<article class="card${l.ok ? "" : " rejected"}${gone ? " gone" : ""}${fav ? " fav" : ""}" data-key="${esc(l.key)}">
-    <div class="media">${media}<div class="badges">${badges}</div>
-      <span class="score ${l.band}" title="Score ${l.score} (${l.band})">${l.score}</span></div>
+    <div class="media">${media}<div class="badges">${badges}</div></div>
+    <button class="score ${l.band}" data-act="score" aria-expanded="false" aria-label="Score ${l.score} (${l.band}): why">${l.score}</button>
+    <div class="why-pop" role="tooltip"><ul class="why">${whyList}</ul></div>
     <div class="body">
       <div class="price">${esc(l.headline)}</div>
       <a class="title" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || l.url)}</a>
@@ -614,7 +618,7 @@ function render() {
 
 // Redraws with new data without moving the page under the reader: unless it's at the very top,
 // the first card on screen stays where it was (or the next one, if that one left the list).
-// Maps that were pinned open stay open.
+// Maps and scores' points that were pinned open stay open.
 function refresh() {
   const edge = Math.max(0, document.querySelector(".top").getBoundingClientRect().bottom);
   const onScreen = scrollY > 0
@@ -622,6 +626,7 @@ function refresh() {
         .map((c) => [c.dataset.key, c.getBoundingClientRect().top])
     : [];
   const maps = [...document.querySelectorAll(".loc.open")].map((el) => el.closest(".card").dataset.key);
+  const scores = [...document.querySelectorAll('.score[aria-expanded="true"]')].map((el) => el.closest(".card").dataset.key);
   render();
   const kept = onScreen.find(([key]) => cardOf(key));
   if (kept) scrollBy(0, cardOf(kept[0]).getBoundingClientRect().top - kept[1]);
@@ -632,6 +637,7 @@ function refresh() {
     btn.parentElement.classList.add("open");
     btn.setAttribute("aria-expanded", "true");
   }
+  for (const key of scores) cardOf(key)?.querySelector(".score")?.setAttribute("aria-expanded", "true");
 }
 
 // ---- photos on the card
@@ -893,8 +899,8 @@ function showMatches() {
 }
 // The new-matches banner goes away once they're on screen.
 function bannerSeen() { if (!stale && !restart && state.tab === "matches" && scrollY < 50) $("banner").hidden = true; }
-// Worth a redraw: any change but when an ad was last seen online, and the score with its "why"
-// lines, which move on by themselves ("posted 5 h ago"); those come along with the next change.
+// Worth a redraw: any change but when an ad was last seen online, and the score with the points
+// under it, which move on by themselves ("posted 5 h ago"); those come along with the next change.
 const shape = (l) => JSON.stringify({ ...l, last_seen: 0, score: 0, band: 0, why: 0 });
 let applyPoll;  // the next quick poll, while applying
 async function poll() {
@@ -1083,21 +1089,21 @@ $("grid").addEventListener("click", (e) => {
     el.setAttribute("aria-expanded", String(open));
     el.textContent = open ? "Hide description" : "Show description";
     if (open) openDesc.add(l.key); else openDesc.delete(l.key);
-  } else if (act === "why") {
-    const box = cardEl.querySelector(".why");
-    box.hidden = !box.hidden;
-    el.setAttribute("aria-expanded", String(!box.hidden));
-    if (box.hidden) openWhy.delete(l.key); else openWhy.add(l.key);
+  } else if (act === "score") {  // keeps the points up without hovering: for touch screens
+    el.setAttribute("aria-expanded", String(el.getAttribute("aria-expanded") !== "true"));
   }
 });
 for (const type of ["mouseover", "focusin"]) {
   $("grid").addEventListener(type, (e) => { const b = e.target.closest?.(".loc-btn"); if (b) fillMap(b); });
 }
-function closeMaps(except) {
+function closeMaps(except) {  // and the points under a score
   for (const loc of document.querySelectorAll(".loc.open")) {
     if (loc.contains(except)) continue;
     loc.classList.remove("open");
     loc.querySelector(".loc-btn").setAttribute("aria-expanded", "false");
+  }
+  for (const btn of document.querySelectorAll('.score[aria-expanded="true"]')) {
+    if (btn !== except && !btn.nextElementSibling.contains(except)) btn.setAttribute("aria-expanded", "false");
   }
 }
 document.addEventListener("click", (e) => {  // a click elsewhere puts an open map, filter menu or list of sites away

@@ -265,7 +265,7 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
     if _has(r"souterrain|tiefparterre|kellerwohnung", text) or (floor or 0) < 0:
         parts.append((-5, "semi-basement (Souterrain)"))
 
-    score = max(0, round(sum(p for p, _ in parts)))  # no ceiling: "Why 112?" adds up, and the best stay in order
+    score = max(0, round(sum(p for p, _ in parts)))  # no ceiling: the points under a score add up, and the best stay in order
     return score, [p for p in parts if p[0] != 0 or p[1].startswith(("posted", "first seen"))]
 
 

@@ -128,14 +128,15 @@ Only one instance runs at a time; after a reboot, start it again.
   (`sweep_every_hours`) and charlotte1907's one page lists every offer, so
   anything missing there is gone. `--check-offline` does all of it at once.
 - **Score** (0–100, and bonuses can take it past 100) on every listing, rejected ones included, sorted best
-  first (or newest / date applied / cheapest / largest). "Why 74?" shows the points:
+  first (or newest / date applied / cheapest / largest). Hover the score (tap
+  it on a phone) for its points:
   value for money (warm €/m²) 35 · budget fit 15 (negative when over) ·
   size 20 (25 m² none, 70 m² and up all) + rooms 10 (2 or more; 1.5
   rooms 4, 1 room none) · freshness 10 (the first hours after posting count most) ·
   photos / verified or municipal landlord / description 10 · balcony 5,
   kitchen, lift, Altbau, garden up to 10 · not on the ground floor 3 (the
-  floor the portal states, else the one the ad's text names; "Why" says
-  which) · on the quiet side, says the text (Hinterhaus, Seitenflügel,
+  floor the portal states, else the one the ad's text names; the points
+  say which) · on the quiet side, says the text (Hinterhaus, Seitenflügel,
   Gartenhaus, Quergebäude, or rooms facing the courtyard) 2 · where it is,
   from `[bonus]` in `config.toml`: in the old area (Charlottenburg, Westend, Halensee, Wilmersdorf, the matches until 7 Nov
   2026) 5, on one of the streets you like (Ku'damm, Kantstraße,
