@@ -21,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from . import app, apply, geo
+from . import app, apply, config, geo
 from .notify import headline
 from .rating import band, rate
 from .rules import REASONS, street_budget, street_key, street_stretch
@@ -117,10 +117,11 @@ def build() -> str:
 
 
 def code(cfg: dict) -> str:
-    """The Python code and the config file as they are on disk now. Both are only read
+    """The Python code and the config files as they are on disk now. They're only read
     at startup (ui.html on every page load), so when this changes homefind needs a restart."""
     h = hashlib.sha1()
-    for f in [*sorted(Path(__file__).parent.rglob("*.py")), Path(cfg.get("path") or "")]:
+    files = [Path(cfg["path"]), config.local_path(cfg["path"])] if cfg.get("path") else []
+    for f in [*sorted(Path(__file__).parent.rglob("*.py")), *files]:
         h.update(f.read_bytes() if f.is_file() else b"")
     return h.hexdigest()[:12]
 

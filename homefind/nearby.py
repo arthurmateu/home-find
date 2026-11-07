@@ -134,10 +134,15 @@ class Index:
             for j in range(cj - r, cj + r + 1):
                 for p in self.cells.get((i, j), ()):
                     if p[0] in kinds:
-                        d = math.hypot((p[1] - lat) * M_PER_DEG, (p[2] - lon) * M_PER_DEG * LON_SCALE)
+                        d = distance((p[1], p[2]), (lat, lon))
                         if d <= metres and (best is None or d < best[0]):
                             best = (d, p)
         return best
+
+
+def distance(a: tuple[float, float], b: tuple[float, float]) -> float:
+    """Straight-line distance between two (lat, lon) in Berlin."""
+    return math.hypot((a[0] - b[0]) * M_PER_DEG, (a[1] - b[1]) * M_PER_DEG * LON_SCALE)
 
 
 def path(cfg: dict) -> Path:

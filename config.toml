@@ -93,6 +93,10 @@ streets = [
   "Turmstraße",     # Moabit
   "Rheinstraße", "Hauptstraße",  # Friedenau, Schöneberg
 ]
+# Places you go every day, each worth up to 6 points by how close it is (all up to 2 km
+# away in a straight line, none from 8 km). Put them in config.local.toml, which stays
+# off GitHub, as: [bonus] daily = [{ name = "work", lat = 52.5219, lon = 13.4132 }]
+# (right-click the place in Google Maps; the first line is lat, lon).
 
 [run]
 request_delay_seconds = 2.0  # minimum gap between two requests to the same site

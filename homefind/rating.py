@@ -12,7 +12,8 @@ Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over; stre
          quiet side (Hinterhaus, Seitenflügel, facing the courtyard) 2 ·
          where it is ([bonus] in config.toml): the old area 5 · a street you like 4 ·
          U/S-Bahn within 5 min on foot 4 · bus/tram stop within 2 min 2 ·
-         supermarket within 5 min 10 · park or water within 5 min 3 (nearby.py),
+         supermarket within 5 min 10 · park or water within 5 min 3 (nearby.py) ·
+         near a place you go daily up to 6 ([bonus] daily, in config.local.toml),
          minus: scam signs (8 per point), Ablöse, estimated rent, semi-basement.
 IS24 Plus-only listings aren't marked down: you're a Plus member.
 """
@@ -43,6 +44,7 @@ STOP, STOP_MINUTES = 2, 2  # a bus or tram stop
 SHOP, SHOP_MINUTES = 10, 5  # a supermarket: worth a lot to you
 GREEN, GREEN_MINUTES = 3, 5  # a park, woods, a lake or the river
 QUIET = 2        # the quiet side: back buildings, rooms facing the courtyard
+DAILY, DAILY_KM = 6, (2, 8)  # [bonus] daily: all points up to 2 km away (straight line), none from 8 km
 BANDS = [(75, "great"), (60, "good"), (45, "ok"), (0, "weak")]
 
 # The floor in the ad's text, when the portal doesn't say: "im 3. OG", "Etage: 2", "zweite Etage",
@@ -244,6 +246,13 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
         green = nearby.walk(cfg, *at, ("green",), GREEN_MINUTES)
         if green:
             parts.append((GREEN, f"{green[1]}, {green[0]} min walk"))
+    # kilometres are fine by the postcode's middle too, if that's all there is ("~")
+    rough = None if at or not place else (place["lat"], place["lon"])
+    for daily in bonus.get("daily", []) if at or rough else []:
+        km = nearby.distance(at or rough, (daily["lat"], daily["lon"])) / 1000
+        near, far = DAILY_KM
+        parts.append((round(DAILY * _clamp((far - km) / (far - near))),
+                      f"{'~' if rough else ''}{km:.1f} km from {daily['name']} (straight line)"))
 
     # minus
     if verdict.score:

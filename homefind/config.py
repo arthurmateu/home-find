@@ -45,6 +45,7 @@ DEFAULTS: dict = {
     "bonus": {
         "old_area": [],  # postcodes
         "streets": [],   # matched like street_max_warm_rent's
+        "daily": [],     # [{name, lat, lon}]: places you go every day (in config.local.toml)
     },
     "run": {
         "request_delay_seconds": 2.0,
@@ -108,12 +109,20 @@ def _merge(base: dict, over: dict) -> dict:
     return base
 
 
+def local_path(path: str | Path) -> Path:
+    """config.local.toml next to config.toml: settings that stay on this machine (it's in
+    .gitignore), such as the places in [bonus] daily. What it sets goes over config.toml's."""
+    path = Path(path).resolve()
+    return path.with_name(f"{path.stem}.local{path.suffix}")
+
+
 def load(path: str | Path) -> dict:
     path = Path(path)
     cfg = copy.deepcopy(DEFAULTS)
-    if path.exists():
-        with path.open("rb") as f:
-            _merge(cfg, tomllib.load(f))
+    for p in (path, local_path(path)):
+        if p.exists():
+            with p.open("rb") as f:
+                _merge(cfg, tomllib.load(f))
     cfg["path"] = str(path.resolve())  # read once, at startup: the web UI says when it changes
     root = path.resolve().parent
     for section, k in (("run", "db_path"), ("apply", "profile")):

@@ -33,6 +33,9 @@ its interval, up to 6 hours) while the others carry on.
 2. Send a test notification (see below). Listings that were already online when
    a source was first added were stored without a push; from then on only new
    matches are pushed.
+3. Settings you'd rather keep off GitHub (the places in `[bonus] daily`) go in
+   `config.local.toml`, next to `config.toml`: it's in `.gitignore`, and what
+   it sets goes over `config.toml`'s.
 
 ## Running it
 
@@ -50,8 +53,8 @@ Applied or Hide made in another tab (straight away) all show up without the page
 jumping under you; if new matches arrive while you're scrolled down or on
 another tab of the page, a "new match" banner offers them. After an update to
 homefind, open pages offer a Reload, or say to restart it when the update
-needs that (a change to its Python code or to `config.toml`, which are only
-read at startup). If a new match comes in while you're in
+needs that (a change to its Python code or to `config.toml` /
+`config.local.toml`, which are only read at startup). If a new match comes in while you're in
 another tab or window, the page's tab shows it: "(1) New match · Flat hunt"
 and a red dot on its icon, until you switch back. No sound, no pop-up.
 
@@ -133,13 +136,15 @@ Only one instance runs at a time; after a reboot, start it again.
   kitchen, lift, Altbau, garden up to 10 · not on the ground floor 3 (the
   floor the portal states, else the one the ad's text names; "Why" says
   which) · on the quiet side, says the text (Hinterhaus, Seitenflügel,
-  Gartenhaus, Quergebäude, or rooms facing the courtyard) 2 · where it is, from `[bonus]` in `config.toml`: in the old area
-  (Charlottenburg, Westend, Halensee, Wilmersdorf, the matches until 7 Nov
+  Gartenhaus, Quergebäude, or rooms facing the courtyard) 2 · where it is,
+  from `[bonus]` in `config.toml`: in the old area (Charlottenburg, Westend, Halensee, Wilmersdorf, the matches until 7 Nov
   2026) 5, on one of the streets you like (Ku'damm, Kantstraße,
   Otto-Suhr-Allee, Savignyplatz, Schloßstraße, ...) 4 · a U-Bahn or S-Bahn
   station (or its entrance) within 5 minutes on foot 4, a bus or tram stop
   within 2 minutes 2 · a supermarket within 5 minutes 10 · a park, woods, a
-  lake, the Spree or the Landwehrkanal within 5 minutes 3; minus scam signs, Ablöse, an estimated warm rent, semi-basement. ImmoScout Plus-only listings aren't
+  lake, the Spree or the Landwehrkanal within 5 minutes 3 · near a place you
+  go every day (`[bonus] daily`, in `config.local.toml`) up to 6: all of it
+  up to 2 km away in a straight line, none from 8 km; minus scam signs, Ablöse, an estimated warm rent, semi-basement. ImmoScout Plus-only listings aren't
   marked down (you're a member). Tune it in `homefind/rating.py`. Push
   notifications start with the score.
   What's within walking distance needs the flat's house: ImmoScout24's pin
