@@ -103,6 +103,11 @@ class Kleinanzeigen(Source):
         listing.warm_rent, listing.cold_rent = warm, cold
         if "nur tausch" in attrs.get("Tauschangebot", "").lower():
             listing.signals["swap_only"] = True
+        floor = re.fullmatch(r"\s*(-?\d{1,2})\.?\s*", attrs.get("Etage") or "")  # "3", "0" = ground floor
+        if floor:
+            listing.signals["floor"] = int(floor.group(1))
+        if attrs.get("Wohnungstyp"):  # Erdgeschosswohnung, Dachgeschosswohnung, Hochparterre, Souterrain, ...
+            listing.signals["flat_type"] = attrs["Wohnungstyp"]
 
         # Gallery slides only: the page also shows other ads' thumbnails. Each
         # slide opens with JSON-LD repeating the whole description, which would

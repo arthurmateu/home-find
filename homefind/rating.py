@@ -8,7 +8,7 @@ scores well, so it stands out on the Rejected tab. Hard rejections (swap, WBS,
 Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over; streets in
          street_max_warm_rent have their own budget, and their €/m² count for less to match) · size 20 + rooms 5 ·
          freshness 10 · photos / trusted landlord / description 10 ·
-         features (balcony, kitchen, ...) up to 8,
+         features (balcony, kitchen, ...) up to 8 · not on the ground floor 3,
          minus: scam signs (8 per point), Ablöse, estimated rent, semi-basement.
 IS24 Plus-only listings aren't marked down: you're a Plus member.
 """
@@ -30,7 +30,24 @@ FEATURES = [  # (points, label, pattern); "kein Balkon" / "ohne EBK" don't count
     (1, "garden", r"\bgarten\b|gartenanteil|gartennutzung"),
 ]
 MAX_FEATURES = 8
+UPPER_FLOOR = 3  # not on the ground floor
 BANDS = [(75, "great"), (60, "good"), (45, "ok"), (0, "weak")]
+
+# The floor in the ad's text, when the portal doesn't say: "im 3. OG", "Etage: 2", "zweite Etage",
+# "Dachgeschoss". Plain "im Erdgeschoss" is often about a shop downstairs, so a numbered floor
+# wins over it; "Erdgeschosswohnung" / "EG-Wohnung" / "Hochparterre" describe the flat itself.
+_ORDINALS = ["erste", "zweite", "dritte", "vierte", "fünfte", "sechste", "siebte"]
+FLOOR_TEXT = re.compile(
+    r"\b(?P<n>\d{1,2})\s*\.\s*(?:og\b|obergeschoss|etage\b|stock\b|stockwerk)"
+    r"|\b(?:etage|stockwerk|geschoss)\s*:?\s*(?P<n2>\d{1,2})\b"
+    rf"|\b(?P<w>{'|'.join(_ORDINALS)})[nrsm]?\s+(?:og\b|obergeschoss|etage\b|stock\b|stockwerk)"
+    r"|\b(?P<en>\d{1,2})(?:st|nd|rd|th) floor"
+    r"|\b(?P<top>dachgeschoss\w*|dg\b|penthouse|top floor|unterm dach)", re.I)
+GROUND_FLAT = re.compile(r"erdgeschosswohnung|\beg-wohnung|hochparterre|ground[- ]floor (flat|apartment)", re.I)
+GROUND_TEXT = re.compile(r"erdgeschoss|\bparterre\b|ground floor|\bim eg\b", re.I)
+UPPER_TYPES = re.compile(r"roof|penthouse|dach", re.I)        # the portal's flat type
+GROUND_TYPES = re.compile(r"ground|erdgeschoss|parterre", re.I)
+BASEMENT_TYPES = re.compile(r"basement|souterrain", re.I)
 
 
 def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -42,6 +59,43 @@ def _has(pattern: str, text: str) -> bool:
         if not re.search(r"(kein\w*|ohne|nicht)\s+(\w+\s+)?$", text[max(0, m.start() - 20): m.start()], re.I):
             return True
     return False
+
+
+def storey(listing: Listing) -> tuple[int | None, str]:
+    """Which floor the flat is on (0 = ground floor or Hochparterre, below 0 = semi-basement),
+    and how to put it; (None, "") when nothing says. From the portal's floor, else its flat
+    type, else the title or text. A Dachgeschoss with no number counts as floor 1: above the
+    ground floor, anyway."""
+    sig = listing.signals
+    floor, floors = sig.get("floor"), sig.get("floors")
+    if isinstance(floor, int):
+        if floor <= 0:
+            return floor, "ground floor" if floor == 0 else "semi-basement"
+        return floor, f"floor {floor}" + (f" of {floors}" if isinstance(floors, int) and floors >= floor else "")
+    kind = sig.get("flat_type") or ""
+    if UPPER_TYPES.search(kind):
+        return 1, "top floor"
+    if BASEMENT_TYPES.search(kind):
+        return -1, "semi-basement"
+    if GROUND_TYPES.search(kind):
+        return 0, "ground floor"
+    for text in (listing.title or "", listing.description or ""):
+        if GROUND_FLAT.search(text):
+            return 0, "ground floor"
+        m = FLOOR_TEXT.search(text)
+        if m:
+            g = m.groupdict()
+            n = g["n"] or g["n2"] or g["en"]
+            n = int(n) if n else _ORDINALS.index(g["w"].lower()) + 1 if g["w"] else None
+            if n is None:
+                return 1, "top floor (says the ad)"
+            if n == 0:
+                return 0, "ground floor"
+            if n <= 30:
+                return n, f"floor {n} (says the ad)"
+        if GROUND_TEXT.search(text):
+            return 0, "ground floor"
+    return None, ""
 
 
 def _ago(hours: float) -> str:
@@ -121,6 +175,9 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
         if budget > 0:
             parts.append((min(p, budget), label))
             budget -= p
+    floor, floor_label = storey(listing)
+    if floor and floor > 0:
+        parts.append((UPPER_FLOOR, floor_label))
 
     # minus
     if verdict.score:
@@ -129,7 +186,7 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
         parts.append((-6, "asks for Ablöse"))
     if any("estimated" in n for n in verdict.notes):
         parts.append((-2, "warm rent is an estimate"))
-    if _has(r"souterrain|tiefparterre|kellerwohnung", text):
+    if _has(r"souterrain|tiefparterre|kellerwohnung", text) or (floor or 0) < 0:
         parts.append((-5, "semi-basement (Souterrain)"))
 
     score = round(_clamp(sum(p for p, _ in parts), 0, 100))

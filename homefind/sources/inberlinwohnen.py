@@ -63,7 +63,7 @@ def parse(page: str):
                    for d in group if isinstance(d, dict) and "label" in d}
         addr, company, img = it.get("address") or {}, it.get("company") or {}, it.get("imagePath")
         wbs = str(details.get("WBS", "")).strip().lower()
-        yield Listing(
+        listing = Listing(
             source="inberlinwohnen",
             id=str(it["id"]),
             url=it.get("deeplink") or URL,
@@ -84,3 +84,7 @@ def parse(page: str):
             images=[f"https://www.inberlinwohnen.de/img/{img}"] if img else [],
             trusted=True,
         )
+        for key, signal in (("level", "floor"), ("levelsTotal", "floors")):  # level 0 = ground floor
+            if isinstance(it.get(key), int):
+                listing.signals[signal] = it[key]
+        yield listing

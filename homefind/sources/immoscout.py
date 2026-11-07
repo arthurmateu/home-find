@@ -93,6 +93,11 @@ class ImmoScout(Source):
         listing.signals["features"] = [label for key, label in
                                        (("obj_balcony", "balcony"), ("obj_hasKitchen", "fitted kitchen"),
                                         ("obj_lift", "lift"), ("obj_garden", "garden")) if a.get(key) == "y"]
+        for key, signal in (("obj_floor", "floor"), ("obj_numberOfFloors", "floors")):  # "0" = ground floor
+            if re.fullmatch(r"-?\d{1,2}", a.get(key) or ""):
+                listing.signals[signal] = int(a[key])
+        if a.get("obj_typeOfFlat") not in (None, "", "no_information", "other", "apartment"):
+            listing.signals["flat_type"] = a["obj_typeOfFlat"]  # ground_floor, roof_storey, half_basement, ...
 
         texts, attrs = [], {}
         for sec in d.get("sections", []):
