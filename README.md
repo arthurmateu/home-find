@@ -11,7 +11,7 @@ you (ImmoScout24 only, for now). Python 3.11+, standard library only (applying u
 
 | Source | Checked every | What it covers | How |
 |---|---|---|---|
-| `inberlinwohnen` | 60 min | All 6 municipal landlords (degewo, GESOBAU, Gewobag, HOWOGE, STADT UND LAND, WBM). Below-market rents, no scams. Many need a WBS. | Livewire JSON in the page |
+| `inberlinwohnen` | 60 min | All 6 municipal landlords (degewo, GESOBAU, Gewobag, HOWOGE, STADT UND LAND, WBM). Below-market rents, no scams. Many need a WBS. | Livewire JSON in the page; for candidates, the landlord's own ad for every photo and the text (inberlinwohnen has one photo and no text; HOWOGE and GESOBAU ads keep just that) |
 | `immoscout` | 15 min | ImmoScout24, the largest portal and where most matches come from; all of Berlin | The mobile app's API (the website blocks bots) |
 | `kleinanzeigen` | 60 min | Private landlords and Nachmieter ads; also the most scams; all of Berlin | HTML + detail page per candidate |
 | `wggesucht` | 60 min | Whole flats only, open-ended leases only; all of Berlin | HTML + detail page per candidate |

@@ -5,23 +5,130 @@ It is a Laravel Livewire app: each listing's data sits as JSON in a
 `wire:snapshot` attribute. Newest first, 10 per page, all of Berlin. Every
 `sweep_every_hours` the search goes through all pages (~50), which is how ads
 that were taken offline are found.
+
+It has one photo per flat and no description; the ad links to the landlord's
+own page, which has the rest (see SITES).
 """
 
 from __future__ import annotations
 
 import html
 import json
+import logging
 import re
+from typing import Callable, NamedTuple
+from urllib.parse import unquote, urljoin, urlsplit
 
 from ..models import Listing
-from ..util import num
+from ..util import num, text
 from . import Source
+
+log = logging.getLogger("homefind")
 
 URL = "https://www.inberlinwohnen.de/wohnungsfinder/"
 
 
+class Site(NamedTuple):
+    """A landlord's ad page: where its photos are, and which parts of its text are the
+    ad's own (a heading, up to where the next part starts; both whole lines of
+    util.text, as regexes), not the site's menus and boilerplate."""
+    photos: Callable[[str], list[str]]
+    sections: tuple[tuple[str, str], ...]
+
+
+def _unique(urls, base: str) -> list[str]:
+    return list(dict.fromkeys(urljoin(base, html.unescape(u)) for u in urls))
+
+
+def _gewobag_photos(page: str) -> list[str]:
+    gallery = re.findall(r'<a href="([^"]+/gewo-immo-media/[^"]+\.(?:jpe?g|png|gif|webp))"[^>]*js-gallery-link', page)
+    plan = re.findall(r'<img src="([^"]+/gewo-immo-media/[^"]+)" alt="Grundriss"', page)
+    return _unique(gallery + plan, "https://www.gewobag.de/")
+
+
+def _degewo_photos(page: str) -> list[str]:
+    # Each photo comes in a dozen sizes (TYPO3's csm_<name>_<hash>), the largest first.
+    largest: dict[str, str] = {}
+    for m in re.finditer(r'(/fileadmin/user_upload/tx_openimmo/_processed_/[^"\s]*?/csm_([^"/\s]+?)_[0-9a-f]{10}\.(?:jpe?g|png))', page):
+        largest.setdefault(m.group(2), m.group(1))
+    return _unique(largest.values(), "https://www.degewo.de/")
+
+
+def _wbm_photos(page: str) -> list[str]:
+    return _unique(re.findall(r'(?:https://www\.wbm\.de)?(/fileadmin/user_upload/tx_openimmo/connection-\d+/images/[^"\s]+?\.(?:jpe?g|png))', page),
+                   "https://www.wbm.de/")
+
+
+def _stadtundland_photos(page: str) -> list[str]:
+    # Hosted by Wohnungshelden, and only in Next.js' resizer's URLs: url=https%3A%2F%2F...
+    return _unique(re.findall(r'https://[\w.-]+/wohnungshelden/[\w-]+\.(?:jpe?g|png|webp)', unquote(page)), "https://stadtundland.de/")
+
+
+def _berlinovo_photos(page: str) -> list[str]:
+    return _unique(re.findall(r'"(/sites/default/files/styles/object_details_main/public/images/wohnungen/[^"]+)"', page),
+                   "https://www.berlinovo.de/")
+
+
+# By host. HOWOGE (its site was down when this was written) and GESOBAU (no ad of theirs
+# was online) aren't here: their flats keep inberlinwohnen's one photo.
+SITES = {
+    "www.gewobag.de": Site(_gewobag_photos, (("Merkmale", "Energieausweisdaten"), ("Objektbeschreibung", "Sonstiges$"))),
+    # Lage, a longer Ausstattung and Wichtige Hinweise come after a map; some ads have no Lage.
+    "www.degewo.de": Site(_degewo_photos, (("Ausstattung", "Adresse:"), ("Lage|Ausstattung", "Vermietung$"))),
+    "www.wbm.de": Site(_wbm_photos, (("Wohnungsdetails", "Mietkosten"), ("Merkmale", "Grundriss"))),
+    "stadtundland.de": Site(_stadtundland_photos, (("Sonstige Informationen", "Kontakt aufnehmen"),)),
+    "www.berlinovo.de": Site(_berlinovo_photos, (("Objektnummer", "Vermietungsanfrage"),)),
+}
+
+
+def _site(listing: Listing) -> Site | None:
+    return SITES.get(urlsplit(listing.url).hostname or "")
+
+
+def _sections(page: str, sections) -> str:
+    lines, parts, at = text(page).split("\n"), [], 0
+    for start, end in sections:
+        first = next((i for i in range(at, len(lines)) if re.fullmatch(start, lines[i])), None)
+        if first is None:
+            continue
+        last = next((i for i in range(first + 1, len(lines)) if re.match(end, lines[i])), len(lines))
+        parts += lines[first:last]
+        at = last
+    return "\n".join(parts)
+
+
+def fill_in(listing: Listing, page: str) -> bool:
+    """Takes the photos and the ad's text from the landlord's page, when its site is
+    one SITES knows and the page has them. Says whether it found either."""
+    site = _site(listing)
+    if not site:
+        return False
+    photos, description = site.photos(page), _sections(page, site.sections)
+    if photos:
+        listing.images, listing.image_url, listing.photos = photos, photos[0], len(photos)
+    if description:
+        listing.description = description
+    return bool(photos or description)
+
+
 class InBerlinWohnen(Source):
     name = "inberlinwohnen"
+    needs_enrich = True  # the landlord's page, for the photos and the text
+
+    def enrich(self, listing: Listing) -> Listing:
+        """Never fails: if the landlord's site is down or blocks us, the listing keeps what
+        inberlinwohnen shows (one photo, no text), rather than waiting for it."""
+        if not _site(listing):
+            return listing
+        try:
+            page = self.http.get(listing.url)
+        except Exception as e:  # noqa: BLE001 - Blocked included: it's the landlord's site, not inberlinwohnen
+            log.warning("inberlinwohnen: could not load the landlord's page %s (%s); keeping its one photo",
+                        listing.url, e)
+            return listing
+        if not fill_in(listing, page):
+            log.warning("inberlinwohnen: found no photos or text on %s (has the page changed?)", listing.url)
+        return listing
 
     def search(self, seen):
         keys, total = set(), None

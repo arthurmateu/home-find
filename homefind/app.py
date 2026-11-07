@@ -348,7 +348,9 @@ def recheck(cfg: dict, store: Store) -> tuple[int, int, int]:
     rows = list(store.all_rows())
     for row in rows:
         listing, old = row.listing, row.verdict
-        complete = listing.source not in needs_enrich or listing.signals.get("enriched")
+        # A match was loaded in full when it was stored, or stored before its source had detail
+        # pages to load (inberlinwohnen's before Nov 2026): either way, there's nothing to fetch again.
+        complete = listing.source not in needs_enrich or listing.signals.get("enriched") or old.ok
         verdict = evaluate(listing, cfg, final=bool(complete))
         if verdict.ok and not complete and not (row.status or row.gone):
             store.forget(listing.key)
