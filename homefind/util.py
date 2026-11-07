@@ -97,13 +97,13 @@ def warm_from_text(s: str | None) -> float | None:
     return None
 
 
-_UNITS = {"minute": 1 / 60, "stunde": 1, "tag": 24, "woche": 24 * 7, "monat": 24 * 30}
+_UNITS = {"minute": 1 / 60, "min": 1 / 60, "stunde": 1, "std": 1, "tag": 24, "woche": 24 * 7, "monat": 24 * 30}
 
 
 def parse_published(value, reference: str | None = None):
     """When a listing went online, as a local naive datetime. Understands ISO
     timestamps ('...Z' = UTC), '18.09.2026', and relative German phrases such as
-    'vor 2 Stunden' / 'Online: 11 Stunden', counted back from `reference` (when
+    'vor 2 Stunden' / 'Online: 11 Stunden' / '5 Min.', counted back from `reference` (when
     we fetched it, ISO)."""
     from datetime import datetime, timedelta, timezone
 
@@ -121,7 +121,7 @@ def parse_published(value, reference: str | None = None):
     if m:  # date only: assume midday, but never later than when we saw it
         dt = datetime(int(m.group(3)), int(m.group(2)), int(m.group(1)), 12)
         return min(dt, ref)
-    m = re.search(r"(\d+|eine[mnr]?|ein)\s+(minute|stunde|tag|woche|monat)", value.lower())
+    m = re.search(r"(\d+|eine[mnr]?|ein)\s+(minute|min\b|stunde|std\b|tag|woche|monat)", value.lower())
     if m:
         count = 1 if m.group(1).startswith("ein") else int(m.group(1))
         return ref - timedelta(hours=count * _UNITS[m.group(2)])

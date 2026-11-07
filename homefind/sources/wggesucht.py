@@ -5,6 +5,7 @@ It rate-limits aggressively, so this source loads one result page per run.
 
 from __future__ import annotations
 
+import html
 import re
 from urllib.parse import urlencode
 
@@ -13,6 +14,7 @@ from ..util import berlin_zip, num, text
 from . import Source
 
 BASE = "https://www.wg-gesucht.de"
+LIST_PAGE = "1-zimmer-wohnungen-und-wohnungen-in-Berlin.8.1+2.1.0.html"  # 1-Zimmer-Wohnungen + Wohnungen
 DESCRIPTION_END = re.compile(r"^(Benötigte Unterlagen|Angaben zum Objekt|Statistiken|Kontakt)")
 DEACTIVATED = re.compile(r"Diese Anzeige ist (momentan )?deaktiviert|Die Anzeige in [^<]{0,200} ist deaktiviert")
 MONTHS = ["januar", "februar", "märz", "april", "mai", "juni", "juli", "august", "september", "oktober",
@@ -31,41 +33,49 @@ class WgGesucht(Source):
                   # WG-Gesucht filters on total rent; leave room for near misses (cold rent in range).
                   ("rMax", str(int(self.fetch_cap * 1.3 if self.near_miss else self.fetch_cap)))]
         params += [("ot[]", str(d)) for d in self.opts.get("districts", [126])]
-        yield from self._parse_list(self.http.get(f"{BASE}/wohnungen-in-Berlin.8.2.1.0.html?{urlencode(params)}"))
+        yield from self._parse_list(self.http.get(f"{BASE}/{LIST_PAGE}?{urlencode(params)}"))
 
     def _parse_list(self, page: str):
         # Below the real results WG-Gesucht shows rotating promos from all of Berlin.
         page = page.split("Weitere Angebote von verifizierten", 1)[0]
-        for chunk in page.split('class="wgg_card offer_list_item')[1:]:
-            head = chunk[:400]
-            if "data-url=" in head:  # partner ads (Wunderflats, HousingAnywhere, ...): furnished, temporary
+        # Each ad is a link: <a id="liste-details-ad-123" class="wgg-list-card ..." href="..." aria-label="title">
+        for card in re.split(r'(?=<a\s+id="liste-details-ad-)', page)[1:]:
+            head = re.match(r"<a\s[^>]*>", card).group(0)
+            if "data-campaign_partner=" in head or "data-url=" in head:  # partner ads (Wunderflats, HousingAnywhere, ...): furnished, temporary
                 continue
-            link = re.search(r'href="(/[\w-]*wohnungen-in-[\w.-]+?\.(\d+)\.html)"', chunk)
+            link = re.search(r'href="(/[\w-]*wohnungen-in-[\w.-]+?\.(\d+)\.html)"', head)
             if not link:
                 continue
-            chunk = chunk[:10000]
-            lines = text(chunk).split("\n")
-            h2 = re.search(r'class="truncate_title[^"]*"[^>]*>(.*?)</h\d>', chunk, re.S)
-            info = next((x for x in lines if "|" in x and "Zimmer" in x), "")
-            parts = [p.strip() for p in info.split("|")]
-            price = next((x for x in lines if re.fullmatch(r"\d[\d.]*\s*€", x)), None)
-            size = next((x for x in lines if re.fullmatch(r"\d+\s*m²", x)), None)
+            title = re.search(r'aria-label="([^"]*)"', head)
+            photo = re.search(r'data-src="(https://img\.wg-gesucht\.de/[^"]+)"', card[:5000])
+            # The text, without the photo slider: "Privat", "1150 € pro Monat", the title,
+            # "3-Zimmer-Wohnung · Berlin Kreuzberg · Urbanstraße 30", "68 m²", "01.02.2027",
+            # "Name Online: 1 Std.", then most of it again.
+            body = re.sub(r'<div class="wgg_card_slider.*?</div>\s*</div>\s*</div>', "", card[:20000], flags=re.S)
+            lines = text(body).split("\n")
+            parts = [p.strip() for p in next((x for x in lines if " · " in x), "").split(" · ")]
+            rooms = re.match(r"([\d,.]+)-Zimmer", parts[0])
+            price = next((x for x in lines if re.fullmatch(r"[\d.]+\s*€ pro Monat", x)), None)
+            size = next((x for x in lines if re.fullmatch(r"[\d.,]+\s*m²", x)), None)
             dates = next((x for x in lines if re.match(r"\d{2}\.\d{2}\.\d{4}", x)), "")
             listing = Listing(
                 source=self.name,
                 id=link.group(2),
                 url=BASE + link.group(1),
-                title=text(h2.group(1)) if h2 else "",
+                title=html.unescape(title.group(1)).strip() if title else "",
                 warm_rent=num(price),  # WG-Gesucht shows the total rent
                 size_sqm=num(size),
-                rooms=num(parts[0]) if parts and parts[0] else None,
+                rooms=num(rooms.group(1)) if rooms else None,
                 district=parts[1].replace("Berlin", "").strip() or None if len(parts) > 1 else None,
                 address=parts[2] if len(parts) > 2 else None,
                 available_from=dates[:10] or None,
+                image_url=photo.group(1) if photo else None,
             )
             if " - " in dates:
                 listing.signals["temporary"] = True
-            online = re.search(r"Online:\s*([^\n|]{1,25})", "\n".join(lines))
+            if lines and lines[0].startswith(("Privat", "Unternehmen")):
+                listing.private = lines[0].startswith("Privat")
+            online = re.search(r"Online:\s*(?:update\s*)?([^\n]{1,25})", "\n".join(lines))  # "update" is an icon
             if online:
                 listing.published = online.group(1).strip()
             yield listing
