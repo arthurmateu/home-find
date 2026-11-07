@@ -339,14 +339,16 @@ def check_offline(cfg: dict, store: Store, http, notifier: Notifier) -> None:
 def recheck(cfg: dict, store: Store) -> tuple[int, int, int]:
     """Re-apply the rules to every stored listing, offline. Listings that now
     pass but were rejected before their detail page was loaded are dropped, so
-    the next run fetches them properly."""
+    the next run fetches them properly; unless you applied to or hid them, or
+    they're offline (no next run would bring them back): those just get the new verdict."""
     needs_enrich = {s.name for s in enabled_sources(cfg, None) if s.needs_enrich}
     changed = dropped = 0
-    rows = store.matches(100_000) + store.rejected(100_000)
-    for listing, old, *_ in rows:
+    rows = list(store.all_rows())
+    for row in rows:
+        listing, old = row.listing, row.verdict
         complete = listing.source not in needs_enrich or listing.signals.get("enriched")
         verdict = evaluate(listing, cfg, final=bool(complete))
-        if verdict.ok and not complete:
+        if verdict.ok and not complete and not (row.status or row.gone):
             store.forget(listing.key)
             dropped += 1
         elif verdict.to_dict() != old.to_dict():
