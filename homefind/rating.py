@@ -1,4 +1,5 @@
-"""A 0-100 score for which listing to look at first.
+"""A score for which listing to look at first: 0-100 for the basics, and the
+bonuses (floor, quiet side, [bonus] places, what's nearby) can take it past 100.
 
 Computed whenever it's shown (freshness changes by the hour), for rejected
 listings too: a flat that's great apart from being 5 % over budget still
@@ -264,7 +265,7 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
     if _has(r"souterrain|tiefparterre|kellerwohnung", text) or (floor or 0) < 0:
         parts.append((-5, "semi-basement (Souterrain)"))
 
-    score = round(_clamp(sum(p for p, _ in parts), 0, 100))
+    score = max(0, round(sum(p for p, _ in parts)))  # no ceiling: "Why 112?" adds up, and the best stay in order
     return score, [p for p in parts if p[0] != 0 or p[1].startswith(("posted", "first seen"))]
 
 

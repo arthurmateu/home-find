@@ -574,7 +574,7 @@ function card(l) {
                    : `<p class="desc-none">No description here${l.source === "inberlinwohnen" ? "; the landlord's page has the details" : ""}.</p>`);
   return `<article class="card${l.ok ? "" : " rejected"}${gone ? " gone" : ""}${fav ? " fav" : ""}" data-key="${esc(l.key)}">
     <div class="media">${media}<div class="badges">${badges}</div>
-      <span class="score ${l.band}" title="Score ${l.score}/100 (${l.band})">${l.score}</span></div>
+      <span class="score ${l.band}" title="Score ${l.score} (${l.band})">${l.score}</span></div>
     <div class="body">
       <div class="price">${esc(l.headline)}</div>
       <a class="title" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || l.url)}</a>

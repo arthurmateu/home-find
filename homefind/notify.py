@@ -60,7 +60,7 @@ class Notifier:
         body += [f"⚠ {f}" for f in verdict.flags]
         body += [f"· {n}" for n in verdict.notes]
         body.append(f"via {listing.source}")
-        title = headline(listing, verdict) if score is None else f"{score}/100 · {headline(listing, verdict)}"
+        title = headline(listing, verdict) if score is None else f"{score} pts · {headline(listing, verdict)}"
         return self.push(title, "\n".join(body), listing.url,
                          image=listing.image_url, warn=bool(verdict.flags))
 
