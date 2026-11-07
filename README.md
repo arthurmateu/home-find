@@ -127,7 +127,8 @@ Only one instance runs at a time; after a reboot, start it again.
 - **Score (0–100)** on every listing, rejected ones included, sorted best
   first (or newest / date applied / cheapest / largest). "Why 74?" shows the points:
   value for money (warm €/m²) 35 · budget fit 15 (negative when over) ·
-  size 20 + rooms 5 · freshness 10 (the first hours after posting count most) ·
+  size 20 (25 m² none, 70 m² and up all) + rooms 10 (2 or more; 1.5
+  rooms 4, 1 room none) · freshness 10 (the first hours after posting count most) ·
   photos / verified or municipal landlord / description 10 · balcony 5,
   kitchen, lift, Altbau, garden up to 10 · not on the ground floor 3 (the
   floor the portal states, else the one the ad's text names; "Why" says

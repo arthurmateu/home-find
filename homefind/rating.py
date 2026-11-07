@@ -6,7 +6,7 @@ scores well, so it stands out on the Rejected tab. Hard rejections (swap, WBS,
 ...) don't lower the score; they're shown separately.
 
 Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over; streets in
-         street_max_warm_rent have their own budget, and their €/m² count for less to match) · size 20 + rooms 5 ·
+         street_max_warm_rent have their own budget, and their €/m² count for less to match) · size 20 + rooms 10 (2+; 1.5 gets 4) ·
          freshness 10 · photos / trusted landlord / description 10 ·
          features (balcony 5, kitchen, ...) up to 10 · not on the ground floor 3 ·
          where it is ([bonus] in config.toml): the old area 5 · a street you like 4 ·
@@ -158,7 +158,7 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
     if size:
         parts.append((round(20 * _clamp((size - 25) / 45)), f"{size:g} m²"))
     if listing.rooms and listing.rooms >= 1.5:
-        parts.append((5 if listing.rooms >= 2 else 2, f"{listing.rooms:g} rooms"))
+        parts.append((10 if listing.rooms >= 2 else 4, f"{listing.rooms:g} rooms"))  # 2+ is what you want
 
     # freshness: the first hours after posting are when you still get a viewing
     posted = parse_published(listing.published, first_seen)
