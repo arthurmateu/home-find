@@ -171,7 +171,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "notes": verdict.notes,
             "score": score,
             "band": band(score),
-            "why": [[p, label] for p, label in parts],
+            "why": [list(p) for p in parts],  # [points, label, chip]
             "warm": verdict.warm or listing.warm_rent,
             "size": listing.size_sqm,
             "posted": (posted.isoformat(timespec="seconds") if posted else first_seen),

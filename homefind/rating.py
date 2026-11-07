@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from typing import NamedTuple
 
 from . import nearby
 from .models import Listing
@@ -72,6 +73,14 @@ COURTYARD = re.compile(
     r"|gelegen|lage)\s+(\w+\s+){0,3}(zum|zur|in den|richtung)\s+(ruhigen\s+)?(innen|garten)?(hof|hofseite|gartenseite)\b"
     r"|hofseitig\w*|\bzur hofseite|ruhige[nr]? (innen)?hoflage|\b(hof|garten)seitige[nrs]?\b"
     r"|(facing|overlooks?|overlooking|towards?) the (inner |quiet )?(court)?yard|courtyard[- ]facing|rear building", re.I)
+
+
+class Part(NamedTuple):
+    """A line under a score. `chip`: how it reads on the card, under "Nice extras" (or under
+    "Heads up", when it costs points); empty for the price, size, freshness and the like."""
+    points: int
+    label: str
+    chip: str = ""
 
 
 def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -154,8 +163,8 @@ def spot(listing: Listing, place: dict | None) -> tuple[float, float] | None:
 
 
 def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
-         now: datetime | None = None, place: dict | None = None) -> tuple[int, list[tuple[int, str]]]:
-    """Returns (score, [(points, reason), ...]). `place` is geo.locate's for the listing."""
+         now: datetime | None = None, place: dict | None = None) -> tuple[int, list[Part]]:
+    """Returns (score, [Part(points, reason, chip), ...]). `place` is geo.locate's for the listing."""
     now = now or datetime.now()
     s, sig = cfg["search"], listing.signals
     parts: list[tuple[int, str]] = []
@@ -205,9 +214,9 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
     if photos:
         parts.append((5 if photos >= 8 else 4 if photos >= 4 else 2 if photos >= 2 else 0, f"{photos} photo{'s' * (photos > 1)}"))
     if listing.trusted:
-        parts.append((4, "municipal / co-op landlord"))
+        parts.append((4, "municipal / co-op landlord", "municipal / co-op landlord"))
     elif sig.get("verified_landlord"):
-        parts.append((3, "verified landlord"))
+        parts.append((3, "verified landlord"))  # its chip is the verdict's note
     if len(listing.description or "") > 300:
         parts.append((1, "detailed description"))
 
@@ -217,14 +226,14 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
     budget = MAX_FEATURES
     for p, label in found:
         if budget > 0:
-            parts.append((min(p, budget), label))
+            parts.append((min(p, budget), label, label))
             budget -= p
     floor, floor_label = storey(listing)
     if floor and floor > 0:
-        parts.append((UPPER_FLOOR, floor_label))
+        parts.append((UPPER_FLOOR, floor_label, floor_label.split(" (")[0]))
     quiet = quiet_side(listing)
     if quiet:
-        parts.append((QUIET, quiet))
+        parts.append((QUIET, quiet, quiet.split(":")[0]))  # "Hinterhaus", "faces the courtyard"
 
     # where it is ([bonus] in the config)
     bonus = cfg.get("bonus") or {}
@@ -237,16 +246,17 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
     if at:
         rail = nearby.walk(cfg, *at, ("U", "S"), RAIL_MINUTES)
         if rail:
-            parts.append((RAIL, f"{rail[1]}, {rail[0]} min walk"))
+            parts.append((RAIL, f"{rail[1]}, {rail[0]} min walk", f"{rail[1]} {rail[0]} min"))
         stop = nearby.walk(cfg, *at, ("bus", "tram"), STOP_MINUTES)
         if stop:
-            parts.append((STOP, f"{stop[2]} stop {stop[1]}, {stop[0]} min walk".replace("  ", " ")))
+            parts.append((STOP, f"{stop[2]} stop {stop[1]}, {stop[0]} min walk".replace("  ", " "),
+                          f"{stop[2]} stop {stop[0]} min"))
         shop = nearby.walk(cfg, *at, ("supermarket",), SHOP_MINUTES)
         if shop:
-            parts.append((SHOP, f"supermarket {shop[1]}, {shop[0]} min walk".replace("  ", " ")))
+            parts.append((SHOP, f"supermarket {shop[1]}, {shop[0]} min walk".replace("  ", " "), f"supermarket {shop[0]} min"))
         green = nearby.walk(cfg, *at, ("green",), GREEN_MINUTES)
         if green:
-            parts.append((GREEN, f"{green[1]}, {green[0]} min walk"))
+            parts.append((GREEN, f"{green[1]}, {green[0]} min walk", f"{green[1]} {green[0]} min"))
     # kilometres are fine by the postcode's middle too, if that's all there is ("~")
     rough = None if at or not place else (place["lat"], place["lon"])
     for daily in bonus.get("daily", []) if at or rough else []:
@@ -263,10 +273,10 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
     if any("estimated" in n for n in verdict.notes):
         parts.append((-2, "warm rent is an estimate"))
     if _has(r"souterrain|tiefparterre|kellerwohnung", text) or (floor or 0) < 0:
-        parts.append((-5, "semi-basement (Souterrain)"))
+        parts.append((-5, "semi-basement (Souterrain)", "semi-basement"))
 
-    score = max(0, round(sum(p for p, _ in parts)))  # no ceiling: the points under a score add up, and the best stay in order
-    return score, [p for p in parts if p[0] != 0 or p[1].startswith(("posted", "first seen"))]
+    score = max(0, round(sum(p[0] for p in parts)))  # no ceiling: the points under a score add up, and the best stay in order
+    return score, [Part(*p) for p in parts if p[0] != 0 or p[1].startswith(("posted", "first seen"))]
 
 
 def band(score: int) -> str:

@@ -155,6 +155,15 @@ Only one instance runs at a time; after a reboot, start it again.
   stops, supermarkets and parks come from OpenStreetMap (Overpass API), for all of Berlin, into
   `data/nearby.json`: fetched by the mini-map's background thread (or
   `--geocode`) and again once a month.
+- **Notes** on a card, summed up in rows (hover a chip for the full text):
+  **⚠ Watch out**, the scam signs (see Filtering); **Heads up**, what to
+  know before going for it (fewer rooms than wanted, Nachmieter, Ablöse, an
+  estimated warm rent, furnished, semi-basement, ...); **Nice extras**, what
+  the score gives points for besides price and size (balcony, kitchen, lift,
+  Altbau, garden, the floor, the quiet side, what's within walking distance,
+  a verified or municipal landlord) and ImmoScout Plus-only for now (fewer
+  can apply); **Good to know**, the rest (private landlord, a street's own
+  budget, on another site first, ...).
 - **Over budget (warm ≤ 1200 €)** (a reason under Rejected) = everything fine
   except the warm rent is over `max_warm_rent` (982 €), but within
   `stretch_warm_rent` (1200 €, the most you'd pay); that's why the sources
@@ -168,8 +177,8 @@ Only one instance runs at a time; after a reboot, start it again.
   (`edge_zip_codes`): fine, but not a match. Loaded in full, like a match.
 - **Too few rooms** = under `min_rooms` (1). The searches don't filter on
   rooms, so these do show up. Flats with fewer than `wanted_rooms` (2), so 1
-  or 1.5 rooms, are matches, with "heads-up: only 1 room" on the card and in
-  the push; the score gives them no points for rooms (2+ get 10).
+  or 1.5 rooms, are matches, with "only 1 room" under Heads up on the card
+  ("heads-up: only 1 room" in the push); the score gives them no points for rooms (2+ get 10).
 - WG rooms, senior housing, swap offers, WBS-only flats and anything outside
   the area and its edge don't show up at all (`drop_reasons` in
   `config.toml`).

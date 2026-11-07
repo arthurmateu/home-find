@@ -10,13 +10,13 @@
 :root {
   --bg: #f6f6f3; --card: #fff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e3e3de; --chip: #f0f0ec;
   --accent: #1f6f5c; --accent-ink: #fff; --warn: #a2560c; --warn-bg: #fdf1e3; --bad: #a3322a; --bad-bg: #fbeceb;
-  --fav: #6e56cf; --fav-ink: #fff;
+  --fav: #6e56cf; --fav-ink: #fff; --nice-bg: #e6f2ee;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #141413; --card: #1e1e1c; --ink: #ececE8; --muted: #9a9a93; --line: #33332f; --chip: #2a2a27;
     --accent: #6fc2a9; --accent-ink: #0d2a22; --warn: #f0b36b; --warn-bg: #3a2a17; --bad: #f19a92; --bad-bg: #3a1d1b;
-    --fav: #b4a5ff; --fav-ink: #1f1640;
+    --fav: #b4a5ff; --fav-ink: #1f1640; --nice-bg: #1b2e28;
   }
 }
 * { box-sizing: border-box; }
@@ -140,6 +140,12 @@ main { padding-top: 18px; padding-bottom: 80px; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--chip); color: var(--muted); }
 .chip.warn { background: var(--warn-bg); color: var(--warn); }
+.chip.heads { color: var(--ink); }
+.chip.nice { background: var(--nice-bg); color: var(--accent); }
+/* The notes, summed up: a row per group, its name beside its chips. */
+.notes { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 8px; align-items: baseline; }
+.notes .group { font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.notes .group.warn { color: var(--warn); }
 .desc-toggle { align-self: flex-start; appearance: none; border: 0; background: none; color: var(--accent); font: inherit;
                font-size: 14px; font-weight: 600; padding: 2px 0; cursor: pointer; }
 .desc { white-space: pre-line; font-size: 14px; max-height: 360px; overflow: auto; border-left: 3px solid var(--line); padding-left: 10px; }
@@ -481,7 +487,24 @@ function shortNote(t) {
   if (t.startsWith("Nachmieter ad")) return "Nachmieter";
   if (t.startsWith("same rent/size/postcode as")) return "repost";
   if (/^new on \w+, same rent\/size\/postcode as/.test(t)) return "on another site first";
+  if (t.startsWith("heads-up: ")) return t.slice(10);  // it's under Heads up
+  if (t === "identity-verified landlord") return "verified landlord";
   return tidy(t);
+}
+// The notes on a card, summed up: the scam signs, what to know before going for it, what it has going
+// for it besides price and size (the score's chips, see rating.Part), and the rest. [name, chip class,
+// [[short, full], ...]], each group that has something.
+const HEADS_UP = /^(heads-up|Nachmieter|asks for Ablöse|warm rent estimated|furnished|partly furnished|WBS|co-op)/;
+const NICE = /^(ImmoScout Plus|identity-verified)/;  // Plus members only: fewer can apply, and you're one
+function noteGroups(l) {
+  const watch = l.flags.map((f) => [tidy(f), f]), heads = [], nice = [], info = [];
+  for (const [p, t, c] of l.why) if (c) (p > 0 ? nice : heads).push([c, t]);
+  for (const t of l.notes) {  // same as an ad that's on this card: no news
+    if (l.ads.some((a) => t.endsWith(`same rent/size/postcode as ${a.url}`))) continue;
+    (HEADS_UP.test(t) ? heads : NICE.test(t) ? nice : info).push([shortNote(t), t]);
+  }
+  return [["⚠ Watch out", "warn", watch], ["Heads up", "heads", heads], ["Nice extras", "nice", nice], ["Good to know", "", info]]
+    .map(([name, cls, items]) => [name, cls, items.filter(([short]) => short)]).filter(([, , items]) => items.length);
 }
 // The day you applied (no day on ones marked before that was kept), on Applied and on ones hidden after applying.
 // "Auto-applied": homefind sent it by itself.
@@ -562,9 +585,9 @@ function card(l) {
                  (applied || (l.status === "hidden" && wasApplied(l)) ? appliedBadge(l) : "") +
                  (gone ? `<span class="badge gone" title="Ad ${esc(gone.toLowerCase())}, noticed ${esc(when(l.gone_at))}. ` +
                          `Moves back by itself if it comes online again.">${esc(gone)} ${esc(day(l.gone_at))}</span>` : "");
-  const chips = [...l.flags.map((f) => chip(" warn", "⚠ " + tidy(f), f)),  // same as an ad that's on this card: no news
-                 ...l.notes.filter((t) => !l.ads.some((a) => t.endsWith(`same rent/size/postcode as ${a.url}`)))
-                   .map((t) => chip("", shortNote(t), t))].join("");
+  const notes = noteGroups(l).map(([name, cls, items]) =>
+    `<span class="group${cls === "warn" ? " warn" : ""}">${name}</span>` +
+    `<div class="chips">${items.map(([short, full]) => chip(cls && " " + cls, short, full)).join("")}</div>`).join("");
   const sites = l.ads.length ? `\nThe same flat on ${l.ads.map((a) => sourceName(a.source)).join(" and ")} ` +
                                `(same rent, size and postcode): ▾ next to Open has each one` : "";
   const open = state.expandAll || openDesc.has(l.key);
@@ -585,7 +608,7 @@ function card(l) {
       <div class="meta">${where(l)}<span title="${esc((l.landlord || "") + sites)}">${esc(adsOf(l).map((a) => a.source).join(" + "))}</span> · seen ${esc(when(l.first_seen))}</div>
       ${gone && applied && l.hide_at ? `<p class="offline">⊘ Offline: moves to Hidden ${esc(when(l.hide_at))}</p>` : ""}
       ${l.ok ? "" : `<p class="reasons" title="${esc(l.reasons.join("; "))}">✗ ${esc(l.reasons.map(shortReason).join(" · "))}</p>`}
-      ${chips ? `<div class="chips">${chips}</div>` : ""}
+      ${notes ? `<div class="notes">${notes}</div>` : ""}
       ${desc}
       ${applyNote(l)}
       <div class="actions">
