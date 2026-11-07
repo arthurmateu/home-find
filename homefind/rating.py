@@ -11,7 +11,7 @@ Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over; stre
          features (balcony 5, kitchen, ...) up to 10 · not on the ground floor 3 ·
          where it is ([bonus] in config.toml): the old area 5 · a street you like 4 ·
          U/S-Bahn within 5 min on foot 4 · bus/tram stop within 2 min 2 ·
-         supermarket within 5 min 10 (nearby.py),
+         supermarket within 5 min 10 · park or water within 5 min 3 (nearby.py),
          minus: scam signs (8 per point), Ablöse, estimated rent, semi-basement.
 IS24 Plus-only listings aren't marked down: you're a Plus member.
 """
@@ -40,6 +40,7 @@ BIG_STREET = 4   # [bonus] streets
 RAIL, RAIL_MINUTES = 4, 5  # a U-Bahn or S-Bahn station at most this many minutes' walk away
 STOP, STOP_MINUTES = 2, 2  # a bus or tram stop
 SHOP, SHOP_MINUTES = 10, 5  # a supermarket: worth a lot to you
+GREEN, GREEN_MINUTES = 3, 5  # a park, woods, a lake or the river
 BANDS = [(75, "great"), (60, "good"), (45, "ok"), (0, "weak")]
 
 # The floor in the ad's text, when the portal doesn't say: "im 3. OG", "Etage: 2", "zweite Etage",
@@ -217,6 +218,9 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
         shop = nearby.walk(cfg, *at, ("supermarket",), SHOP_MINUTES)
         if shop:
             parts.append((SHOP, f"supermarket {shop[1]}, {shop[0]} min walk".replace("  ", " ")))
+        green = nearby.walk(cfg, *at, ("green",), GREEN_MINUTES)
+        if green:
+            parts.append((GREEN, f"{green[1]}, {green[0]} min walk"))
 
     # minus
     if verdict.score:

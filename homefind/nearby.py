@@ -1,5 +1,5 @@
 """What's near a flat, for the score: U-Bahn and S-Bahn stations (and their
-entrances), bus and tram stops, supermarkets. From OpenStreetMap, through the Overpass API:
+entrances), bus and tram stops, supermarkets, parks, woods and water. From OpenStreetMap, through the Overpass API:
 each layer is fetched for all of Berlin into data/nearby.json, and again once
 it's REFRESH_DAYS old, by the web UI's map thread (geo.start) or --geocode.
 Until a layer is there, the score just leaves it out.
@@ -28,6 +28,7 @@ DETOUR, WALK_M_PER_MIN = 1.3, 80  # 4.8 km/h
 M_PER_DEG = 111_320               # metres per degree of latitude
 LON_SCALE = math.cos(math.radians(52.5))  # ... and of longitude, in Berlin
 CELL = 300                        # grid cells, in metres
+EDGE_STEP = 50                    # a park's edge, as points this far apart
 
 
 def _station(name: str) -> str:
@@ -72,6 +73,27 @@ def _shops(elements: list[dict]) -> list[list]:
     return out
 
 
+def _green(elements: list[dict]) -> list[list]:
+    """Parks, woods and lakes that are named and over 800 m round, rivers and the Landwehrkanal
+    (the query sees to that), as points every EDGE_STEP metres along their edges, so a flat by
+    Tiergarten is by it, not 1 km from its middle: ["green", lat, lon, name]."""
+    out, seen = [], set()
+    for e in elements:
+        name = (e.get("tags") or {}).get("name")
+        if not name:
+            continue
+        for line in [e.get("geometry") or [], *((m.get("geometry") or []) for m in e.get("members") or [])]:
+            for a, b in zip(line, line[1:]):
+                dy, dx = b["lat"] - a["lat"], b["lon"] - a["lon"]
+                steps = max(1, math.ceil(math.hypot(dy * M_PER_DEG, dx * M_PER_DEG * LON_SCALE) / EDGE_STEP))
+                for k in range(steps):
+                    lat, lon = round(a["lat"] + dy * k / steps, 5), round(a["lon"] + dx * k / steps, 5)
+                    if (lat, lon, name) not in seen:
+                        seen.add((lat, lon, name))
+                        out.append(["green", lat, lon, name])
+    return out
+
+
 # Layer name -> (Overpass query for Berlin, parser); each one is fetched and kept on its own.
 LAYERS = {
     "stops": ("""(
@@ -81,6 +103,13 @@ LAYERS = {
   node["railway"="tram_stop"](area.b);
 ); out center tags;""", _stops),
     "shops": ("""nwr["shop"="supermarket"](area.b); out center tags;""", _shops),
+    "green": ("""(
+  wr["leisure"="park"]["name"](if: length() > 800)(area.b);
+  wr["landuse"="forest"]["name"](if: length() > 800)(area.b);
+  wr["natural"~"^(wood|water)$"]["name"](if: length() > 800)(area.b);
+  way["waterway"="river"]["name"](area.b);
+  way["waterway"="canal"]["name"="Landwehrkanal"](area.b);
+); out geom;""", _green),
 }
 
 
