@@ -128,8 +128,8 @@ Only one instance runs at a time; after a reboot, start it again.
   first (or newest / date applied / cheapest / largest). "Why 74?" shows the points:
   value for money (warm €/m²) 35 · budget fit 15 (negative when over) ·
   size 20 + rooms 5 · freshness 10 (the first hours after posting count most) ·
-  photos / verified or municipal landlord / description 10 · balcony,
-  kitchen, lift, Altbau, garden up to 8 · not on the ground floor 3 (the
+  photos / verified or municipal landlord / description 10 · balcony 5,
+  kitchen, lift, Altbau, garden up to 10 · not on the ground floor 3 (the
   floor the portal states, else the one the ad's text names; "Why" says
   which); minus scam signs, Ablöse, an estimated warm rent, semi-basement. ImmoScout Plus-only listings aren't
   marked down (you're a member). Tune it in `homefind/rating.py`. Push

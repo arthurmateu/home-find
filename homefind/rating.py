@@ -8,7 +8,7 @@ scores well, so it stands out on the Rejected tab. Hard rejections (swap, WBS,
 Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over; streets in
          street_max_warm_rent have their own budget, and their €/m² count for less to match) · size 20 + rooms 5 ·
          freshness 10 · photos / trusted landlord / description 10 ·
-         features (balcony, kitchen, ...) up to 8 · not on the ground floor 3,
+         features (balcony 5, kitchen, ...) up to 10 · not on the ground floor 3,
          minus: scam signs (8 per point), Ablöse, estimated rent, semi-basement.
 IS24 Plus-only listings aren't marked down: you're a Plus member.
 """
@@ -23,13 +23,13 @@ from .rules import ABLOESE, Verdict, street_budget
 from .util import parse_published
 
 FEATURES = [  # (points, label, pattern); "kein Balkon" / "ohne EBK" don't count
-    (3, "balcony", r"balkon|loggia|terrasse"),
+    (5, "balcony", r"balkon|loggia|terrasse"),
     (2, "fitted kitchen", r"einbauküche|\bebk\b"),
     (1, "lift", r"aufzug|fahrstuhl|\blift\b"),
     (1, "Altbau", r"altbau|dielenboden|dielen\b"),
     (1, "garden", r"\bgarten\b|gartenanteil|gartennutzung"),
 ]
-MAX_FEATURES = 8
+MAX_FEATURES = 10
 UPPER_FLOOR = 3  # not on the ground floor
 BANDS = [(75, "great"), (60, "good"), (45, "ok"), (0, "weak")]
 
