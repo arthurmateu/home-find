@@ -134,9 +134,18 @@ Only one instance runs at a time; after a reboot, start it again.
   which) · where it is, from `[bonus]` in `config.toml`: in the old area
   (Charlottenburg, Westend, Halensee, Wilmersdorf, the matches until 7 Nov
   2026) 5, on one of the streets you like (Ku'damm, Kantstraße,
-  Otto-Suhr-Allee, Savignyplatz, Schloßstraße, ...) 4; minus scam signs, Ablöse, an estimated warm rent, semi-basement. ImmoScout Plus-only listings aren't
+  Otto-Suhr-Allee, Savignyplatz, Schloßstraße, ...) 4 · a U-Bahn or S-Bahn
+  station (or its entrance) within 5 minutes on foot 4, a bus or tram stop
+  within 2 minutes 2; minus scam signs, Ablöse, an estimated warm rent, semi-basement. ImmoScout Plus-only listings aren't
   marked down (you're a member). Tune it in `homefind/rating.py`. Push
   notifications start with the score.
+  What's within walking distance needs the flat's house: ImmoScout24's pin
+  when the ad shows the house number, else the address as looked up for the
+  mini-map (so for other sites, it shows up a few minutes after the push).
+  Minutes on foot are the straight line × 1.3 at 4.8 km/h. Stations and
+  stops come from OpenStreetMap (Overpass API), for all of Berlin, into
+  `data/nearby.json`: fetched by the mini-map's background thread (or
+  `--geocode`) and again once a month.
 - **Over budget (warm ≤ 1200 €)** (a reason under Rejected) = everything fine
   except the warm rent is over `max_warm_rent` (982 €), but within
   `stretch_warm_rent` (1200 €, the most you'd pay); that's why the sources
@@ -217,7 +226,7 @@ python3 -m homefind --only immoscout,kleinanzeigen
 python3 -m homefind --rejected 50    # what got filtered out, and why
 python3 -m homefind --recheck        # re-apply the rules after editing config.toml
 python3 -m homefind --check-offline  # look up every stored ad now and file away the offline ones
-python3 -m homefind --geocode        # place every listing on the map now
+python3 -m homefind --geocode        # place every listing on the map now (and fetch data/nearby.json)
 python3 -m homefind --no-push        # store + print, no notifications
 ```
 

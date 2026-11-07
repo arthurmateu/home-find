@@ -12,7 +12,7 @@ from pathlib import Path
 
 from . import config
 from .app import Loop, check_offline, recheck, run_once, seconds_until_due
-from . import geo, web
+from . import geo, nearby, web
 from .apply import Applier
 from .net import Fetcher
 from .notify import Notifier, print_reject
@@ -94,6 +94,9 @@ def main(argv=None) -> int:
     if args.geocode:
         print("looking up places (about one a second, 1–2 per address not seen before)...")
         asked = geo.fill(cfg, store, geo.Geocoder())
+        got = nearby.refresh(cfg)
+        if got:
+            print(f"fetched {', '.join(got)} from OpenStreetMap")
         placed, shown = geo.coverage(cfg, store)
         print(f"{asked} lookups; {placed} of {shown} listings are on the map")
         return 0

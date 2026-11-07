@@ -11,7 +11,7 @@ import re
 from urllib.parse import urlencode
 
 from ..models import Listing
-from ..util import berlin_zip, num
+from ..util import berlin_zip, num, street_of
 from . import Source
 
 API = "https://api.mobile.immobilienscout24.de"
@@ -118,6 +118,9 @@ class ImmoScout(Source):
             elif kind == "MAP":
                 addr = ", ".join(x for x in (sec.get("addressLine1"), sec.get("addressLine2")) if x)
                 listing.address = addr or listing.address
+                pin = sec.get("location") or {}
+                if pin.get("lat") and re.search(r"\d", street_of(addr) or ""):  # the house's, not the postcode's middle
+                    listing.signals["geo"] = [pin["lat"], pin["lng"]]
         listing.description = "\n".join(texts)
         listing.available_from = attrs.get("Bezugsfrei ab") or listing.available_from
         wbs = next((v for k, v in attrs.items() if "WBS" in k or "Wohnberechtigungsschein" in k), None)

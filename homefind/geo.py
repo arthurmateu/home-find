@@ -16,6 +16,7 @@ import threading
 import time
 from urllib.parse import urlencode
 
+from . import nearby
 from .net import Blocked, Fetcher
 from .store import Store
 from .util import street_of
@@ -133,11 +134,21 @@ def coverage(cfg: dict, store: Store) -> tuple[int, int]:
 
 
 def start(cfg: dict) -> threading.Thread:
-    """Places new listings in the background, every EVERY_SECONDS."""
+    """Places new listings in the background, every EVERY_SECONDS, and keeps
+    nearby.py's stations and such up to date."""
     def run():
         geocoder = Geocoder()
+        nearby_after = 0.0  # after a failed fetch, give Overpass an hour
         while True:
             wait = EVERY_SECONDS
+            if time.monotonic() >= nearby_after:
+                try:
+                    got = nearby.refresh(cfg)
+                    if got:
+                        log.info("map: fetched %s from OpenStreetMap", ", ".join(got))
+                except Exception as e:  # noqa: BLE001 - the score does without until it works
+                    log.warning("map: couldn't fetch what's nearby (%s); trying again in an hour", e)
+                    nearby_after = time.monotonic() + 3600
             store = Store(cfg["run"]["db_path"])
             try:
                 n = fill(cfg, store, geocoder)

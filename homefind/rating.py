@@ -9,7 +9,8 @@ Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over; stre
          street_max_warm_rent have their own budget, and their €/m² count for less to match) · size 20 + rooms 5 ·
          freshness 10 · photos / trusted landlord / description 10 ·
          features (balcony 5, kitchen, ...) up to 10 · not on the ground floor 3 ·
-         where it is ([bonus] in config.toml): the old area 5 · a street you like 4,
+         where it is ([bonus] in config.toml): the old area 5 · a street you like 4 ·
+         U/S-Bahn within 5 min on foot 4 · bus/tram stop within 2 min 2 (nearby.py),
          minus: scam signs (8 per point), Ablöse, estimated rent, semi-basement.
 IS24 Plus-only listings aren't marked down: you're a Plus member.
 """
@@ -19,6 +20,7 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
+from . import nearby
 from .models import Listing
 from .rules import ABLOESE, Verdict, on_street, street_budget
 from .util import parse_published
@@ -34,6 +36,8 @@ MAX_FEATURES = 10
 UPPER_FLOOR = 3  # not on the ground floor
 OLD_AREA = 5     # [bonus] old_area: a postcode you were after before
 BIG_STREET = 4   # [bonus] streets
+RAIL, RAIL_MINUTES = 4, 5  # a U-Bahn or S-Bahn station at most this many minutes' walk away
+STOP, STOP_MINUTES = 2, 2  # a bus or tram stop
 BANDS = [(75, "great"), (60, "good"), (45, "ok"), (0, "weak")]
 
 # The floor in the ad's text, when the portal doesn't say: "im 3. OG", "Etage: 2", "zweite Etage",
@@ -112,9 +116,20 @@ def _ago(hours: float) -> str:
     return f"{round(days / 30)} months ago" if days < 730 else f"{days / 365:.0f} years ago"
 
 
+def spot(listing: Listing, place: dict | None) -> tuple[float, float] | None:
+    """Where the flat is, when that's known to the house: ImmoScout24's pin for an ad with
+    a house number, else the address as looked up on OpenStreetMap (geo.locate's `place`)."""
+    pin = listing.signals.get("geo")
+    if pin:
+        return pin[0], pin[1]
+    if place and place.get("precision") == "address":
+        return place["lat"], place["lon"]
+    return None
+
+
 def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
-         now: datetime | None = None) -> tuple[int, list[tuple[int, str]]]:
-    """Returns (score, [(points, reason), ...])."""
+         now: datetime | None = None, place: dict | None = None) -> tuple[int, list[tuple[int, str]]]:
+    """Returns (score, [(points, reason), ...]). `place` is geo.locate's for the listing."""
     now = now or datetime.now()
     s, sig = cfg["search"], listing.signals
     parts: list[tuple[int, str]] = []
@@ -189,6 +204,14 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
     street = on_street(listing, bonus.get("streets", []))
     if street:
         parts.append((BIG_STREET, f"on {street}"))
+    at = spot(listing, place)  # what's in walking distance (nearby.py)
+    if at:
+        rail = nearby.walk(cfg, *at, ("U", "S"), RAIL_MINUTES)
+        if rail:
+            parts.append((RAIL, f"{rail[1]}, {rail[0]} min walk"))
+        stop = nearby.walk(cfg, *at, ("bus", "tram"), STOP_MINUTES)
+        if stop:
+            parts.append((STOP, f"{stop[2]} stop {stop[1]}, {stop[0]} min walk".replace("  ", " ")))
 
     # minus
     if verdict.score:

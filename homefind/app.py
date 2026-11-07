@@ -8,6 +8,7 @@ import time
 import urllib.error
 from datetime import datetime, timedelta
 
+from . import geo
 from .apply import SOURCES
 from .net import Blocked
 from .rating import rate
@@ -202,7 +203,8 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False, applier=None) -
                     earlier = None
                 if earlier:
                     verdict.notes.append(f"same rent/size/postcode as {earlier}")
-                score, _ = rate(listing, verdict, datetime.now().isoformat(timespec="seconds"), cfg)
+                score, _ = rate(listing, verdict, datetime.now().isoformat(timespec="seconds"), cfg,
+                                place=geo.locate(listing, store.places()))
                 print_match(listing, verdict, score)
                 fresh = not first_run and not earlier
                 if fresh:
