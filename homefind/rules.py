@@ -389,6 +389,8 @@ def _evaluate(listing: Listing, cfg: dict, final: bool) -> Verdict:
         v.reject(f"{listing.size_sqm:g} m² < {s['min_size_sqm']} m²", "size")
     if listing.rooms and listing.rooms < s["min_rooms"]:
         v.reject(f"{listing.rooms:g} rooms < {s['min_rooms']}", "rooms")
+    elif listing.rooms and listing.rooms < s.get("wanted_rooms", 0):
+        v.notes.append(f"heads-up: only {listing.rooms:g} room{'s' * (listing.rooms != 1)}")
 
     # --- not a normal long-term rental
     if sig.get("swap_only") or SWAP_TITLE.search(title) or SWAP_TEXT.search(desc):

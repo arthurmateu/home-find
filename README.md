@@ -165,8 +165,10 @@ Only one instance runs at a time; after a reboot, start it again.
   but within the stretch.
 - **Edge of the area** (a reason under Rejected) = in the band round the area
   (`edge_zip_codes`): fine, but not a match. Loaded in full, like a match.
-- **Too few rooms** = under `min_rooms` (2): 1 and 1.5 rooms. The searches
-  don't filter on rooms, so these do show up.
+- **Too few rooms** = under `min_rooms` (1). The searches don't filter on
+  rooms, so these do show up. Flats with fewer than `wanted_rooms` (2), so 1
+  or 1.5 rooms, are matches, with "heads-up: only 1 room" on the card and in
+  the push; the score gives them no points for rooms (2+ get 10).
 - WG rooms, senior housing, swap offers, WBS-only flats and anything outside
   the area and its edge don't show up at all (`drop_reasons` in
   `config.toml`).

@@ -15,6 +15,7 @@ DEFAULTS: dict = {
         "near_miss_cold_rent": 1000,
         "min_size_sqm": 25,
         "min_rooms": 1,
+        "wanted_rooms": 0,  # fewer rooms still match, with a heads-up note
         "have_wbs": False,
         "coop_member": False,
         "reject_furnished": True,
