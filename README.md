@@ -15,7 +15,7 @@ you (ImmoScout24 only, for now). Python 3.11+, standard library only (applying u
 | `immoscout` | 15 min | ImmoScout24, the largest portal and where most matches come from; all of Berlin | The mobile app's API (the website blocks bots) |
 | `kleinanzeigen` | 60 min | Private landlords and Nachmieter ads; also the most scams; all of Berlin | HTML + detail page per candidate |
 | `wggesucht` | 60 min | Whole flats only, open-ended leases only; all of Berlin | HTML + detail page per candidate |
-| `immowelt` | 60 min | Partial: Charlottenburg, Westend, Halensee and Wilmersdorf up to 900 € cold, 30 listings per neighbourhood page, no paging (its search API is bot-protected, and other filters have no page) | LZ-compressed JSON in the page |
+| `immowelt` | 60 min | Partial: Charlottenburg, Westend, Halensee and Wilmersdorf up to 900 € cold, 30 listings per neighbourhood page, no paging (its search API is bot-protected, and other filters have no page). Its ad pages are bot-protected too, so ads taken offline are only noticed when a lookup gets through | LZ-compressed JSON in the page |
 | `charlotte1907` | 60 min | Charlottenburger Baugenossenschaft, the big co-op in Charlottenburg. Weekly offers, mostly members-only. | HTML |
 | `[[watch]]` | 60 min | 7 more co-ops with Charlottenburg-Wilmersdorf stock | Alerts when new text appears on their offers page |
 

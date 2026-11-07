@@ -2,6 +2,8 @@
 search API is bot-protected), 30 listings per URL, no paging, and filters in
 the path only apply for combinations Immowelt has a landing page for. Treat it
 as partial coverage. Results are an LZ-String-compressed JSON blob in the page.
+Ad pages, where offline ads are found, are behind DataDome too: only some
+lookups get through.
 """
 
 from __future__ import annotations
@@ -11,6 +13,7 @@ import re
 
 from ..lzstring import decompress_from_base64
 from ..models import Listing
+from ..net import Blocked
 from ..util import num
 from . import Source
 
@@ -24,7 +27,12 @@ class Immowelt(Source):
             yield from parse(self.http.get(url))
 
     def offline(self, listing: Listing) -> str | None:
-        self.http.get(listing.url)  # 404 ("Diese Anzeige ist nicht mehr verfügbar") or 410 once it's gone
+        try:
+            self.http.get(listing.url)  # 404 ("Diese Anzeige ist nicht mehr verfügbar") or 410 once it's gone
+        except Blocked:
+            # Ad pages are behind DataDome's bot check, which answers most requests with a 403
+            # captcha; the search pages aren't, so this mustn't pause the search (app._blocked).
+            raise RuntimeError("its ad pages answered with DataDome's bot check (403)") from None
         return None
 
 
