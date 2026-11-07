@@ -1,7 +1,7 @@
 # homefind
 
 Polls Berlin rental portals every few minutes for flats in **Charlottenburg,
-Westend, Halensee and Wilmersdorf** **under 1000 € warm**, drops the junk
+Westend, Halensee and Wilmersdorf** **under 982 € warm**, drops the junk
 (swaps, sublets, WG rooms, furnished short-term lets, WBS-only, scams) and
 pushes the rest to your phone, and can fill in (or send) the contact form for
 you (ImmoScout24 only, for now). Python 3.11+, standard library only (applying uses Tampermonkey in Firefox).
@@ -132,10 +132,12 @@ Only one instance runs at a time; after a reboot, start it again.
   estimated warm rent, semi-basement. ImmoScout Plus-only listings aren't
   marked down (you're a member). Tune it in `homefind/rating.py`. Push
   notifications start with the score.
-- **Near miss** (a reason under Rejected) = everything fine except the warm
-  rent is over budget while the cold rent is within `near_miss_cold_rent`
-  (1000 € by default); that's why the sources search up to 1000 € *cold*.
-  Sorted by score, the near misses worth a look come first.
+- **Over budget (warm ≤ 1200 €)** (a reason under Rejected) = everything fine
+  except the warm rent is over `max_warm_rent` (982 €), but within
+  `stretch_warm_rent` (1200 €, the most you'd pay); that's why the sources
+  search up to 1200 €. Pricier flats are dropped unseen. Sorted by score, the
+  ones worth a look come first. (`near_miss_cold_rent`, off now, does the
+  same by cold rent: **Near miss**.)
 - **Kurfürstendamm (warm ≤ 1500 €)** (a reason under Rejected) = the same for
   a street worth stretching for (`street_stretch_warm_rent`): over its budget,
   but within the stretch.

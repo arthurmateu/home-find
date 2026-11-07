@@ -322,28 +322,33 @@ def _evaluate(listing: Listing, cfg: dict, final: bool) -> Verdict:
         warm = round(listing.cold_rent + (listing.size_sqm or 50) * s["extra_costs_per_sqm"])
         v.notes.append(f"warm rent estimated from cold rent (~{warm:.0f} €)")
     v.warm = warm
-    # Near misses: flats whose cold rent is within near_miss_cold_rent are fetched
-    # and fully loaded even when the warm rent is over budget, so they can be
-    # browsed under "Rejected". So are flats on a street you'd stretch for
-    # (street_stretch_warm_rent), up to that warm rent.
+    # Over budget, flats are still fetched and fully loaded, so they can be browsed
+    # under "Rejected": up to stretch_warm_rent warm, or a street's own stretch
+    # (street_stretch_warm_rent); pricier ones are dropped ("over_cap"). Without
+    # stretch_warm_rent, near misses (cold rent within near_miss_cold_rent) are kept
+    # whatever their warm rent.
     cap, street = street_budget(listing, cfg)
     if street:
         v.notes.append(f"on {street}: budget {cap:g} € warm")
     stretch, stretch_street = street_stretch(listing, cfg)
     near = s.get("near_miss_cold_rent") or 0
+    shown = s.get("stretch_warm_rent") or 0
+    ceiling = max(cap, shown, stretch) if shown else None  # the most a flat here can cost and still show
     # The sources search up to the highest of all these, for every street at once
     # (Source.fetch_cap); what that brings in over this listing's own limit isn't
-    # loaded ("over_cap", in drop_reasons). A warm rent gets the leeway WG-Gesucht's
-    # search has (1.3x), for near misses.
-    limit = max(cap, near, stretch)
+    # loaded ("over_cap", in drop_reasons). Without a ceiling, a warm rent gets the
+    # leeway WG-Gesucht's search has (1.3x), for near misses.
+    limit = max(cap, near, stretch, shown)
     cold = listing.cold_rent
     listed = cold if cold is not None else sig.get("list_price")
-    if not final and (warm is not None and warm > limit * 1.3 or warm is None and (listed or 0) > limit):
-        v.reject(f"{warm or listed:.0f} € is more than the search covers here ({limit:g} €)", "over_cap")
+    if not final and (warm is not None and warm > (ceiling or limit * 1.3) or warm is None and (listed or 0) > limit):
+        v.reject(f"{warm or listed:.0f} € is more than the search covers here ({ceiling or limit:g} €)", "over_cap")
     elif warm is not None and warm > cap:
         if final:
             if warm <= stretch:
                 v.reject(f"{warm:.0f} € warm > {cap} €, but on {stretch_street} (≤ {stretch:g} €)", "stretch")
+            elif ceiling and warm > ceiling:
+                v.reject(f"{warm:.0f} € warm > {ceiling:g} €, the most a flat here can cost", "over_cap")
             elif near and cold is not None and cold <= near:
                 v.reject(f"{warm:.0f} € warm > {cap} € (cold {cold:.0f} €)", "near_miss")
             else:

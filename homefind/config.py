@@ -9,6 +9,7 @@ from pathlib import Path
 DEFAULTS: dict = {
     "search": {
         "max_warm_rent": 1000,
+        "stretch_warm_rent": 0,  # over budget, shown under Rejected up to this warm rent; 0 = see near_miss_cold_rent
         "street_max_warm_rent": {},  # street -> its own budget, e.g. {"Kantstraße": 1200}
         "street_stretch_warm_rent": {},  # street -> shown under Rejected up to this, e.g. {"Kurfürstendamm": 1500}
         "near_miss_cold_rent": 1000,

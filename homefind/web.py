@@ -128,6 +128,8 @@ def code(cfg: dict) -> str:
 def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: apply.Applier | None = None) -> dict:
     s = cfg["search"]
     reasons = dict(REASONS)
+    if s.get("stretch_warm_rent"):
+        reasons["budget"] = f"Over budget (warm ≤ {s['stretch_warm_rent']:g} €)"
     if s.get("near_miss_cold_rent"):
         reasons["near_miss"] = f"Near miss (cold ≤ {s['near_miss_cold_rent']} €)"
     if s.get("street_stretch_warm_rent"):
