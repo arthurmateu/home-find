@@ -280,13 +280,15 @@ def _to_check(src, cfg: dict, store: Store) -> list:
         return 4 if {"area", "avoid"} & set(r.verdict.codes) else 2
 
     due = [r for r in store.all_rows(src.name)
-           if not r.gone and r.last_seen < cutoff and not drop & set(r.verdict.codes)]
+           if not r.gone and r.last_seen < cutoff and not drop & set(r.verdict.codes) and src.can_look_up(r.listing)]
     return sorted(due, key=lambda r: (rank(r), r.last_seen))
 
 
 def _look_up(src, cfg: dict, store: Store, row) -> bool:
-    """Looks one ad up. Taken offline: files it away and returns True.
+    """Looks one ad up. Taken offline: files it away and returns True. Still up:
+    keeps what the lookup filled in, if anything (with a new verdict to match).
     Raises when it can't tell; a site that blocks us is paused first."""
+    before = row.listing.to_dict()
     try:
         why = src.offline(row.listing)
     except urllib.error.HTTPError as e:
@@ -300,17 +302,20 @@ def _look_up(src, cfg: dict, store: Store, row) -> bool:
         store.mark_gone([row.listing.key], why)
     else:
         store.touch(row.listing.key)
+        if row.listing.to_dict() != before:
+            store.update_listing(row.listing, evaluate(row.listing, cfg, final=True))
     return bool(why)
 
 
 def check_offline(cfg: dict, store: Store, http, notifier: Notifier) -> None:
     """--check-offline: finds every ad taken offline now, instead of
     `check_per_run` per hourly check. Lookups take turns between the sites, so
-    none gets many requests in a row; sources that can't look up a single ad
-    go through all their pages instead (a sweep)."""
+    none gets many requests in a row; sources that can't look up a single ad,
+    or that sweep (inberlinwohnen: fewer requests than an ad each), go through
+    all their pages instead."""
     queues, sweepers = {}, set()
     for src in enabled_sources(cfg, http):
-        if src.can_probe:
+        if src.can_probe and not src.opts.get("sweep_every_hours"):
             queues[src] = _to_check(src, cfg, store)
         else:
             sweepers.add(src.name)

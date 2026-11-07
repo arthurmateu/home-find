@@ -190,6 +190,12 @@ class Store:
             self.db.execute("UPDATE listings SET ok = ?, verdict = ? WHERE key = ?",
                             (int(verdict.ok), json.dumps(verdict.to_dict(), ensure_ascii=False), key))
 
+    def update_listing(self, listing: Listing, verdict: Verdict) -> None:
+        with self.db:
+            self.db.execute("UPDATE listings SET ok = ?, data = ?, verdict = ? WHERE key = ?",
+                            (int(verdict.ok), json.dumps(listing.to_dict(), ensure_ascii=False),
+                             json.dumps(verdict.to_dict(), ensure_ascii=False), listing.key))
+
     def forget(self, key: str) -> None:
         with self.db:
             self.db.execute("DELETE FROM listings WHERE key = ?", (key,))

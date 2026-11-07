@@ -46,9 +46,14 @@ class Source:
     def enrich(self, listing: Listing) -> Listing:
         return listing
 
+    def can_look_up(self, listing: Listing) -> bool:
+        """offline() works for this one."""
+        return self.can_probe
+
     def offline(self, listing: Listing) -> str | None:
         """'deactivated' or 'deleted' if the ad was taken offline, None if it's
-        still up. HTTP 404/410 count as deleted; anything else it can't tell raises."""
+        still up. HTTP 404/410 count as deleted; anything else it can't tell raises.
+        It may fill in `listing` too, from what it loaded (it's then stored)."""
         raise NotImplementedError
 
 

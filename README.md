@@ -126,7 +126,11 @@ Only one instance runs at a time; after a reboot, start it again.
   in the area, ones you hid, the rest; skipping any seen in the last 6 hours).
   inberlinwohnen goes through all its ~50 pages every 12 hours
   (`sweep_every_hours`) and charlotte1907's one page lists every offer, so
-  anything missing there is gone. `--check-offline` does all of it at once.
+  anything missing there is gone. In between, inberlinwohnen's ads are looked
+  up on the landlord's own page (not HOWOGE's or GESOBAU's): Gewobag's says
+  when applications have closed, often within hours, and the lookup also
+  brings in the photos and text of ads stored before those were loaded.
+  `--check-offline` does all of it at once (inberlinwohnen by its sweep).
 - **Score** (0–100, and bonuses can take it past 100) on every listing, rejected ones included, sorted best
   first (or newest / date applied / cheapest / largest). Hover the score (tap
   it on a phone) for its points:

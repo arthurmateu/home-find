@@ -20,6 +20,7 @@ from typing import Callable, NamedTuple
 from urllib.parse import unquote, urljoin, urlsplit
 
 from ..models import Listing
+from ..net import Blocked
 from ..util import num, text
 from . import Source
 
@@ -29,11 +30,13 @@ URL = "https://www.inberlinwohnen.de/wohnungsfinder/"
 
 
 class Site(NamedTuple):
-    """A landlord's ad page: where its photos are, and which parts of its text are the
+    """A landlord's ad page: where its photos are, which parts of its text are the
     ad's own (a heading, up to where the next part starts; both whole lines of
-    util.text, as regexes), not the site's menus and boilerplate."""
+    util.text, as regexes), not the site's menus and boilerplate, and what it says
+    once applications are closed (inberlinwohnen drops the ad then)."""
     photos: Callable[[str], list[str]]
     sections: tuple[tuple[str, str], ...]
+    closed: str | None = None
 
 
 def _unique(urls, base: str) -> list[str]:
@@ -72,7 +75,9 @@ def _berlinovo_photos(page: str) -> list[str]:
 # By host. HOWOGE (its site was down when this was written) and GESOBAU (no ad of theirs
 # was online) aren't here: their flats keep inberlinwohnen's one photo.
 SITES = {
-    "www.gewobag.de": Site(_gewobag_photos, (("Merkmale", "Energieausweisdaten"), ("Objektbeschreibung", "Sonstiges$"))),
+    # A closed ad stays up, with "Bewerbungsphase abgeschlossen – Angebotsübersicht" over it.
+    "www.gewobag.de": Site(_gewobag_photos, (("Merkmale", "Energieausweisdaten"), ("Objektbeschreibung", "Sonstiges$")),
+                           closed="Bewerbungsphase abgeschlossen"),
     # Lage, a longer Ausstattung and Wichtige Hinweise come after a map; some ads have no Lage.
     "www.degewo.de": Site(_degewo_photos, (("Ausstattung", "Adresse:"), ("Lage|Ausstattung", "Vermietung$"))),
     "www.wbm.de": Site(_wbm_photos, (("Wohnungsdetails", "Mietkosten"), ("Merkmale", "Grundriss"))),
@@ -114,6 +119,24 @@ def fill_in(listing: Listing, page: str) -> bool:
 class InBerlinWohnen(Source):
     name = "inberlinwohnen"
     needs_enrich = True  # the landlord's page, for the photos and the text
+    # Between sweeps, ads are looked up on the landlord's page: Gewobag's says when
+    # applications are closed, and every page fills in ads stored before it was loaded.
+    can_probe = True
+
+    def can_look_up(self, listing: Listing) -> bool:
+        return _site(listing) is not None
+
+    def offline(self, listing: Listing) -> str | None:
+        try:
+            page = self.http.get(listing.url)
+        except Blocked as e:  # the landlord's site: inberlinwohnen mustn't be paused for it
+            raise RuntimeError(e) from None
+        site = _site(listing)
+        if site.closed and site.closed in page:
+            return "deactivated"
+        if fill_in(listing, page):
+            listing.signals["enriched"] = True
+        return None
 
     def enrich(self, listing: Listing) -> Listing:
         """Never fails: if the landlord's site is down or blocks us, the listing keeps what
