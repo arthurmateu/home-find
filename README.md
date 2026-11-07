@@ -1,7 +1,8 @@
 # homefind
 
 Polls Berlin rental portals every few minutes for flats with **2+ rooms** in
-**Charlottenburg, Westend, Halensee and Wilmersdorf** **under 982 € warm**, drops the junk
+**west-central Berlin** (Charlottenburg, Wilmersdorf, Moabit, Mitte, Wedding,
+Schöneberg, Friedenau, Steglitz and around) **under 982 € warm**, drops the junk
 (swaps, sublets, WG rooms, furnished short-term lets, WBS-only, scams) and
 pushes the rest to your phone, and can fill in (or send) the contact form for
 you (ImmoScout24 only, for now). Python 3.11+, standard library only (applying uses Tampermonkey in Firefox).
@@ -11,10 +12,10 @@ you (ImmoScout24 only, for now). Python 3.11+, standard library only (applying u
 | Source | Checked every | What it covers | How |
 |---|---|---|---|
 | `inberlinwohnen` | 60 min | All 6 municipal landlords (degewo, GESOBAU, Gewobag, HOWOGE, STADT UND LAND, WBM). Below-market rents, no scams. Many need a WBS. | Livewire JSON in the page |
-| `immoscout` | 15 min | ImmoScout24, the largest portal and where most matches come from | The mobile app's API (the website blocks bots) |
-| `kleinanzeigen` | 60 min | Private landlords and Nachmieter ads; also the most scams | HTML + detail page per candidate |
-| `wggesucht` | 60 min | Whole flats only, open-ended leases only | HTML + detail page per candidate |
-| `immowelt` | 60 min | Partial: 30 listings per neighbourhood page, no paging (its search API is bot-protected) | LZ-compressed JSON in the page |
+| `immoscout` | 15 min | ImmoScout24, the largest portal and where most matches come from; all of Berlin | The mobile app's API (the website blocks bots) |
+| `kleinanzeigen` | 60 min | Private landlords and Nachmieter ads; also the most scams; all of Berlin | HTML + detail page per candidate |
+| `wggesucht` | 60 min | Whole flats only, open-ended leases only; all of Berlin | HTML + detail page per candidate |
+| `immowelt` | 60 min | Partial: Charlottenburg, Westend, Halensee and Wilmersdorf up to 900 € cold, 30 listings per neighbourhood page, no paging (its search API is bot-protected, and other filters have no page) | LZ-compressed JSON in the page |
 | `charlotte1907` | 60 min | Charlottenburger Baugenossenschaft, the big co-op in Charlottenburg. Weekly offers, mostly members-only. | HTML |
 | `[[watch]]` | 60 min | 7 more co-ops with Charlottenburg-Wilmersdorf stock | Alerts when new text appears on their offers page |
 
@@ -82,8 +83,8 @@ Only one instance runs at a time; after a reboot, start it again.
   tab counts show how many hits each tab has. Esc or "Clear" empties it.
 - **Filters**, a dropdown each under the tabs: **Locality** on every tab
   (Ortsteil, from the address, else the portal's label; pick one or several),
-  and on Rejected also **Where** (in the area, on Kurfürstendamm or another
-  street with its own budget, outside, anywhere),
+  and on Rejected also **Where** (in the area or on its edge, on Kurfürstendamm
+  or another street with its own budget, outside, anywhere),
   **Reason** and **Provider** (pick several to see any of them). Each count
   in a menu is what you'd get by picking it, given the other filters; "Clear"
   resets the tab.
@@ -141,10 +142,12 @@ Only one instance runs at a time; after a reboot, start it again.
 - **Kurfürstendamm (warm ≤ 1500 €)** (a reason under Rejected) = the same for
   a street worth stretching for (`street_stretch_warm_rent`): over its budget,
   but within the stretch.
+- **Edge of the area** (a reason under Rejected) = in the band round the area
+  (`edge_zip_codes`): fine, but not a match. Loaded in full, like a match.
 - **Too few rooms** = under `min_rooms` (2): 1 and 1.5 rooms. The searches
   don't filter on rooms, so these do show up.
-- WG rooms, senior housing, swap offers, WBS-only flats and anything in former
-  East Berlin, Spandau or Neukölln don't show up at all (`drop_reasons` in
+- WG rooms, senior housing, swap offers, WBS-only flats and anything outside
+  the area and its edge don't show up at all (`drop_reasons` in
   `config.toml`).
 
 ## Applying (ImmoScout24)
@@ -221,8 +224,10 @@ it to start over.
 
 All in `homefind/rules.py`. **Hard rejects:** over budget (warm rent; estimated
 from cold rent at `extra_costs_per_sqm` if that's all there is), outside the
-area (by postcode; the portal's neighbourhood label only when there is no
-postcode; East Berlin, Spandau and Neukölln, `avoid_zip_codes`, are dropped outright), a title naming another district ("… Berlin Spandau"), under
+area (by postcode: `zip_codes` match, `edge_zip_codes` show under Rejected,
+every other postcode is dropped outright; the portal's neighbourhood label,
+`names` / `edge_names`, only when there is no postcode), a title naming
+another district ("… Berlin Neukölln"), under
 `min_size_sqm`, swap offers ("Tauschwohnung", ~85% of cheap IS24 results),
 wanted ads, cellars/parking/offices, WG rooms, temporary/sublet/holiday flats,
 furnished, WBS-only (unless `have_wbs`), co-op members-only (unless

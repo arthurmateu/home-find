@@ -28,58 +28,52 @@ coop_member = false          # true = keep co-op offers marked "members only"
 reject_furnished = true      # furnished in Berlin ≈ temporary + overpriced
 include_senior_housing = false  # "Wohnen ab 50/60", Seniorenwohnungen
 # Rejected for one of these reasons = not shown anywhere (not even under Rejected).
-# Codes: near_miss stretch budget over_cap no_rent size rooms swap wanted not_flat wg
+# Codes: near_miss stretch budget edge over_cap no_rent size rooms swap wanted not_flat wg
 #        temporary furnished wbs members senior scam photos district area avoid
-# over_cap: over stretch_warm_rent (or the street's own stretch).
+# over_cap: over stretch_warm_rent (or the street's own stretch). avoid: outside the
+# area and its edge (see [area]). area: no idea where it is.
 drop_reasons = ["wg", "senior", "swap", "avoid", "wbs", "over_cap"]
 extra_costs_per_sqm = 2.5    # to estimate warm rent when only cold rent is given
 suspicious_below_eur_sqm = 10.0  # warm €/m²; new leases here are ~15–25 €/m²
 scam_threshold = 3           # scam points at which a listing is dropped (see homefind/rules.py)
 
 [area]
-# A listing matches if its postcode is listed here. Only listings without a
-# postcode fall back to the portal's neighbourhood label (names / exclude_names).
-# Postcodes don't follow district borders exactly: 14197 and 10777 are partly
-# Friedenau / Schöneberg.
+# Drawn on the district map, 7 Nov 2026, and taken by postcode (at least half of it
+# under the colour): zip_codes is the bright red part, where flats are matches;
+# edge_zip_codes the dark red band round it, fine but shown under Rejected → "Edge of
+# the area". Every other postcode is outside the area: reason "avoid", which is in
+# drop_reasons, so those never show. Postcodes don't follow district borders exactly.
 zip_codes = [
   "10585", "10587", "10589", "10623", "10625", "10627", "10629",  # Charlottenburg
-  "14050", "14052", "14053", "14055", "14057", "14059",           # Westend (+ west Charlottenburg)
-  "10709", "10711",                                                # Halensee
-  "10707", "10713", "10715", "10717", "10719", "10777", "14197",  # Wilmersdorf
+  "14050", "14052", "14055", "14057", "14059", "13627",           # Westend, Charlottenburg-Nord
+  "10707", "10709", "10711", "10713", "10715", "10717", "10719", "14197",  # Wilmersdorf, Halensee
+  "14193", "14199",                                                # Grunewald, Schmargendorf
+  "10551", "10553", "10555", "10557", "10559", "10785", "10787",  # Moabit, Hansaviertel, Tiergarten
+  "13347", "13351", "13353", "13357",                             # Wedding, Gesundbrunnen
+  "10115", "10117", "10178", "10179",                             # Mitte
+  "10777", "10779", "10781", "10783", "10789", "10823", "10825", "10827", "10829",  # Schöneberg
+  "12157", "12159", "12161", "12163", "12167", "12169",           # Friedenau, Steglitz
 ]
-names = ["Charlottenburg", "Westend", "Halensee", "Wilmersdorf"]
-exclude_names = ["Charlottenburg-Nord"]
-# Never interesting, not even under Rejected → Outside area: former East Berlin,
-# Spandau and Neukölln (reason code "avoid", dropped via drop_reasons above). Postcodes
-# that straddle a border, like 13629 (Siemensstadt / Charlottenburg-Nord), are
-# left out, so those still show under "Outside area".
-avoid_zip_codes = [
-  "10115", "10117", "10119", "10178", "10179",                    # Mitte (the old East part)
-  "10243", "10245", "10247", "10249",                             # Friedrichshain
-  "10405", "10407", "10409", "10435", "10437", "10439",           # Prenzlauer Berg
-  "13086", "13088", "13089", "13125", "13127", "13129",           # Weißensee, Heinersdorf, Buch, Karow, ...
-  "13156", "13158", "13159", "13187", "13189",                    # Pankow, Niederschönhausen, Rosenthal
-  "10315", "10317", "10318", "10319", "10365", "10367", "10369",  # Lichtenberg, Friedrichsfelde, Karlshorst
-  "13051", "13053", "13055", "13057", "13059",                    # Hohenschönhausen
-  "12619", "12621", "12623", "12627", "12629",                    # Hellersdorf, Kaulsdorf, Mahlsdorf
-  "12679", "12681", "12683", "12685", "12687", "12689",           # Marzahn, Biesdorf
-  "12435", "12437", "12439", "12459", "12487", "12489",           # Treptow, Schöneweide, Adlershof
-  "12524", "12526", "12527", "12555", "12557", "12559", "12587", "12589",  # Köpenick & around
-  "13581", "13583", "13585", "13587", "13589", "13591", "13593",  # Spandau
-  "13595", "13597", "13599", "14089",                             # Spandau, Haselhorst, Kladow, Gatow
-  "12043", "12045", "12047", "12049", "12051", "12053", "12055", "12057", "12059",  # Neukölln
-  "12347", "12349", "12351", "12353", "12355", "12357", "12359",  # Britz, Buckow, Gropiusstadt, Rudow
+edge_zip_codes = [
+  "14053", "13629", "13599", "13595", "13597",                    # Olympiapark, Siemensstadt, Haselhorst, Wilhelmstadt, Spandau
+  "13403", "13405", "13349", "13355", "13359",                    # Reinickendorf, Tegel, north Wedding, Gesundbrunnen
+  "13187", "13189", "10405", "10435", "10437", "10439", "10119",  # Pankow, Prenzlauer Berg, Mitte (north-east)
+  "10243", "10249",                                               # Friedrichshain (west)
+  "10961", "10963", "10965", "10969", "10997", "10999",           # Kreuzberg
+  "12099", "12101", "12103", "12105", "12107", "12109",           # Tempelhof, Mariendorf
+  "12165", "12203", "12205", "12247", "14195", "14169",           # Steglitz, Lichterfelde, Lankwitz, Dahlem, Zehlendorf
 ]
-# Only for listings without a postcode (portal label, or a place in the title).
-avoid_names = [
-  "Friedrichshain", "Prenzlauer Berg", "Pankow", "Weißensee", "Weissensee", "Heinersdorf",
-  "Niederschönhausen", "Lichtenberg", "Friedrichsfelde", "Karlshorst", "Rummelsburg", "Hohenschönhausen",
-  "Marzahn", "Hellersdorf", "Biesdorf", "Kaulsdorf", "Mahlsdorf", "Treptow", "Köpenick", "Adlershof",
-  "Johannisthal", "Schöneweide", "Oberschöneweide", "Niederschöneweide", "Baumschulenweg", "Plänterwald",
-  "Altglienicke", "Grünau", "Friedrichshagen",
-  "Spandau", "Siemensstadt", "Haselhorst", "Hakenfelde", "Staaken", "Wilhelmstadt", "Kladow", "Gatow",
-  "Neukölln", "Neukoelln", "Britz", "Buckow", "Gropiusstadt", "Rudow",
+# Only for listings without a postcode: the portal's neighbourhood label (or else a
+# Berlin neighbourhood named in the title, for "outside the area").
+names = [
+  "Charlottenburg", "Charlottenburg-Nord", "Westend", "Halensee", "Wilmersdorf", "Grunewald", "Schmargendorf",
+  "Moabit", "Hansaviertel", "Tiergarten", "Wedding", "Gesundbrunnen", "Mitte", "Schöneberg", "Friedenau", "Steglitz",
 ]
+edge_names = [
+  "Siemensstadt", "Haselhorst", "Wilhelmstadt", "Spandau", "Reinickendorf", "Pankow", "Prenzlauer Berg",
+  "Friedrichshain", "Kreuzberg", "Tempelhof", "Mariendorf", "Lankwitz", "Dahlem",
+]
+exclude_names = []           # names to ignore in a label, if they'd match one of the above by mistake
 
 [run]
 request_delay_seconds = 2.0  # minimum gap between two requests to the same site
@@ -113,18 +107,16 @@ every_minutes = 60
 [sources.immoscout]          # ImmoScout24 via its app API
 every_minutes = 15           # most matches come from here; one request per check when nothing's new
 check_per_run = 2            # offline lookups per check (4 checks an hour, so up to 8 an hour)
-geocodes = ["1276003001011", "1276003001076"]  # Charlottenburg (+Westend), Wilmersdorf (+Halensee)
+geocodes = ["1276003001"]   # all of Berlin (~40 new ads a day under 1200 €); [area] sorts them
 [sources.kleinanzeigen]
 every_minutes = 60
-locations = [
-  { slug = "charlottenburg", id = 3332 },
-  { slug = "westend", id = 25905 },
-  { slug = "wilmersdorf", id = 3532 },   # includes Halensee
-]
+locations = [{ slug = "berlin", id = 3331 }]  # all of Berlin; [area] sorts them
+max_pages = 4                # 27 ads a page; stops at the first page with nothing new
 [sources.wggesucht]
 every_minutes = 60
-districts = [126, 192, 85083]          # Charlottenburg, Wilmersdorf, Halensee
-[sources.immowelt]           # partial coverage, see homefind/sources/immowelt.py
+districts = []               # all of Berlin (was [126, 192, 85083]: Charlottenburg, Wilmersdorf, Halensee)
+[sources.immowelt]           # partial coverage, see homefind/sources/immowelt.py: only Charlottenburg,
+                             # Westend, Halensee and Wilmersdorf up to 900 € cold (no landing pages for more)
 every_minutes = 60
 [sources.charlotte1907]      # Charlottenburger Baugenossenschaft (co-op)
 every_minutes = 60

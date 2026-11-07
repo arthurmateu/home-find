@@ -43,6 +43,7 @@ REASONS = {
     "near_miss": "Near miss (cold rent in range)",
     "stretch": "On a street worth stretching for",
     "budget": "Over budget",
+    "edge": "Edge of the area",
     "over_cap": "More than the search covers",
     "no_rent": "No rent stated",
     "size": "Too small",
@@ -59,8 +60,8 @@ REASONS = {
     "scam": "Looks like a scam",
     "photos": "No photos",
     "district": "Title names another district",
-    "area": "Outside area",
-    "avoid": "Avoided area",
+    "area": "Location unclear",
+    "avoid": "Outside the area",
 }
 
 
@@ -130,7 +131,26 @@ BERLIN_DISTRICTS = [
     "Mariendorf", "Britz", "Rudow", "Buckow", "Grunewald", "Schmargendorf",
 ]
 # Borough names that span wanted/avoided and other neighbourhoods: too broad to count.
-BROAD_BOROUGHS = ["charlottenburg-wilmersdorf", "friedrichshain-kreuzberg"]
+BROAD_BOROUGHS = ["charlottenburg-wilmersdorf", "friedrichshain-kreuzberg", "steglitz-zehlendorf",
+                  "tempelhof-schöneberg"]
+# Every neighbourhood (Ortsteil) in Berlin, a few as portals also spell them. A listing without a
+# postcode that names one of these, and none in the area or on its edge, is elsewhere in Berlin.
+BERLIN_PLACES = [
+    "Mitte", "Moabit", "Hansaviertel", "Tiergarten", "Wedding", "Gesundbrunnen", "Friedrichshain", "Kreuzberg",
+    "Prenzlauer Berg", "Pankow", "Weißensee", "Weissensee", "Blankenburg", "Heinersdorf", "Karow", "Buch",
+    "Französisch Buchholz", "Blankenfelde", "Niederschönhausen", "Rosenthal", "Wilhelmsruh",
+    "Charlottenburg", "Charlottenburg-Nord", "Wilmersdorf", "Schmargendorf", "Grunewald", "Westend", "Halensee",
+    "Spandau", "Haselhorst", "Siemensstadt", "Wilhelmstadt", "Staaken", "Gatow", "Kladow", "Hakenfelde",
+    "Falkenhagener Feld", "Steglitz", "Lichterfelde", "Lankwitz", "Zehlendorf", "Dahlem", "Nikolassee", "Wannsee",
+    "Schöneberg", "Friedenau", "Tempelhof", "Mariendorf", "Marienfelde", "Lichtenrade",
+    "Neukölln", "Neukoelln", "Britz", "Buckow", "Gropiusstadt", "Rudow",
+    "Treptow", "Plänterwald", "Baumschulenweg", "Johannisthal", "Oberschöneweide", "Niederschöneweide",
+    "Schöneweide", "Adlershof", "Altglienicke", "Bohnsdorf", "Köpenick", "Friedrichshagen", "Rahnsdorf", "Grünau",
+    "Müggelheim", "Schmöckwitz", "Marzahn", "Biesdorf", "Kaulsdorf", "Mahlsdorf", "Hellersdorf",
+    "Lichtenberg", "Friedrichsfelde", "Karlshorst", "Rummelsburg", "Fennpfuhl", "Hohenschönhausen", "Falkenberg",
+    "Malchow", "Wartenberg", "Reinickendorf", "Tegel", "Wittenau", "Märkisches Viertel", "Lübars", "Waidmannslust",
+    "Hermsdorf", "Frohnau", "Heiligensee", "Konradshöhe", "Borsigwalde",
+]
 SENIOR = _rx(r"\b(wohnen )?ab (50|55|60|65|70) jahren?\b|senioren(wohnung|wohnen|wohnanlage|residenz)|betreutes wohnen"
              r"|\bfür senior(en|innen)\b")
 NACHMIETER = _rx(r"nachmieter")
@@ -198,16 +218,21 @@ def _place_in_title(title: str, places: list[str]) -> str | None:
     return next((p for p in places if re.search(rf"(berlin[- ]|\bin |^\W*){re.escape(p.lower())}\b", t)), None)
 
 
+def _area_names(cfg: dict) -> list[str]:
+    """Neighbourhoods in the area or on its edge."""
+    return [*cfg["area"]["names"], *cfg["area"].get("edge_names", [])]
+
+
 def _other_district_in_title(title: str, cfg: dict) -> str | None:
-    """A Berlin district outside the search area named in the title, unless the
-    title also names the area ("Wilmersdorf/Schöneberg border" is fine)."""
+    """A Berlin district outside the area and its edge named in the title, unless
+    the title also names one of those ("Wilmersdorf/Schöneberg border" is fine)."""
     t = title.lower()
     for excluded in cfg["area"].get("exclude_names", []):
         if re.search(rf"\b{re.escape(excluded.lower())}\b", t):
             return excluded
-    if any(re.search(rf"\b{re.escape(n.lower())}\b", t) for n in cfg["area"]["names"]):
+    if _named(t, _area_names(cfg)):
         return None
-    wanted = {n.lower() for n in cfg["area"]["names"]}
+    wanted = {n.lower() for n in _area_names(cfg)}
     return _place_in_title(title, [d for d in BERLIN_DISTRICTS if d.lower() not in wanted])
 
 
@@ -219,25 +244,28 @@ def _label(listing: Listing, remove: list[str]) -> str:
     return label
 
 
-def in_area(listing: Listing, cfg: dict) -> bool:
+def _named(text: str, names: list[str]) -> str | None:
+    """The first of `names` in `text` (lower case), as a word of its own."""
+    return next((n for n in names if re.search(rf"\b{re.escape(n.lower())}\b", text)), None)
+
+
+def placement(listing: Listing, cfg: dict) -> tuple[str, str | None]:
+    """Where the listing is: "in" the area, on its "edge", "out"side both, or
+    "unknown"; and the postcode or place that says so. By postcode; without one,
+    by the portal's neighbourhood label, else a Berlin place named in the title."""
     area = cfg["area"]
-    if listing.zip_code:
-        return listing.zip_code in area["zip_codes"]
-    # No postcode: fall back to the portal's neighbourhood label.
+    z = listing.zip_code
+    if z:
+        return ("in" if z in area["zip_codes"] else "edge" if z in area.get("edge_zip_codes", []) else "out"), z
     label = _label(listing, area.get("exclude_names", []))
-    return any(re.search(rf"\b{re.escape(n.lower())}\b", label) for n in area["names"])
-
-
-def avoided_place(listing: Listing, cfg: dict) -> str | None:
-    """Where the listing is, if that's somewhere you never want to see (avoid_zip_codes);
-    without a postcode, by the neighbourhood label or a place named in the title."""
-    area = cfg["area"]
-    if listing.zip_code:
-        return listing.zip_code if listing.zip_code in area.get("avoid_zip_codes", []) else None
-    names = area.get("avoid_names", [])
-    label = _label(listing, [])
-    return (next((n for n in names if re.search(rf"\b{re.escape(n.lower())}\b", label)), None)
-            or _place_in_title(listing.title or "", names))
+    for kind, names in (("in", area["names"]), ("edge", area.get("edge_names", []))):
+        name = _named(label, names)
+        if name:
+            return kind, name
+    known = {n.lower() for n in _area_names(cfg)}
+    elsewhere = [p for p in BERLIN_PLACES if p.lower() not in known]
+    name = _named(_label(listing, []), elsewhere) or _place_in_title(listing.title or "", elsewhere)
+    return ("out", name) if name else ("unknown", None)
 
 
 STREET_ALIASES = {"kudamm": "kurfuerstendamm"}
@@ -303,13 +331,14 @@ def _evaluate(listing: Listing, cfg: dict, final: bool) -> Verdict:
     title, desc = listing.title or "", listing.description or ""
     blob = f"{title}\n{desc}"
 
-    if not in_area(listing, cfg):
-        place = avoided_place(listing, cfg)
-        if place:
-            where = f"{place} {listing.district or ''}".strip() if listing.zip_code else place
-            v.reject(f"in an avoided area ({where})", "avoid")
-        else:
-            v.reject(f"outside area ({listing.zip_code or listing.district or 'no location'})", "area")
+    kind, place = placement(listing, cfg)
+    where = f"{place} {listing.district or ''}".strip() if listing.zip_code else place
+    if kind == "out":
+        v.reject(f"outside the area ({where})", "avoid")
+    elif kind == "edge" and final:  # fine, just not a match: loaded in full, to judge under Rejected
+        v.reject(f"on the edge of the area ({where})", "edge")
+    elif kind == "unknown":
+        v.reject(f"location unclear ({listing.district or 'none given'})", "area")
 
     # --- rent
     warm = listing.warm_rent

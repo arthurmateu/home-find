@@ -33,12 +33,13 @@ DEFAULTS: dict = {
             "10709", "10711",                                                # Halensee
             "10707", "10713", "10715", "10717", "10719", "10777", "14197",  # Wilmersdorf
         ],
+        # Shown under Rejected, as "Edge of the area"; every other postcode is outside the area
+        # (reason "avoid": never shown, while it's in drop_reasons).
+        "edge_zip_codes": [],
         # Only used when a listing has no postcode: the portal's neighbourhood label.
         "names": ["Charlottenburg", "Westend", "Halensee", "Wilmersdorf"],
+        "edge_names": [],
         "exclude_names": ["Charlottenburg-Nord"],
-        # Never shown at all (reason "avoid"); config.toml lists East Berlin, Spandau and Neukölln.
-        "avoid_zip_codes": [],
-        "avoid_names": [],
     },
     "run": {
         "request_delay_seconds": 2.0,
