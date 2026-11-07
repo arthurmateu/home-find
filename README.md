@@ -124,7 +124,7 @@ Only one instance runs at a time; after a reboot, start it again.
   How it's found: each hourly check also looks up a few older ads
   (`check_per_run`: 5, WG-Gesucht 2; applied first, then matches, rejected ones
   in the area, ones you hid, the rest; skipping any seen in the last 6 hours).
-  inberlinwohnen goes through all its ~40 pages every 12 hours
+  inberlinwohnen goes through all its ~50 pages every 12 hours
   (`sweep_every_hours`) and charlotte1907's one page lists every offer, so
   anything missing there is gone. `--check-offline` does all of it at once.
 - **Score** (0–100, and bonuses can take it past 100) on every listing, rejected ones included, sorted best

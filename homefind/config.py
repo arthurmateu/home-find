@@ -64,7 +64,8 @@ DEFAULTS: dict = {
     # older ads it also looks up per check, to find the ones taken offline.
     # sweep_every_hours: how often inberlinwohnen goes through all its pages, for the same reason.
     "sources": {
-        "inberlinwohnen": {"enabled": True, "every_minutes": 60, "max_pages": 45, "sweep_every_hours": 12},
+        # max_pages: room for growth (523 ads, 53 pages, in Nov 2026); a sweep that can't see them all finds nothing gone
+        "inberlinwohnen": {"enabled": True, "every_minutes": 60, "max_pages": 100, "sweep_every_hours": 12},
         "immoscout": {"enabled": True, "every_minutes": 60, "max_pages": 3, "check_per_run": 5,
                       "geocodes": ["1276003001011", "1276003001076"]},  # Charlottenburg (+Westend), Wilmersdorf (+Halensee)
         "kleinanzeigen": {

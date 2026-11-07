@@ -3,7 +3,7 @@
 
 It is a Laravel Livewire app: each listing's data sits as JSON in a
 `wire:snapshot` attribute. Newest first, 10 per page, all of Berlin. Every
-`sweep_every_hours` the search goes through all pages (~40), which is how ads
+`sweep_every_hours` the search goes through all pages (~50), which is how ads
 that were taken offline are found.
 """
 
@@ -25,7 +25,7 @@ class InBerlinWohnen(Source):
 
     def search(self, seen):
         keys, total = set(), None
-        for page in range(1, self.opts.get("max_pages", 45) + 1):
+        for page in range(1, self.opts.get("max_pages", 100) + 1):
             html_page = self.http.get(URL if page == 1 else f"{URL}?page={page}")
             items = list(parse(html_page))
             if total is None:
@@ -36,7 +36,7 @@ class InBerlinWohnen(Source):
             keys.update(l.key for l in items)
             fresh = [l for l in items if not seen(l.key)]
             yield from items
-            if not fresh:
+            if not fresh or total is not None and len(keys) >= total:
                 break
         # Paging moves under you when ads come and go, so it only counts if every one went past.
         self.complete = total is not None and len(keys) >= total
