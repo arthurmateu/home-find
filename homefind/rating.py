@@ -166,12 +166,22 @@ def spot(listing: Listing, place: dict | None) -> tuple[float, float] | None:
     return None
 
 
-def residential(cfg: dict, at: tuple[float, float] | None) -> Part | None:
-    """A note when there's next to nothing to eat or drink around the house: no one's out at night
-    there, so a courier at 1am is one the neighbours notice. None if it's lively, or not known."""
-    n = nearby.count(cfg, *at, ("food",), RESIDENTIAL_M) if at else None
-    if n is None or n / (math.pi * (RESIDENTIAL_M / 1000) ** 2) >= RESIDENTIAL_PER_KM2:
+def residential(cfg: dict, at: tuple[float, float] | None, place: dict | None) -> Part | None:
+    """A note when there's next to nothing to eat or drink around: no one's out at night there,
+    so a courier at 1am is one the neighbours notice. Counted around the house; or with only the
+    postcode known, over all of it, which tells less ("too residential?"). None if it's lively,
+    or not known."""
+    rough = not at and bool(place and place.get("radius"))
+    if not at and not rough:
         return None
+    metres = max(RESIDENTIAL_M, place["radius"]) if rough else RESIDENTIAL_M
+    n = nearby.count(cfg, *(at or (place["lat"], place["lon"])), ("food",), metres)
+    per_km2 = None if n is None else n / (math.pi * (metres / 1000) ** 2)
+    if per_km2 is None or per_km2 >= RESIDENTIAL_PER_KM2:
+        return None
+    if rough:
+        return Part(0, f"maybe too residential: only the area is known, and it has about {per_km2:.0f} places "
+                       "to eat or drink per km², so a courier at 1am may get noticed", "too residential?")
     return Part(0, f"too residential: {n or 'no'} place{'s' * (n != 1)} to eat or drink within {RESIDENTIAL_M} m, "
                    "so a courier at 1am may get noticed", "too residential")
 
@@ -271,7 +281,7 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
         green = nearby.walk(cfg, *at, ("green",), GREEN_MINUTES)
         if green:
             parts.append((GREEN, f"{green[1]}, {green[0]} min walk", f"{green[1]} {green[0]} min"))
-    quiet_area = residential(cfg, at)
+    quiet_area = residential(cfg, at, place)
     if quiet_area:
         parts.append(quiet_area)
     # kilometres are fine by the postcode's middle too, if that's all there is ("~")
