@@ -55,10 +55,11 @@ class Notifier:
     def configured(self) -> bool:
         return bool(self.ntfy_topic or (self.tg_token and self.tg_chat))
 
-    def listing(self, listing: Listing, verdict: Verdict, score: int | None = None) -> bool:
+    def listing(self, listing: Listing, verdict: Verdict, score: int | None = None, notes=()) -> bool:
+        """`notes`: the score's notes (rating.residential), besides the verdict's own."""
         body = [listing.title]
         body += [f"⚠ {f}" for f in verdict.flags]
-        body += [f"· {n}" for n in verdict.notes]
+        body += [f"· {n}" for n in (*verdict.notes, *notes)]
         body.append(f"via {listing.source}")
         title = headline(listing, verdict) if score is None else f"{score} pts · {headline(listing, verdict)}"
         return self.push(title, "\n".join(body), listing.url,

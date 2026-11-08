@@ -173,7 +173,7 @@ Only one instance runs at a time; after a reboot, start it again.
   courier at 1am is one the neighbours notice. When only the postcode is
   known it's **too residential?**, from how many there are per km² across the
   postcode (fewer than 18, the same as 5 within 300 m), which is a good guess
-  but doesn't know your street.
+  but doesn't know your street. Pushes say so too, when it's known by then.
 - **Over budget (warm ≤ 1200 €)** (a reason under Rejected) = everything fine
   except the warm rent is over `max_warm_rent` (982 €), but within
   `stretch_warm_rent` (1200 €, the most you'd pay); that's why the sources

@@ -203,12 +203,12 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False, applier=None) -
                     earlier = None
                 if earlier:
                     verdict.notes.append(f"same rent/size/postcode as {earlier}")
-                score, _ = rate(listing, verdict, datetime.now().isoformat(timespec="seconds"), cfg,
-                                place=geo.locate(listing, store.places()))
+                score, parts = rate(listing, verdict, datetime.now().isoformat(timespec="seconds"), cfg,
+                                    place=geo.locate(listing, store.places()))
                 print_match(listing, verdict, score)
                 fresh = not first_run and not earlier
                 if fresh:
-                    pushed = notifier.listing(listing, verdict, score)
+                    pushed = notifier.listing(listing, verdict, score, [p.label for p in parts if p.chip and not p.points])
             store.add(listing, verdict, notified=pushed)
             if fresh and applier:
                 applier.auto(listing, verdict, score, store)
