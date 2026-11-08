@@ -203,6 +203,7 @@ class Handler(BaseHTTPRequestHandler):
     cfg: dict = {}
     loop: app.Loop | None = None  # the --loop run this UI belongs to; None with --serve
     applier: apply.Applier | None = None
+    casa = None                   # casa.Publisher: told when something the family page shows changes
     started = ""                  # code() when it started
 
     def log_message(self, fmt, *args):
@@ -294,7 +295,12 @@ class Handler(BaseHTTPRequestHandler):
             found = sum(store.set_status(k, status, applied_at) for k in self._ads(store, key))
         finally:
             store.close()
+        self._changed()
         self._send(204 if found else 404)
+
+    def _changed(self) -> None:
+        if self.casa:
+            self.casa.poke()
 
     def _ads(self, store: Store, key: str) -> list[str]:
         """The flat's ad on every site it's on."""
@@ -311,6 +317,7 @@ class Handler(BaseHTTPRequestHandler):
             found = sum(store.set_stage(k, stage) for k in self._ads(store, key))
         finally:
             store.close()
+        self._changed()
         self._send(204 if found else 404)
 
     def _apply(self, path: str, body: dict):
@@ -330,7 +337,9 @@ class Handler(BaseHTTPRequestHandler):
                 store.meta_set("apply_mode", body["mode"])
                 log.info("auto-apply: %s", apply.MODES[body["mode"]].lower())
             elif path == "/api/apply-report":
-                return self._send(204 if self.applier.report(body["key"], body, store) else 404)
+                found = self.applier.report(body["key"], body, store)
+                self._changed()  # it may have just been sent
+                return self._send(204 if found else 404)
             else:
                 self.applier.opened(body["key"])
         finally:
@@ -342,11 +351,12 @@ def url(cfg: dict) -> str:
     return f"http://localhost:{cfg['run']['web_port']}"
 
 
-def serve(cfg: dict, loop: app.Loop | None = None, applier: apply.Applier | None = None) -> ThreadingHTTPServer | None:
+def serve(cfg: dict, loop: app.Loop | None = None, applier: apply.Applier | None = None,
+          casa=None) -> ThreadingHTTPServer | None:
     """Start the UI in a background thread. Raises OSError if the port is taken."""
     if not cfg["run"].get("web_port"):
         return None
-    Handler.cfg, Handler.loop, Handler.applier, Handler.started = cfg, loop, applier, code(cfg)
+    Handler.cfg, Handler.loop, Handler.applier, Handler.casa, Handler.started = cfg, loop, applier, casa, code(cfg)
     server = ThreadingHTTPServer(("127.0.0.1", int(cfg["run"]["web_port"])), Handler)
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, name="web", daemon=True).start()

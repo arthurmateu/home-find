@@ -99,6 +99,14 @@ DEFAULTS: dict = {
         "max_per_day": 10,  # auto-apply "send": at most this many sent a day
         "firefox": "",      # Firefox to open ads in (auto-apply); empty = Windows' one under WSL, else any
     },
+    # The read-only family page (see casa.py); off until host, remote_dir and url are all set.
+    "casa": {
+        "host": "",           # ssh host to upload to
+        "remote_dir": "",     # folder nginx serves there
+        "url": "",            # where that folder is on the web
+        "every_minutes": 15,  # how often it's rebuilt and uploaded while homefind runs
+        "max_photos": 6,      # per flat
+    },
 }
 
 

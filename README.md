@@ -247,6 +247,36 @@ another). If a field doesn't get filled in, `data/apply-last.json` lists every
 field the last form had, with its label as the helper read it: that's the label
 to use in `apply.toml`.
 
+## The family page
+
+A read-only page in Brazilian Portuguese, made for a phone, to follow the flats
+you've applied to. Opened from a private link, it can be added to the home screen.
+
+- **On it:** how many applications, per week; a map of roughly where the flats
+  are; and a card per flat with photos, neighbourhood, rooms (as Brazilians count
+  them: 2 Zimmer is "sala + 1 quarto"), size, warm rent (also in reais), the day
+  you applied, how far it got (the dropdown next to ✓ Applied) and whether the ad
+  is still up. A flat is on it if it's on your Applied tab or has an application
+  date; not the ones from before dates were kept that are only tagged Applied
+  because the button used to say Saved.
+- **Not on it:** addresses, titles, ad text and links, landlords, scores, Rejected
+  and Hidden flats, or anything from `apply.toml`. `_entry` in `homefind/casa.py`
+  is the whole list of what it gets.
+- **How it stays up to date:** homefind builds it as plain files in `data/casa/`
+  and uploads them with rsync, while `--loop` or `--serve` runs: every 15 minutes
+  (`every_minutes`) and about 20 seconds after you change something on your page.
+  The server only hands out files, so the page keeps working while your PC is off
+  (it says when it was last updated), and nothing on the internet reaches homefind.
+- **Setting up the server**, once (`host`, `remote_dir` and `url` are under `[casa]`
+  in `config.toml`):
+
+  ```
+  scp casa-setup.sh alt: && ssh -t alt 'sudo bash casa-setup.sh'
+  ```
+
+- **The link:** `--casa` uploads now and prints it. Anyone who has it can see the
+  page; `--casa-new-link` replaces it, and the old one stops working.
+
 ## Commands
 
 ```
@@ -261,6 +291,8 @@ python3 -m homefind --recheck        # re-apply the rules after editing config.t
 python3 -m homefind --check-offline  # look up every stored ad now and file away the offline ones
 python3 -m homefind --geocode        # place every listing on the map now (and fetch data/nearby.json)
 python3 -m homefind --no-push        # store + print, no notifications
+python3 -m homefind --casa           # upload the family page now and print its private link
+python3 -m homefind --casa-new-link  # replace that link (the old one stops working) and upload
 ```
 
 State (listings, verdicts, applied/hidden) lives in `data/homefind.db`; delete

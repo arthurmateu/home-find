@@ -120,6 +120,13 @@ telegram_chat_id = ""
 min_score = 75               # auto-apply: new matches scoring at least this (60 before the bonuses)
 max_per_day = 10             # auto-apply "Send by itself": at most this many sent a day
 
+[casa]
+# The read-only family page, in Brazilian Portuguese (see the README). It's uploaded to this
+# server as plain files; casa-setup.sh gets the server ready, once.
+host = "alt"                            # ssh host, as in ~/.ssh/config
+remote_dir = "/var/www/casa.admou.se"   # folder nginx serves
+url = "https://casa.admou.se"
+
 # every_minutes = how often --loop checks each source (kept hourly to stay well
 # clear of rate limits, except ImmoScout). A source that gets blocked pauses itself
 # (2x, 4x, ... its interval, max 6 h).

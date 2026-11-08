@@ -12,7 +12,7 @@ from pathlib import Path
 
 from . import config
 from .app import Loop, check_offline, recheck, run_once, seconds_until_due
-from . import geo, nearby, web
+from . import casa, geo, nearby, web
 from .apply import Applier
 from .net import Fetcher
 from .notify import Notifier, print_reject
@@ -42,6 +42,9 @@ def main(argv=None) -> int:
                          "(--loop only does a few per check)")
     ap.add_argument("--geocode", action="store_true",
                     help="place every listing on the map now (--loop and --serve do it bit by bit)")
+    ap.add_argument("--casa", action="store_true", help="upload the family page now and print its private link")
+    ap.add_argument("--casa-new-link", action="store_true",
+                    help="replace the family page's private link (the old one stops working), and upload it")
     ap.add_argument("--test-notify", action="store_true", help="send a test notification")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
@@ -70,6 +73,8 @@ def main(argv=None) -> int:
         total, changed, dropped = recheck(cfg, store)
         print(f"rechecked {total} listings: {changed} changed verdict, {dropped} will be re-fetched next run")
         return 0
+    if args.casa or args.casa_new_link:
+        return publish_casa(cfg, store, args.casa_new_link)
 
     if args.dry_run and (args.loop or args.serve):
         ap.error("--dry-run is a one-off check; drop --loop/--serve")
@@ -108,8 +113,9 @@ def main(argv=None) -> int:
 
     loop = Loop(only)
     applier = Applier(cfg, notifier)
+    publisher = casa.start(cfg)
     try:
-        if web.serve(cfg, loop, applier):
+        if web.serve(cfg, loop, applier, publisher):
             log.info("web UI: %s", web.url(cfg))
             geo.start(cfg)
             if args.open:
@@ -123,9 +129,25 @@ def main(argv=None) -> int:
         loop.sleep(seconds_until_due(cfg, store, only) * random.uniform(0.9, 1.15))
 
 
+def publish_casa(cfg: dict, store: Store, new_link: bool) -> int:
+    if not casa.enabled(cfg):
+        print("the family page is off: set host, remote_dir and url under [casa] in config.toml")
+        return 1
+    print("building and uploading (the first time takes a few minutes, for the photos)...")
+    if new_link:
+        casa.new_link(cfg, store)
+    try:
+        casa.publish(cfg, store)
+    except Exception as e:  # noqa: BLE001
+        print(f"couldn't upload it: {casa.problem(e)}")
+        return 1
+    print(casa.link(cfg, store))
+    return 0
+
+
 def serve_only(cfg: dict, open_it: bool, applier: Applier) -> int:
     try:
-        server = web.serve(cfg, applier=applier)
+        server = web.serve(cfg, applier=applier, casa=casa.start(cfg))
     except OSError:
         print(f"port {cfg['run']['web_port']} is in use; if homefind --loop is running, the UI is already at {web.url(cfg)}")
         return 1
