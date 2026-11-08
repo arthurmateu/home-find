@@ -68,9 +68,9 @@ def new_link(cfg: dict, store: Store) -> None:
 
 
 def _applied(r: Row) -> bool:
-    """On your Applied tab, or with the date you applied. Not the ads that only still carry the
-    tag from before there were dates, when the button said Saved: saving wasn't applying."""
-    return r.status == "applied" or r.applied_at is not None
+    """Marked applied, whether it's still on your Applied tab or not (ones that went offline
+    before dates were kept only have status_if_back to say so)."""
+    return r.status == "applied" or r.applied_at is not None or r.status_if_back == "applied"
 
 
 def _phone_sized(url: str) -> str:

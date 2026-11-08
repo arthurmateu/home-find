@@ -92,6 +92,7 @@ h2 { font-size: 20px; margin: 32px 0 10px; }
 .help dt { font-weight: 600; margin-top: 12px; }
 .help dd { margin: 0; color: var(--muted); font-size: 16px; }
 .empty { color: var(--muted); margin-top: 16px; }
+.more { display: block; width: 100%; margin-top: 16px; padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
 button:focus-visible, a:focus-visible, .photos:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .flat { transition: none; } }
 </style>
@@ -111,6 +112,7 @@ button:focus-visible, a:focus-visible, .photos:focus-visible { outline: 2px soli
   </div>
   <h2 id="list-title">Os apartamentos</h2>
   <div id="list"></div>
+  <button class="more" id="older" hidden></button>
   <section class="help">
     <h2>Como ler</h2>
     <dl>
@@ -229,6 +231,7 @@ function map() {
 $("map").addEventListener("click", (e) => {
   const pin = e.target.closest(".pin");
   if (!pin) return;
+  if (!$(pin.dataset.to)) showOlder();
   const card = $(pin.dataset.to);
   card.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   card.classList.add("spot");
@@ -267,7 +270,19 @@ document.addEventListener("scroll", (e) => {  // "2/6" on the photo you've swipe
 }, { capture: true, passive: true });
 
 updated(); hero(); weeks();
-$("list").innerHTML = flats.map(card).join("") || `<p class="empty">Nenhuma candidatura ainda.</p>`;
+// The ones without a date are the oldest: behind a button, so the list opens with what's going on now.
+const isOlder = (f) => !f.applied && !f.stage, older = flats.filter(isOlder);
+function showOlder() {
+  if ($("older").hidden) return;
+  $("older").hidden = true;
+  $("list").insertAdjacentHTML("beforeend", older.map(card).join(""));
+}
+$("list").innerHTML = flats.filter((f) => !isOlder(f)).map(card).join("") || (older.length ? "" : `<p class="empty">Nenhuma candidatura ainda.</p>`);
+if (older.length) {
+  $("older").hidden = false;
+  $("older").textContent = older.length === 1 ? "Ver a candidatura mais antiga" : `Ver as ${older.length} candidaturas mais antigas`;
+  $("older").addEventListener("click", showOlder);
+}
 if (data.brl) {
   $("rate").textContent = ` Em reais, pela cotação de ${shortDay.format(dayOf(data.brl.date))}: R$ ${data.brl.rate.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} por euro.`;
 }

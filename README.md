@@ -256,9 +256,8 @@ you've applied to. Opened from a private link, it can be added to the home scree
   are; and a card per flat with photos, neighbourhood, rooms (as Brazilians count
   them: 2 Zimmer is "sala + 1 quarto"), size, warm rent (also in reais), the day
   you applied, how far it got (the dropdown next to ✓ Applied) and whether the ad
-  is still up. A flat is on it if it's on your Applied tab or has an application
-  date; not the ones from before dates were kept that are only tagged Applied
-  because the button used to say Saved.
+  is still up. It has every flat you've marked applied, also the ones no longer on
+  your Applied tab; the ones from before dates were kept sit behind a button.
 - **Not on it:** addresses, titles, ad text and links, landlords, scores, Rejected
   and Hidden flats, or anything from `apply.toml`. `_entry` in `homefind/casa.py`
   is the whole list of what it gets.
