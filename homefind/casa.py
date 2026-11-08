@@ -25,7 +25,7 @@ import urllib.request
 from datetime import date
 from pathlib import Path
 
-from . import geo, web
+from . import geo, rating, web
 from .net import BROWSER_UA, Fetcher
 from .store import Row, Store
 
@@ -37,6 +37,75 @@ PHOTO_GAP_SECONDS = 0.5   # between two photos fetched from the portals
 POKE_DELAY_SECONDS = 20   # after a change on your page, in case more follow
 PIN_GRID = (0.003, 0.005)  # map pins are rounded to this, in degrees of latitude and longitude: about 330 m
 STAGE_ORDER = {"got_it": 0, "viewing": 1, "replied": 2}  # these come first on the page
+
+# What rating.py and rules.py write (the start of it), in the page's words; None: known, but not for the page.
+# Whatever isn't here stays off the page, so a street, a station or a link in the English can't get onto it.
+SAID = [
+    # the points under a score
+    (r"([\d.]+) €/m² warm", r"Preço de \1 €/m²"),
+    (r"(\d+) % under budget", r"\1% abaixo do orçamento"),
+    (r"(\d+) % over budget", r"\1% acima do orçamento"),
+    (r"([\d.]+) m²", r"Tamanho de \1 m²"),
+    (r"([\d.]+) rooms", r"\1 cômodos"),
+    (r"posted |first seen ", "Anúncio recente"),
+    (r"(\d+) photo", r"\1 fotos"),
+    (r"municipal / co-op landlord", "Dono público ou cooperativa"),
+    (r"verified landlord", "Dono verificado"),
+    (r"detailed description", "Descrição detalhada"),
+    (r"in the old area", "Na região preferida"),
+    (r"on [^:]+$", "Numa rua de que gosto"),
+    (r"(~?[\d.]+) km from work", r"\1 km do trabalho"),
+    (r"(~?[\d.]+) km from ", r"\1 km de um lugar frequente"),
+    (r"scam warning signs", "Sinais de alerta"),
+    (r"warm rent is an estimate", "Aluguel estimado"),
+    # the chips that go with them
+    (r"balcony", "Varanda"),
+    (r"fitted kitchen", "Cozinha equipada"),
+    (r"lift", "Elevador"),
+    (r"Altbau", "Prédio antigo (Altbau)"),
+    (r"garden", "Jardim"),
+    (r"floor (\d+) of (\d+)", r"\1º andar de \2"),
+    (r"floor (\d+)", r"\1º andar"),
+    (r"top floor", "Último andar"),
+    (r"Hinterhaus|Seitenflügel|Quergebäude|Gartenhaus", "Lado silencioso do prédio"),
+    (r"faces the courtyard", "Virado para o pátio"),
+    (r"semi-basement", "Semissubsolo"),
+    (r"too residential\?", "Talvez bem residencial"),
+    (r"too residential", "Região bem residencial"),
+    # the notes
+    (r"heads-up: only ([\d.]+) room", r"Só \1 cômodo"),
+    (r"Nachmieter", "Troca de inquilino: o dono ainda precisa aceitar"),
+    (r"asks for Ablöse", "Pede pagamento ao inquilino atual (Ablöse)"),
+    (r"warm rent estimated", "Aluguel estimado"),
+    (r"partly furnished", "Parcialmente mobiliado"),
+    (r"furnished", "Mobiliado"),
+    (r"WBS", "Precisa de WBS (moradia social)"),
+    (r"co-op members", "Só para sócios de cooperativa"),
+    (r"ImmoScout Plus members", "Só para assinantes, por enquanto"),
+    (r"identity-verified landlord", "Dono verificado"),
+    (r"warm rent taken from|on [^:]+: budget|same rent/size/postcode|new on \w+, same", None),
+    # the scam signs
+    (r"only one photo", "Só uma foto"),
+    (r"e-mail address in the text", "E-mail no texto do anúncio"),
+    (r"mentions a broker fee", "Menciona taxa de corretor"),
+    (r"unusually cheap", "Preço baixo demais"),
+    (r"implausible", "Cômodos e tamanho não batem"),
+    (r"rent marked as negotiable", "Aluguel negociável"),
+    (r"seller account is", "Conta nova do anunciante"),
+    (r"online for", "No ar há muito tempo"),
+    (r"private landlord based in", "Dono mora em outra cidade"),
+    (r"asks for money up front", "Pede dinheiro adiantado"),
+    (r"keys by post", "Chaves pelo correio ou sem visita"),
+    (r"charges a viewing", "Cobra taxa de visita ou reserva"),
+    (r"landlord says they are abroad", "Dono diz que está no exterior"),
+    (r"mentions Airbnb", "Menciona Airbnb ou Booking"),
+    (r"wants to move to WhatsApp", "Quer ir para WhatsApp ou Telegram"),
+    (r"private landlord", "Dono particular"),
+]
+WALK = {rating.RAIL: "Metrô", rating.STOP: "Ônibus ou bonde", rating.SHOP: "Mercado", rating.GREEN: "Parque ou lago"}
+HEADS_UP = re.compile(r"heads-up|Nachmieter|asks for Ablöse|warm rent estimated|furnished|partly furnished|WBS|co-op")  # as in ui.html
+NICE = re.compile(r"ImmoScout Plus|identity-verified")
+_unsaid: set[str] = set()  # told about once each
 
 
 def enabled(cfg: dict) -> bool:
@@ -114,14 +183,54 @@ def _photos(listing, folder: Path, known: dict, most: int) -> list[str]:
     return names
 
 
-def _entry(flat: list[Row], places: dict, folder: Path, known: dict, most: int) -> dict:
-    """Everything the page gets to know about a flat. No address, title, landlord, link or text from
-    the ad, and nothing about your application but its date: the page is public to whoever has the link."""
+def _said(text: str) -> str | None:
+    """`text` in the page's words; None if it isn't for the page (see SAID)."""
+    for pattern, words in SAID:
+        m = re.match(pattern, text)
+        if m:
+            return words and re.sub(r"(\d)\.(\d)", r"\1,\2", m.expand(words))
+    shape = re.sub(r"\d+", "#", text)
+    if shape not in _unsaid:
+        _unsaid.add(shape)
+        log.info("family page: left out, no Portuguese for it in casa.SAID: %s", shape)
+    return None
+
+
+def _part(p: rating.Part) -> str | None:
+    """A line under the score. What's within walking distance is said by its kind, not its name."""
+    walk = re.search(r", (\d+) min walk$", p.label)
+    if walk and p.points in WALK:
+        return f"{WALK[p.points]} a {walk.group(1)} min a pé"
+    return _said(p.chip or p.label)
+
+
+def _chips(verdict, parts: list[rating.Part]) -> dict[str, list[str]]:
+    """The notes on the card, in the groups the web UI has them in; its Watch out goes in with Heads up."""
+    heads = [_said(flag) or "Sinal de alerta" for flag in verdict.flags]
+    nice, info = [], []
+    for p in parts:
+        if p.chip:
+            (nice if p.points > 0 else heads).append(_part(p))
+    for note in verdict.notes:
+        plus = re.match(r"ImmoScout Plus members only until (\S+)", note)
+        if not (plus and plus.group(1) < date.today().isoformat()):  # that's over
+            (heads if HEADS_UP.match(note) else nice if NICE.match(note) else info).append(_said(note))
+    return {name: list(dict.fromkeys(filter(None, group))) for name, group in (("heads", heads), ("nice", nice), ("info", info))}
+
+
+def _entry(flat: list[Row], cfg: dict, places: dict, folder: Path, known: dict) -> dict:
+    """Everything the page gets to know about a flat. No address, title, landlord, link or text from the
+    ad, and nothing about your application but its date: the page is public to whoever has the link."""
     row, listing = flat[0], flat[0].listing
     place = geo.locate(listing, places)
     dates = [r.applied_at for r in flat if r.applied_at]
     rent = row.verdict.warm or listing.warm_rent
+    score, parts = rating.rate(listing, row.verdict, row.first_seen, cfg, place=place)
     return {
+        "score": score,
+        "band": rating.band(score),
+        "why": sorted(([p.points, t] for p in parts if p.points and (t := _part(p))), key=lambda w: -w[0]),
+        **_chips(row.verdict, parts),
         "id": hashlib.sha1(listing.key.encode()).hexdigest()[:10],
         "area": geo.locality(listing, place) or "Berlim",
         "rooms": listing.rooms,
@@ -132,7 +241,7 @@ def _entry(flat: list[Row], places: dict, folder: Path, known: dict, most: int) 
         "stage": next((r.stage for r in flat if r.stage), None),
         "online": row.gone is None,  # flat[0] is one that's online, if any is (see web.flats)
         "pin": place and [round(round(place[k] / g) * g, 4) for k, g in zip(("lat", "lon"), PIN_GRID)],
-        "photos": _photos(listing, folder, known, most),
+        "photos": _photos(listing, folder, known, int(cfg["casa"]["max_photos"])),
     }
 
 
@@ -155,7 +264,7 @@ def snapshot(cfg: dict, store: Store, folder: Path, known: dict) -> dict:
     """What the page shows: active applications first, then the latest."""
     places = store.places()
     flats = [f for f in web.flats(cfg, store) if any(_applied(r) for r in f)]
-    entries = [_entry(f, places, folder, known, int(cfg["casa"]["max_photos"])) for f in flats]
+    entries = [_entry(f, cfg, places, folder, known) for f in flats]
     entries.sort(key=lambda e: e["applied"] or "", reverse=True)
     entries.sort(key=lambda e: STAGE_ORDER.get(e["stage"], len(STAGE_ORDER)))
     brl = _brl(store)

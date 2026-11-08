@@ -255,11 +255,14 @@ you've applied to. Opened from a private link, it can be added to the home scree
 - **On it:** how many applications, per week; a map of roughly where the flats
   are; and a card per flat with photos, neighbourhood, rooms (as Brazilians count
   them: 2 Zimmer is "sala + 1 quarto"), size, warm rent (also in reais), the day
-  you applied, how far it got (the dropdown next to ✓ Applied) and whether the ad
-  is still up. It has every flat you've marked applied, also the ones no longer on
+  you applied, how far it got (the dropdown next to ✓ Applied), whether the ad
+  is still up, its score with the points behind it, and its notes (heads-ups and
+  extras). Those are translated by the table `SAID` in `homefind/casa.py`: a note
+  that isn't in it stays off the page (and is logged once). It has every flat you've marked applied, also the ones no longer on
   your Applied tab; the ones from before dates were kept sit behind a button.
-- **Not on it:** addresses, titles, ad text and links, landlords, scores, Rejected
-  and Hidden flats, or anything from `apply.toml`. `_entry` in `homefind/casa.py`
+- **Not on it:** addresses, street and station names, titles, ad text and links,
+  landlords, Rejected and Hidden flats you didn't apply to, or anything from
+  `apply.toml`. `_entry` in `homefind/casa.py`
   is the whole list of what it gets.
 - **How it stays up to date:** homefind builds it as plain files in `data/casa/`
   and uploads them with rsync, while `--loop` or `--serve` runs: every 15 minutes

@@ -76,6 +76,9 @@ h2 { font-size: 20px; margin: 32px 0 10px; }
 .count { position: absolute; right: 10px; bottom: 10px; padding: 2px 9px; border-radius: 12px; background: rgba(0, 0, 0, .62); color: #fff; font-size: 14px; font-variant-numeric: tabular-nums; pointer-events: none; }
 .nophoto { aspect-ratio: 4 / 3; display: grid; place-items: center; background: var(--chip); color: var(--muted); font-size: 15px; }
 .turned-down .photos { filter: grayscale(.7); }
+.score { position: absolute; left: 10px; top: 10px; padding: 3px 11px; border-radius: 14px; color: #fff; font-size: 14px; background: #6a6257; }
+.score b { font-size: 16px; }
+.score.great { background: #0b7a5e; } .score.good { background: #2a67a8; } .score.ok { background: #8a6a14; }
 .body { padding: 14px 16px 16px; }
 .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .top h3 { margin: 0; font-size: 21px; line-height: 1.25; overflow-wrap: anywhere; }
@@ -88,6 +91,16 @@ h2 { font-size: 20px; margin: 32px 0 10px; }
 .price b { font-size: 22px; }
 .price span { color: var(--muted); font-size: 16px; white-space: nowrap; }
 .meta { margin-top: 8px; color: var(--muted); font-size: 15px; }
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 6px; margin-top: 10px; font-size: 14px; }
+.chips .lab { font-weight: 600; color: var(--muted); margin-right: 2px; }
+.chip { padding: 2px 9px; border-radius: 12px; background: var(--no-bg); color: var(--no); }
+.chips.heads .chip { background: var(--viewing-bg); color: var(--viewing); }
+.chips.nice .chip { background: var(--got-bg); color: var(--got); }
+.how { margin-top: 10px; font-size: 15px; }
+.how summary { color: var(--muted); cursor: pointer; padding: 4px 0; }
+.how ul { list-style: none; margin: 6px 0 0; padding: 0; }
+.how li { display: flex; gap: 8px; padding: 2px 0; }
+.how .pts { flex: 0 0 38px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 .help dt { font-weight: 600; margin-top: 12px; }
 .help dd { margin: 0; color: var(--muted); font-size: 16px; }
@@ -116,6 +129,8 @@ button:focus-visible, a:focus-visible, .photos:focus-visible { outline: 2px soli
   <section class="help">
     <h2>Como ler</h2>
     <dl>
+      <dt>Nota</dt>
+      <dd>Meu programa dá uma nota a cada apartamento, somando preço por m², tamanho, cômodos, andar, mercado e metrô por perto e outros detalhes. De 95 para cima é ótimo, de 75 é bom e de 55 é ok; passa de 100 quando tem muitos extras. Em “Como chegou na nota” dá para ver a conta.</dd>
       <dt>Preço</dt>
       <dd>Por mês, já com condomínio e aquecimento. O ~ marca um valor estimado.<span id="rate"></span></dd>
       <dt>Cômodos</dt>
@@ -245,13 +260,19 @@ function rooms(n) {
   const whole = Math.floor(n), half = n % 1 ? " + cantinho" : "";
   return whole <= 1 ? `Studio${half}` : `Sala + ${whole - 1} ${whole === 2 ? "quarto" : "quartos"}${half}`;
 }
+const BANDS = { great: "Ótimo", good: "Bom", ok: "Ok", weak: "Fraco" };
+const chips = (label, kind, items) => items.length
+  ? `<p class="chips ${kind}"><span class="lab">${label}</span>${items.map((t) => `<span class="chip">${esc(t)}</span>`).join("")}</p>` : "";
 function card(f) {
   const n = f.photos.length;
-  const media = n
-    ? `<div class="media"><div class="photos" tabindex="0" aria-label="Fotos de ${esc(f.area)}">` +
+  const media = `<div class="media">` + (n
+    ? `<div class="photos" tabindex="0" aria-label="Fotos de ${esc(f.area)}">` +
       f.photos.map((p, i) => `<img src="photos/${esc(p)}" alt="Foto ${i + 1} de ${n}" loading="lazy" decoding="async">`).join("") +
-      `</div>${n > 1 ? `<span class="count">1/${n}</span>` : ""}</div>`
-    : `<div class="nophoto">Sem fotos</div>`;
+      `</div>${n > 1 ? `<span class="count">1/${n}</span>` : ""}`
+    : `<div class="nophoto">Sem fotos</div>`) +
+    `<span class="score ${esc(f.band)}">Nota <b>${f.score}</b> · ${BANDS[f.band]}</span></div>`;
+  const how = f.why.length ? `<details class="how"><summary>Como chegou na nota ${f.score}</summary><ul>` +
+    f.why.map(([p, t]) => `<li><span class="pts">${p > 0 ? `+${p}` : `−${-p}`}</span><span>${esc(t)}</span></li>`).join("") + `</ul></details>` : "";
   const facts = [rooms(f.rooms), f.size && `${f.size} m²`].filter(Boolean).join(" · ");
   const reais = f.rent && data.brl && `≈ R$ ${(Math.round(f.rent * data.brl.rate / 10) * 10).toLocaleString("pt-BR")}`;
   const price = f.rent ? `<p class="price"><b>${f.approx ? "~" : ""}${f.rent.toLocaleString("pt-BR")} €</b> por mês${reais ? ` <span>${reais}</span>` : ""}</p>` : "";
@@ -260,12 +281,13 @@ function card(f) {
     <div class="top"><h3>${esc(f.area)}</h3><span class="pill ${esc(f.stage || "")}">${STAGES[f.stage] || "Sem resposta ainda"}</span></div>
     ${facts ? `<p class="facts">${esc(facts)}</p>` : ""}${price}
     <p class="meta">${esc(sent)} · ${f.online ? "Anúncio no ar" : "Anúncio encerrado"}</p>
+    ${chips("Atenção", "heads", f.heads)}${chips("Tem", "nice", f.nice)}${chips("Bom saber", "info", f.info)}${how}
   </div></article>`;
 }
 document.addEventListener("scroll", (e) => {  // "2/6" on the photo you've swiped to
   const box = e.target;
   if (!box.classList?.contains("photos")) return;
-  const count = box.nextElementSibling;
+  const count = box.parentElement.querySelector(".count");
   if (count) count.textContent = `${Math.round(box.scrollLeft / box.clientWidth) + 1}/${box.children.length}`;
 }, { capture: true, passive: true });
 
