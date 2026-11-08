@@ -251,11 +251,12 @@ to use in `apply.toml`.
 
 A read-only page in Brazilian Portuguese, made for a phone, to follow the flats
 you've applied to. Opened from a private link, it can be added to the home screen.
+It's written for someone who knows how German flats work, so it keeps terms like
+Zimmer and Warmmiete, and only explains what's particular to Berlin.
 
 - **On it:** how many applications, per week; a map of roughly where the flats
-  are; and a card per flat with photos, neighbourhood, rooms (as Brazilians count
-  them: 2 Zimmer is "sala + 1 quarto"), size, warm rent (also in reais), the day
-  you applied, how far it got (the dropdown next to ✓ Applied), whether the ad
+  are; and a card per flat with photos, neighbourhood, rooms, size, warm rent, the
+  day you applied, how far it got (the dropdown next to ✓ Applied), whether the ad
   is still up, its score with the points behind it, and its notes (heads-ups and
   extras). Those are translated by the table `SAID` in `homefind/casa.py`: a note
   that isn't in it stays off the page (and is logged once). It has every flat you've marked applied, also the ones no longer on

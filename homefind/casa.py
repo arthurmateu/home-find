@@ -26,12 +26,11 @@ from datetime import date
 from pathlib import Path
 
 from . import geo, rating, web
-from .net import BROWSER_UA, Fetcher
+from .net import BROWSER_UA
 from .store import Row, Store
 
 log = logging.getLogger("homefind")
 HERE = Path(__file__).parent
-EUR_IN_BRL = "https://api.frankfurter.dev/v1/latest?base=EUR&symbols=BRL"  # the ECB's daily rate
 PHOTO_TYPES = {"image/webp": ".webp", "image/jpeg": ".jpg", "image/png": ".png"}
 PHOTO_GAP_SECONDS = 0.5   # between two photos fetched from the portals
 POKE_DELAY_SECONDS = 20   # after a change on your page, in case more follow
@@ -40,16 +39,17 @@ STAGE_ORDER = {"got_it": 0, "viewing": 1, "replied": 2}  # these come first on t
 
 # What rating.py and rules.py write (the start of it), in the page's words; None: known, but not for the page.
 # Whatever isn't here stays off the page, so a street, a station or a link in the English can't get onto it.
+# In Portuguese, keeping the German terms for what its reader knows from renting in Germany.
 SAID = [
     # the points under a score
-    (r"([\d.]+) €/m² warm", r"Preço de \1 €/m²"),
+    (r"([\d.]+) €/m² warm", r"\1 €/m² warm"),
     (r"(\d+) % under budget", r"\1% abaixo do orçamento"),
     (r"(\d+) % over budget", r"\1% acima do orçamento"),
     (r"([\d.]+) m²", r"Tamanho de \1 m²"),
-    (r"([\d.]+) rooms", r"\1 cômodos"),
+    (r"([\d.]+) rooms", r"\1 Zimmer"),
     (r"posted |first seen ", "Anúncio recente"),
     (r"(\d+) photo", r"\1 fotos"),
-    (r"municipal / co-op landlord", "Dono público ou cooperativa"),
+    (r"municipal / co-op landlord", "Dono municipal ou Genossenschaft"),
     (r"verified landlord", "Dono verificado"),
     (r"detailed description", "Descrição detalhada"),
     (r"in the old area", "Na região preferida"),
@@ -57,37 +57,37 @@ SAID = [
     (r"(~?[\d.]+) km from work", r"\1 km do trabalho"),
     (r"(~?[\d.]+) km from ", r"\1 km de um lugar frequente"),
     (r"scam warning signs", "Sinais de alerta"),
-    (r"warm rent is an estimate", "Aluguel estimado"),
+    (r"warm rent is an estimate", "Warmmiete estimada"),
     # the chips that go with them
     (r"balcony", "Varanda"),
-    (r"fitted kitchen", "Cozinha equipada"),
+    (r"fitted kitchen", "Einbauküche"),
     (r"lift", "Elevador"),
-    (r"Altbau", "Prédio antigo (Altbau)"),
+    (r"Altbau", "Altbau"),
     (r"garden", "Jardim"),
     (r"floor (\d+) of (\d+)", r"\1º andar de \2"),
     (r"floor (\d+)", r"\1º andar"),
     (r"top floor", "Último andar"),
-    (r"Hinterhaus|Seitenflügel|Quergebäude|Gartenhaus", "Lado silencioso do prédio"),
+    (r"(Hinterhaus|Seitenflügel|Quergebäude|Gartenhaus)", r"\1"),  # the page explains these: they're very Berlin
     (r"faces the courtyard", "Virado para o pátio"),
-    (r"semi-basement", "Semissubsolo"),
+    (r"semi-basement", "Souterrain"),
     (r"too residential\?", "Talvez bem residencial"),
     (r"too residential", "Região bem residencial"),
     # the notes
-    (r"heads-up: only ([\d.]+) room", r"Só \1 cômodo"),
-    (r"Nachmieter", "Troca de inquilino: o dono ainda precisa aceitar"),
-    (r"asks for Ablöse", "Pede pagamento ao inquilino atual (Ablöse)"),
-    (r"warm rent estimated", "Aluguel estimado"),
+    (r"heads-up: only ([\d.]+) room", r"Só \1 Zimmer"),
+    (r"Nachmieter", "Nachmieter: o dono ainda precisa aceitar"),
+    (r"asks for Ablöse", "Pede Ablöse"),
+    (r"warm rent estimated", "Warmmiete estimada"),
     (r"partly furnished", "Parcialmente mobiliado"),
     (r"furnished", "Mobiliado"),
-    (r"WBS", "Precisa de WBS (moradia social)"),
-    (r"co-op members", "Só para sócios de cooperativa"),
-    (r"ImmoScout Plus members", "Só para assinantes, por enquanto"),
+    (r"WBS", "Precisa de WBS"),
+    (r"co-op members", "Só para sócios da Genossenschaft"),
+    (r"ImmoScout Plus members", "Só para assinantes Plus, por enquanto"),
     (r"identity-verified landlord", "Dono verificado"),
     (r"warm rent taken from|on [^:]+: budget|same rent/size/postcode|new on \w+, same", None),
     # the scam signs
     (r"only one photo", "Só uma foto"),
     (r"e-mail address in the text", "E-mail no texto do anúncio"),
-    (r"mentions a broker fee", "Menciona taxa de corretor"),
+    (r"mentions a broker fee", "Menciona Provision"),
     (r"unusually cheap", "Preço baixo demais"),
     (r"implausible", "Cômodos e tamanho não batem"),
     (r"rent marked as negotiable", "Aluguel negociável"),
@@ -102,7 +102,7 @@ SAID = [
     (r"wants to move to WhatsApp", "Quer ir para WhatsApp ou Telegram"),
     (r"private landlord", "Dono particular"),
 ]
-WALK = {rating.RAIL: "Metrô", rating.STOP: "Ônibus ou bonde", rating.SHOP: "Mercado", rating.GREEN: "Parque ou lago"}
+WALK = {rating.RAIL: "U/S-Bahn", rating.STOP: "Ônibus ou Tram", rating.SHOP: "Supermercado", rating.GREEN: "Parque ou lago"}
 HEADS_UP = re.compile(r"heads-up|Nachmieter|asks for Ablöse|warm rent estimated|furnished|partly furnished|WBS|co-op")  # as in ui.html
 NICE = re.compile(r"ImmoScout Plus|identity-verified")
 _unsaid: set[str] = set()  # told about once each
@@ -245,21 +245,6 @@ def _entry(flat: list[Row], cfg: dict, places: dict, folder: Path, known: dict) 
     }
 
 
-def _brl(store: Store) -> dict | None:
-    """What a euro is in reais, asked for once a day; the last known one if that fails."""
-    saved = json.loads(store.meta_get("casa_brl") or "null")
-    today = date.today().isoformat()
-    if saved and saved["asked"] == today:
-        return saved
-    try:
-        got = Fetcher(delay=0, retries=1).json(EUR_IN_BRL)
-        saved = {"rate": float(got["rates"]["BRL"]), "date": got["date"], "asked": today}
-        store.meta_set("casa_brl", json.dumps(saved))
-    except Exception as e:  # noqa: BLE001 - the page does without reais
-        log.debug("casa: no exchange rate (%s)", e)
-    return saved
-
-
 def snapshot(cfg: dict, store: Store, folder: Path, known: dict) -> dict:
     """What the page shows: active applications first, then the latest."""
     places = store.places()
@@ -267,8 +252,7 @@ def snapshot(cfg: dict, store: Store, folder: Path, known: dict) -> dict:
     entries = [_entry(f, cfg, places, folder, known) for f in flats]
     entries.sort(key=lambda e: e["applied"] or "", reverse=True)
     entries.sort(key=lambda e: STAGE_ORDER.get(e["stage"], len(STAGE_ORDER)))
-    brl = _brl(store)
-    return {"built": int(time.time() * 1000), "flats": entries, "brl": brl and {k: brl[k] for k in ("rate", "date")}}
+    return {"built": int(time.time() * 1000), "flats": entries}
 
 
 def build(cfg: dict, store: Store) -> Path:

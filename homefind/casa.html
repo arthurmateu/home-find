@@ -89,7 +89,6 @@ h2 { font-size: 20px; margin: 32px 0 10px; }
 .facts { margin-top: 2px; color: var(--muted); }
 .price { margin-top: 8px; font-size: 18px; }
 .price b { font-size: 22px; }
-.price span { color: var(--muted); font-size: 16px; white-space: nowrap; }
 .meta { margin-top: 8px; color: var(--muted); font-size: 15px; }
 .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 6px; margin-top: 10px; font-size: 14px; }
 .chips .lab { font-weight: 600; color: var(--muted); margin-right: 2px; }
@@ -104,6 +103,9 @@ h2 { font-size: 20px; margin: 32px 0 10px; }
 
 .help dt { font-weight: 600; margin-top: 12px; }
 .help dd { margin: 0; color: var(--muted); font-size: 16px; }
+.help ul { list-style: none; margin: 0; padding: 0; }
+.help li { margin-top: 4px; }
+.help li b { color: var(--ink); font-weight: 600; }
 .empty { color: var(--muted); margin-top: 16px; }
 .more { display: block; width: 100%; margin-top: 16px; padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
 button:focus-visible, a:focus-visible, .photos:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
@@ -130,13 +132,17 @@ button:focus-visible, a:focus-visible, .photos:focus-visible { outline: 2px soli
     <h2>Como ler</h2>
     <dl>
       <dt>Nota</dt>
-      <dd>Meu programa dá uma nota a cada apartamento, somando preço por m², tamanho, cômodos, andar, mercado e metrô por perto e outros detalhes. De 95 para cima é ótimo, de 75 é bom e de 55 é ok; passa de 100 quando tem muitos extras. Em “Como chegou na nota” dá para ver a conta.</dd>
+      <dd>Meu programa dá uma nota a cada apartamento, somando preço por m², tamanho, Zimmer, andar, supermercado e U-Bahn por perto e outros detalhes. De 95 para cima é ótimo, de 75 é bom e de 55 é ok; passa de 100 quando tem muitos extras. Em “Como chegou na nota” dá para ver a conta.</dd>
       <dt>Preço</dt>
-      <dd>Por mês, já com condomínio e aquecimento. O ~ marca um valor estimado.<span id="rate"></span></dd>
-      <dt>Cômodos</dt>
-      <dd>Na Alemanha a sala conta como cômodo: “2 Zimmer” é sala + 1 quarto. “Cantinho” é o que eles chamam de meio cômodo.</dd>
+      <dd>Sempre a Warmmiete. O ~ marca quando o anúncio não trazia o valor certinho.</dd>
+      <dt>Hinterhaus, Seitenflügel…</dt>
+      <dd>Os Altbauten de Berlim costumam ter pátios internos: o Vorderhaus dá para a rua e, atrás dele, vêm o Seitenflügel, o Quergebäude e o Hinterhaus. Quanto mais para dentro, mais silencioso, mas muitas vezes com menos luz. O Gartenhaus fica lá no fundo.</dd>
       <dt>Anúncio encerrado</dt>
-      <dd>O anúncio saiu do site. Isso não quer dizer que perdi o apê: às vezes só chegaram candidatos demais.</dd>
+      <dd>Em Berlim cada anúncio recebe muitos candidatos e costuma sair do ar rápido. Isso não quer dizer que perdi o apê.</dd>
+      <div id="areas" hidden>
+        <dt>Os bairros</dt>
+        <dd><ul id="area-list"></ul></dd>
+      </div>
       <dt>Mapa</dt>
       <dd>Os pontos mostram só a região de cada apartamento, não o endereço.</dd>
     </dl>
@@ -255,11 +261,6 @@ $("map").addEventListener("click", (e) => {
 
 // ---- the flats
 const STAGES = { replied: "↩ Responderam", viewing: "📅 Visita marcada", turned_down: "Não deu certo", got_it: "🎉 Consegui!" };
-function rooms(n) {
-  if (n == null) return null;
-  const whole = Math.floor(n), half = n % 1 ? " + cantinho" : "";
-  return whole <= 1 ? `Studio${half}` : `Sala + ${whole - 1} ${whole === 2 ? "quarto" : "quartos"}${half}`;
-}
 const BANDS = { great: "Ótimo", good: "Bom", ok: "Ok", weak: "Fraco" };
 const chips = (label, kind, items) => items.length
   ? `<p class="chips ${kind}"><span class="lab">${label}</span>${items.map((t) => `<span class="chip">${esc(t)}</span>`).join("")}</p>` : "";
@@ -273,9 +274,8 @@ function card(f) {
     `<span class="score ${esc(f.band)}">Nota <b>${f.score}</b> · ${BANDS[f.band]}</span></div>`;
   const how = f.why.length ? `<details class="how"><summary>Como chegou na nota ${f.score}</summary><ul>` +
     f.why.map(([p, t]) => `<li><span class="pts">${p > 0 ? `+${p}` : `−${-p}`}</span><span>${esc(t)}</span></li>`).join("") + `</ul></details>` : "";
-  const facts = [rooms(f.rooms), f.size && `${f.size} m²`].filter(Boolean).join(" · ");
-  const reais = f.rent && data.brl && `≈ R$ ${(Math.round(f.rent * data.brl.rate / 10) * 10).toLocaleString("pt-BR")}`;
-  const price = f.rent ? `<p class="price"><b>${f.approx ? "~" : ""}${f.rent.toLocaleString("pt-BR")} €</b> por mês${reais ? ` <span>${reais}</span>` : ""}</p>` : "";
+  const facts = [f.rooms != null && `${f.rooms.toLocaleString("pt-BR")} Zimmer`, f.size && `${f.size} m²`].filter(Boolean).join(" · ");
+  const price = f.rent ? `<p class="price"><b>${f.approx ? "~" : ""}${f.rent.toLocaleString("pt-BR")} €</b> warm</p>` : "";
   const sent = f.applied ? `Enviada em ${longDay.format(dayOf(f.applied))}` : "Enviada há um tempo";
   return `<article class="flat${f.stage === "turned_down" ? " turned-down" : ""}" id="f-${esc(f.id)}">${media}<div class="body">
     <div class="top"><h3>${esc(f.area)}</h3><span class="pill ${esc(f.stage || "")}">${STAGES[f.stage] || "Sem resposta ainda"}</span></div>
@@ -305,9 +305,19 @@ if (older.length) {
   $("older").textContent = older.length === 1 ? "Ver a candidatura mais antiga" : `Ver as ${older.length} candidaturas mais antigas`;
   $("older").addEventListener("click", showOlder);
 }
-if (data.brl) {
-  $("rate").textContent = ` Em reais, pela cotação de ${shortDay.format(dayOf(data.brl.date))}: R$ ${data.brl.rate.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} por euro.`;
-}
+// What's Berlin about the neighbourhoods on the page, the ones with the most flats first.
+const AREAS = {
+  Charlottenburg: "oeste de Berlim, em volta do Kurfürstendamm e do palácio. Muito comércio e bem ligado.",
+  Wilmersdorf: "logo ao sul de Charlottenburg. Mais calmo e residencial.",
+  Westend: "a parte oeste de Charlottenburg, perto do Estádio Olímpico. Bem verde.",
+  Halensee: "a ponta oeste do Kurfürstendamm, entre Charlottenburg e Wilmersdorf.",
+  Mitte: "o centro da cidade.",
+  Tempelhof: "sul de Berlim, onde o antigo aeroporto virou um parque enorme.",
+};
+const flatsIn = (area) => flats.filter((f) => f.area === area).length;
+const areas = Object.keys(AREAS).filter(flatsIn).sort((a, b) => flatsIn(b) - flatsIn(a));
+$("areas").hidden = !areas.length;
+$("area-list").innerHTML = areas.map((a) => `<li><b>${a}:</b> ${AREAS[a]}</li>`).join("");
 map();
 addEventListener("resize", map);
 
