@@ -163,6 +163,9 @@ main { padding-top: 18px; padding-bottom: 80px; }
 .btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn.ghost { border-color: transparent; background: transparent; }
 .btn.small { padding: 4px 10px; font-size: 13px; }
+.stage { border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 14px; border-radius: 8px; padding: 5px 6px; cursor: pointer; }
+.stage:hover { border-color: var(--muted); }
+.stage.on { border-color: var(--accent); }
 .empty { color: var(--muted); text-align: center; padding: 48px 0; }
 .more { text-align: center; margin-top: 20px; }
 
@@ -295,6 +298,7 @@ function normalize(d) {
     l.images ??= []; l.codes ??= []; l.flags ??= []; l.notes ??= []; l.reasons ??= [];
     l.gone ??= null; l.gone_at ??= null; l.status_if_back ??= null; l.hide_at ??= null; l.applied_at ??= null;
     l.geo ??= null; l.locality ??= null; l.street ??= null; l.applied_by ??= null; l.applying ??= null; l.ads ??= [];
+    l.stage ??= null;
     if (l.status === "saved") l.status = "applied";  // Applied was called Saved
     if (l.status_if_back === "saved") l.status_if_back = "applied";
   }
@@ -568,6 +572,14 @@ function fillMap(btn) {
   if (pop && l && !pop.firstChild) pop.innerHTML = miniMap(l);
 }
 
+// How far an application got: on Applied, and on ones hidden after applying. It's also what the family page shows.
+const STAGES = [["", "No answer yet"], ["replied", "Replied"], ["viewing", "Viewing"], ["turned_down", "Turned down"], ["got_it", "Got it"]];
+function stagePicker(l) {
+  if (l.status !== "applied" && !(l.status === "hidden" && wasApplied(l))) return "";
+  return `<select class="stage${l.stage ? " on" : ""}" data-act="stage" aria-label="How far this application got">` +
+         STAGES.map(([v, t]) => `<option value="${v}"${(l.stage ?? "") === v ? " selected" : ""}>${t}</option>`).join("") + `</select>`;
+}
+
 function card(l) {
   const n = l.images.length;
   const i = Math.min(photoAt.get(l.key) || 0, Math.max(n - 1, 0));
@@ -614,6 +626,7 @@ function card(l) {
       <div class="actions">
         ${applyButton(l)}
         <button class="btn${applied ? " on" : ""}" data-act="apply" aria-pressed="${applied}">${applied ? "✓ Applied" : "Mark applied"}</button>
+        ${stagePicker(l)}
         <button class="btn" data-act="hide">${l.status === "hidden" ? "Unhide" : "Hide"}</button>
         ${openLinks(l)}
       </div>
@@ -753,6 +766,25 @@ async function setStatus(key, status, appliedAt = stamp()) {
     peers?.postMessage({ type: "status", key, status, applied_at });
   } catch {
     put(key, before);
+    editedAt.delete(key);
+    render();
+    toast(restart ? "Couldn't save that: homefind needs a restart first." : "Couldn't save that. Is homefind still running?");
+  }
+}
+
+async function setStage(key, stage) {
+  const before = byKey.get(key).stage;
+  put(key, { stage });
+  editedAt.set(key, Infinity);
+  render();
+  try {
+    const r = await fetch("/api/stage", { method: "POST", headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ key, stage }) });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    editedAt.set(key, Date.now());
+    peers?.postMessage({ type: "stage", key, stage });
+  } catch {
+    put(key, { stage: before });
     editedAt.delete(key);
     render();
     toast(restart ? "Couldn't save that: homefind needs a restart first." : "Couldn't save that. Is homefind still running?");
@@ -937,7 +969,7 @@ async function poll() {
     // ones deleted), except for an Applied/Hide made here that hadn't reached it when it answered.
     for (const l of next.listings) {
       const cur = byKey.get(l.key);
-      if (cur && (editedAt.get(l.key) ?? 0) >= sent) Object.assign(l, { status: cur.status, hide_at: cur.hide_at, applied_at: cur.applied_at });
+      if (cur && (editedAt.get(l.key) ?? 0) >= sent) Object.assign(l, { status: cur.status, hide_at: cur.hide_at, applied_at: cur.applied_at, stage: cur.stage });
     }
     // A flat none of whose ads were here before, or one whose ImmoScout24 ad just turned up after another
     // site's (alertWorthy: see _first_here in app.py). Not a card that only switched ads, its first one gone offline.
@@ -978,6 +1010,10 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) poll
 peers?.addEventListener("message", ({ data: m }) => {
   if (m.type === "status") {  // applied or hidden in another tab
     put(m.key, { status: m.status, hide_at: null, applied_at: m.applied_at ?? null });
+    editedAt.set(m.key, Date.now());
+    refresh();
+  } else if (m.type === "stage") {  // how far an application got, set in another tab
+    put(m.key, { stage: m.stage });
     editedAt.set(m.key, Date.now());
     refresh();
   } else if (m.type === "check") {  // Check now pressed in another tab
@@ -1084,6 +1120,9 @@ $("auto").addEventListener("change", async () => {
     renderApply();
     toast(`Couldn't change that: ${e.message}`);
   }
+});
+$("grid").addEventListener("change", (e) => {
+  if (e.target.dataset.act === "stage") setStage(e.target.closest(".card").dataset.key, e.target.value || null);
 });
 $("grid").addEventListener("click", (e) => {
   const el = e.target.closest("[data-act]");

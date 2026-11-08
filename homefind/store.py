@@ -51,6 +51,8 @@ class Row(NamedTuple):
     hide_at: str | None   # applied and offline: when it moves to Hidden
     applied_at: str | None  # when you marked it applied (None if before that was kept)
     applied_by: str | None  # 'homefind': it sent the application by itself (auto-apply, see apply.py)
+    stage: str | None     # how far the application got: 'replied', 'viewing', 'turned_down' or 'got_it'
+    stage_at: str | None  # when that was set
 
     @property
     def choice(self) -> str | None:
@@ -66,8 +68,9 @@ class Store:
         self.db.executescript(SCHEMA)
         columns = {row[1] for row in self.db.execute("PRAGMA table_info(listings)")}
         # Added later: status (the web UI: NULL, 'applied' or 'hidden'), then the offline check's columns,
-        # then when you applied, then who sent the application.
-        for column in ("status", "gone", "gone_at", "status_if_back", "hide_at", "applied_at", "applied_by"):
+        # then when you applied, then who sent the application, then how far it got.
+        for column in ("status", "gone", "gone_at", "status_if_back", "hide_at", "applied_at", "applied_by", "stage",
+                       "stage_at"):
             if column not in columns:
                 self.db.execute(f"ALTER TABLE listings ADD COLUMN {column} TEXT")
         if "gone" in columns and "hide_at" not in columns:
@@ -166,13 +169,19 @@ class Store:
                                    " WHEN 'hidden' THEN applied_by END WHERE key = ?",
                                    (status, status, status, applied_at, status, applied_by, key)).rowcount == 1
 
+    def set_stage(self, key: str, stage: str | None) -> bool:
+        """How far the application got (None: no answer yet)."""
+        with self.db:
+            return self.db.execute("UPDATE listings SET stage = ?, stage_at = ? WHERE key = ?",
+                                   (stage, stage and _now(), key)).rowcount == 1
+
     def update_listing(self, listing: Listing) -> None:
         with self.db:
             self.db.execute("UPDATE listings SET data = ? WHERE key = ?",
                             (json.dumps(listing.to_dict(), ensure_ascii=False), listing.key))
 
     ROW = ("SELECT data, verdict, first_seen, last_seen, status, gone, gone_at, status_if_back, hide_at,"
-           " applied_at, applied_by FROM listings")
+           " applied_at, applied_by, stage, stage_at FROM listings")
 
     def all_rows(self, source: str | None = None):
         """Everything (or everything from one source), newest first."""

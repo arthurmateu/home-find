@@ -107,6 +107,9 @@ Only one instance runs at a time; after a reboot, start it again.
 - **Descriptions:** per card, or "Expand descriptions" for all.
 - **✉ Apply** on ImmoScout24 cards, and **Auto-apply** in the header: see
   [Applying](#applying-immoscout24) below.
+- **How far it got:** a dropdown next to ✓ Applied, on the Applied tab and on
+  ones hidden after applying: no answer yet, Replied, Viewing, Turned down or
+  Got it. It goes for the flat on every site it's on.
 - **Mark applied / Hide** on every listing, stored in the database (both have
   Undo). Flats you applied for move to the Applied tab, so they don't take space
   under Matches, with the day you marked them on their badge (hover for the

@@ -33,6 +33,7 @@ PAGE = Path(__file__).with_name("ui.html")
 CSP = ("default-src 'self'; img-src * data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
        "connect-src 'self'; base-uri 'none'; form-action 'none'")
 STATUSES = (None, "applied", "hidden")
+STAGES = (None, "replied", "viewing", "turned_down", "got_it")  # how far an application got
 FIRST_CHOICE = "immoscout"  # a flat on several sites: its card shows and opens this site's ad, while it's online
 COPY_DAYS = 30              # ads first seen this far apart aren't taken for the same flat (as in Store.repost_of)
 
@@ -108,6 +109,7 @@ def _state(flat: list[Row]) -> dict:
                                         "applied_by")}
     if s.gone and not flat[0].gone:  # still online on another site
         state.update(status=s.choice, status_if_back=s.choice, gone=None, gone_at=None, hide_at=None)
+    state["stage"] = next((r.stage for r in flat if r.stage), None)  # an ad that came later doesn't have it
     return state
 
 
@@ -159,7 +161,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "images": [u for u in images if u and "%" not in u],  # skip URL templates
             "description": listing.description,
             "ok": verdict.ok,
-            **_state(flat),  # status, gone, gone_at, status_if_back, hide_at, applied_at, applied_by
+            **_state(flat),  # status, gone, gone_at, status_if_back, hide_at, applied_at, applied_by, stage
             # On several sites: each one's ad, this card's first. Empty when it's only on one.
             "ads": [{"key": r.listing.key, "source": r.listing.source, "url": r.listing.url, "gone": r.gone,
                      "gone_at": r.gone_at, "ok": r.verdict.ok, "reasons": r.verdict.reasons}
@@ -275,6 +277,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(400, b"bad request")
         if path in ("/api/apply", "/api/apply-mode", "/api/apply-report"):
             return self._apply(path, body)
+        if path == "/api/stage":
+            return self._stage(body)
         if path != "/api/status":
             return self._send(404, b"not found")
         try:
@@ -286,9 +290,25 @@ class Handler(BaseHTTPRequestHandler):
         if status not in STATUSES:
             return self._send(400, b"bad status")
         store = Store(self.cfg["run"]["db_path"])
-        try:  # the flat's ad on every site it's on
-            flat = next((f for f in flats(self.cfg, store) if any(r.listing.key == key for r in f)), [])
-            found = sum(store.set_status(k, status, applied_at) for k in [r.listing.key for r in flat] or [key])
+        try:
+            found = sum(store.set_status(k, status, applied_at) for k in self._ads(store, key))
+        finally:
+            store.close()
+        self._send(204 if found else 404)
+
+    def _ads(self, store: Store, key: str) -> list[str]:
+        """The flat's ad on every site it's on."""
+        flat = next((f for f in flats(self.cfg, store) if any(r.listing.key == key for r in f)), [])
+        return [r.listing.key for r in flat] or [key]
+
+    def _stage(self, body: dict):
+        """How far an application got ({key, stage}, see STAGES)."""
+        key, stage = body.get("key"), body.get("stage")
+        if not isinstance(key, str) or stage not in STAGES:
+            return self._send(400, b"bad stage")
+        store = Store(self.cfg["run"]["db_path"])
+        try:
+            found = sum(store.set_stage(k, stage) for k in self._ads(store, key))
         finally:
             store.close()
         self._send(204 if found else 404)
