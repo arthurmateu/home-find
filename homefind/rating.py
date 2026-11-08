@@ -17,10 +17,12 @@ Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over; stre
          near a place you go daily up to 6 ([bonus] daily, in config.local.toml),
          minus: scam signs (8 per point), Ablöse, estimated rent, semi-basement.
 IS24 Plus-only listings aren't marked down: you're a Plus member.
+A note, worth no points: too residential (see residential).
 """
 
 from __future__ import annotations
 
+import math
 import re
 from datetime import datetime
 from typing import NamedTuple
@@ -47,6 +49,7 @@ SHOP, SHOP_MINUTES = 10, 5  # a supermarket: worth a lot to you
 GREEN, GREEN_MINUTES = 3, 5  # a park, woods, a lake or the river
 QUIET = 2        # the quiet side: back buildings, rooms facing the courtyard
 DAILY, DAILY_KM = 6, (2, 8)  # [bonus] daily: all points up to 2 km away (straight line), none from 8 km
+RESIDENTIAL_PER_KM2, RESIDENTIAL_M = 18, 300  # too residential: fewer places to eat or drink than this, in this radius (5 or fewer)
 BANDS = [(95, "great"), (75, "good"), (55, "ok"), (0, "weak")]  # each as rare as 75 / 60 / 45 were before the bonuses
 
 # The floor in the ad's text, when the portal doesn't say: "im 3. OG", "Etage: 2", "zweite Etage",
@@ -77,7 +80,8 @@ COURTYARD = re.compile(
 
 class Part(NamedTuple):
     """A line under a score. `chip`: how it reads on the card, under "Nice extras" (or under
-    "Heads up", when it costs points); empty for the price, size, freshness and the like."""
+    "Heads up", when it costs points or is only a note, 0 points); empty for the price, size,
+    freshness and the like."""
     points: int
     label: str
     chip: str = ""
@@ -160,6 +164,16 @@ def spot(listing: Listing, place: dict | None) -> tuple[float, float] | None:
     if place and place.get("precision") == "address":
         return place["lat"], place["lon"]
     return None
+
+
+def residential(cfg: dict, at: tuple[float, float] | None) -> Part | None:
+    """A note when there's next to nothing to eat or drink around the house: no one's out at night
+    there, so a courier at 1am is one the neighbours notice. None if it's lively, or not known."""
+    n = nearby.count(cfg, *at, ("food",), RESIDENTIAL_M) if at else None
+    if n is None or n / (math.pi * (RESIDENTIAL_M / 1000) ** 2) >= RESIDENTIAL_PER_KM2:
+        return None
+    return Part(0, f"too residential: {n or 'no'} place{'s' * (n != 1)} to eat or drink within {RESIDENTIAL_M} m, "
+                   "so a courier at 1am may get noticed", "too residential")
 
 
 def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
@@ -257,6 +271,9 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
         green = nearby.walk(cfg, *at, ("green",), GREEN_MINUTES)
         if green:
             parts.append((GREEN, f"{green[1]}, {green[0]} min walk", f"{green[1]} {green[0]} min"))
+    quiet_area = residential(cfg, at)
+    if quiet_area:
+        parts.append(quiet_area)
     # kilometres are fine by the postcode's middle too, if that's all there is ("~")
     rough = None if at or not place else (place["lat"], place["lon"])
     for daily in bonus.get("daily", []) if at or rough else []:
@@ -276,7 +293,7 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
         parts.append((-5, "semi-basement (Souterrain)", "semi-basement"))
 
     score = max(0, round(sum(p[0] for p in parts)))  # no ceiling: the points under a score add up, and the best stay in order
-    return score, [Part(*p) for p in parts if p[0] != 0 or p[1].startswith(("posted", "first seen"))]
+    return score, [q for q in (Part(*p) for p in parts) if q.points or q.chip or q.label.startswith(("posted", "first seen"))]
 
 
 def band(score: int) -> str:

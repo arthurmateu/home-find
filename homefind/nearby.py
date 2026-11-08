@@ -1,5 +1,6 @@
 """What's near a flat, for the score: U-Bahn and S-Bahn stations (and their
-entrances), bus and tram stops, supermarkets, parks, woods and water. From OpenStreetMap, through the Overpass API:
+entrances), bus and tram stops, supermarkets, parks, woods and water; and places
+to eat or drink, for the card's note. From OpenStreetMap, through the Overpass API:
 each layer is fetched for all of Berlin into data/nearby.json, and again once
 it's REFRESH_DAYS old, by the web UI's map thread (geo.start) or --geocode.
 Until a layer is there, the score just leaves it out.
@@ -63,14 +64,16 @@ def _stops(elements: list[dict]) -> list[list]:
     return [[k, round(lat, 5), round(lon, 5), name] for k, lat, lon, name in stations + stops]
 
 
-def _shops(elements: list[dict]) -> list[list]:
-    """Supermarkets (discounters and organic ones too): ["supermarket", lat, lon, name]."""
-    out = []
-    for e in elements:
-        t, at = e.get("tags") or {}, e.get("center") or e
-        if at.get("lat") is not None:
-            out.append(["supermarket", round(at["lat"], 5), round(at["lon"], 5), t.get("name") or t.get("brand") or ""])
-    return out
+def _places(kind: str):
+    """A parser for places that are a point or a building's middle: [kind, lat, lon, name]."""
+    def parse(elements: list[dict]) -> list[list]:
+        out = []
+        for e in elements:
+            t, at = e.get("tags") or {}, e.get("center") or e
+            if at.get("lat") is not None:
+                out.append([kind, round(at["lat"], 5), round(at["lon"], 5), t.get("name") or t.get("brand") or ""])
+        return out
+    return parse
 
 
 def _green(elements: list[dict]) -> list[list]:
@@ -102,7 +105,8 @@ LAYERS = {
   node["highway"="bus_stop"](area.b);
   node["railway"="tram_stop"](area.b);
 ); out center tags;""", _stops),
-    "shops": ("""nwr["shop"="supermarket"](area.b); out center tags;""", _shops),
+    "shops": ("""nwr["shop"="supermarket"](area.b); out center tags;""", _places("supermarket")),  # discounters and organic ones too
+    "food": ("""nwr["amenity"~"^(restaurant|fast_food|bar|pub|nightclub|biergarten)$"](area.b); out center tags;""", _places("food")),
     "green": ("""(
   wr["leisure"="park"]["name"](if: length() > 800)(area.b);
   wr["landuse"="forest"]["name"](if: length() > 800)(area.b);
@@ -118,6 +122,7 @@ class Index:
 
     def __init__(self, points: list[list]):
         self.cells: dict[tuple[int, int], list] = defaultdict(list)
+        self.kinds = {p[0] for p in points}
         for p in points:
             self.cells[self._cell(p[1], p[2])].append(p)
 
@@ -125,19 +130,21 @@ class Index:
     def _cell(lat: float, lon: float) -> tuple[int, int]:
         return int(lat * M_PER_DEG // CELL), int(lon * M_PER_DEG * LON_SCALE // CELL)
 
-    def nearest(self, lat: float, lon: float, kinds, metres: float) -> tuple[float, list] | None:
-        """(distance in metres, point) of the nearest point of `kinds` within `metres`."""
+    def around(self, lat: float, lon: float, kinds, metres: float):
+        """(distance in metres, point) of each point of `kinds` within `metres`."""
         ci, cj = self._cell(lat, lon)
         r = math.ceil(metres / CELL)
-        best = None
         for i in range(ci - r, ci + r + 1):
             for j in range(cj - r, cj + r + 1):
                 for p in self.cells.get((i, j), ()):
                     if p[0] in kinds:
                         d = distance((p[1], p[2]), (lat, lon))
-                        if d <= metres and (best is None or d < best[0]):
-                            best = (d, p)
-        return best
+                        if d <= metres:
+                            yield d, p
+
+    def nearest(self, lat: float, lon: float, kinds, metres: float) -> tuple[float, list] | None:
+        """(distance in metres, point) of the nearest point of `kinds` within `metres`."""
+        return min(self.around(lat, lon, kinds, metres), key=lambda found: found[0], default=None)
 
 
 def distance(a: tuple[float, float], b: tuple[float, float]) -> float:
@@ -188,7 +195,7 @@ def _index(cfg: dict) -> Index | None:
         return None
     if _cache.get("key") != key:
         layers = _read(p).get("layers", {})
-        _cache.update(key=key, index=Index([pt for layer in layers.values() for pt in layer["points"]]))
+        _cache.update(key=key, index=Index([pt for layer in layers.values() for pt in layer["points"]]), counts={})
     return _cache["index"]
 
 
@@ -201,3 +208,14 @@ def walk(cfg: dict, lat: float, lon: float, kinds, minutes: float) -> tuple[int,
         return None
     metres, (kind, _, _, name) = found
     return max(1, math.ceil(metres * DETOUR / WALK_M_PER_MIN)), name, kind
+
+
+def count(cfg: dict, lat: float, lon: float, kinds, metres: float) -> int | None:
+    """How many of `kinds` are within `metres` in a straight line. None until there's data on them."""
+    index = _index(cfg)
+    if not index or not index.kinds & set(kinds):
+        return None
+    key, counts = (lat, lon, tuple(kinds), metres), _cache["counts"]
+    if key not in counts:
+        counts[key] = sum(1 for _ in index.around(lat, lon, set(kinds), metres))
+    return counts[key]

@@ -156,18 +156,22 @@ Only one instance runs at a time; after a reboot, start it again.
   when the ad shows the house number, else the address as looked up for the
   mini-map (so for other sites, it shows up a few minutes after the push).
   Minutes on foot are the straight line × 1.3 at 4.8 km/h. Stations,
-  stops, supermarkets and parks come from OpenStreetMap (Overpass API), for all of Berlin, into
+  stops, supermarkets, parks and places to eat or drink come from OpenStreetMap (Overpass API), for all of Berlin, into
   `data/nearby.json`: fetched by the mini-map's background thread (or
   `--geocode`) and again once a month.
 - **Notes** on a card, summed up in rows (hover a chip for the full text):
   **⚠ Watch out**, the scam signs (see Filtering); **Heads up**, what to
   know before going for it (fewer rooms than wanted, Nachmieter, Ablöse, an
-  estimated warm rent, furnished, semi-basement, ...); **Nice extras**, what
+  estimated warm rent, furnished, semi-basement, too residential, ...); **Nice extras**, what
   the score gives points for besides price and size (balcony, kitchen, lift,
   Altbau, garden, the floor, the quiet side, what's within walking distance,
   a verified or municipal landlord) and ImmoScout Plus-only for now (fewer
   can apply); **Good to know**, the rest (private landlord, a street's own
   budget, on another site first, ...).
+- **Too residential** (under Heads up, worth no points) = 5 or fewer
+  restaurants, takeaways, bars and the like within 300 m of the house, so a
+  courier at 1am is one the neighbours notice. Needs the flat's house, like
+  what's within walking distance.
 - **Over budget (warm ≤ 1200 €)** (a reason under Rejected) = everything fine
   except the warm rent is over `max_warm_rent` (982 €), but within
   `stretch_warm_rent` (1200 €, the most you'd pay); that's why the sources

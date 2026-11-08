@@ -591,7 +591,7 @@ function card(l) {
   const sites = l.ads.length ? `\nThe same flat on ${l.ads.map((a) => sourceName(a.source)).join(" and ")} ` +
                                `(same rent, size and postcode): ▾ next to Open has each one` : "";
   const open = state.expandAll || openDesc.has(l.key);
-  const whyList = l.why.map(([p, t]) =>
+  const whyList = l.why.filter(([p, , c]) => p || !c).map(([p, t]) =>  // a chip with no points is only a note
     `<li><span class="pts ${p > 0 ? "plus" : p < 0 ? "minus" : "zero"}">${p > 0 ? "+" : ""}${p}</span>${esc(t)}</li>`).join("");
   const desc = (l.description
       ? `<div class="toggles"><button class="desc-toggle" data-act="desc" aria-expanded="${open}">` +
