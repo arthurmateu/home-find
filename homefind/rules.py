@@ -65,6 +65,11 @@ REASONS = {
 }
 
 
+def dropped(verdict: Verdict, cfg: dict) -> bool:
+    """Rejected for one of search.drop_reasons: stored, so it isn't loaded again, but never shown."""
+    return not set(cfg["search"]["drop_reasons"]).isdisjoint(verdict.codes)
+
+
 def _rx(pattern: str) -> re.Pattern:
     return re.compile(pattern, re.I)
 

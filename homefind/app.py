@@ -13,7 +13,7 @@ from .apply import SOURCES
 from .net import Blocked
 from .rating import rate
 from .notify import Notifier, print_match, print_reject
-from .rules import evaluate
+from .rules import dropped, evaluate
 from .sources import enabled_sources
 from .store import APPLIED_OFFLINE_DAYS, Store
 from .util import text
@@ -267,10 +267,9 @@ def _to_check(src, cfg: dict, store: Store) -> list:
     """Ads to look up, most useful first (Row.priority: applied, matches, rejected
     ones in the area, ones you hid, the rest); least recently seen first. Leaves out
     ads seen online in the last CHECK_AFTER_HOURS and ones never shown (drop_reasons)."""
-    drop = set(cfg["search"].get("drop_reasons") or [])
     cutoff = (datetime.now() - timedelta(hours=CHECK_AFTER_HOURS)).isoformat(timespec="seconds")
     due = [r for r in store.all_rows(src.name)
-           if not r.gone and r.last_seen < cutoff and not drop & set(r.verdict.codes) and src.can_look_up(r.listing)]
+           if not r.gone and r.last_seen < cutoff and not dropped(r.verdict, cfg) and src.can_look_up(r.listing)]
     return sorted(due, key=lambda r: (r.priority, r.last_seen))
 
 
@@ -339,7 +338,7 @@ def recheck(cfg: dict, store: Store) -> tuple[int, int, int]:
     the next run fetches them properly; unless you applied to or hid them, or
     they're offline (no next run would bring them back): those just get the new verdict."""
     needs_enrich = {s.name for s in enabled_sources(cfg, None) if s.needs_enrich}
-    changed = dropped = 0
+    changed = forgotten = 0
     rows = list(store.all_rows())
     for row in rows:
         listing, old = row.listing, row.verdict
@@ -349,11 +348,11 @@ def recheck(cfg: dict, store: Store) -> tuple[int, int, int]:
         verdict = evaluate(listing, cfg, final=bool(complete))
         if verdict.ok and not complete and not (row.status or row.gone):
             store.forget(listing.key)
-            dropped += 1
+            forgotten += 1
         elif verdict.to_dict() != old.to_dict():
             store.update_verdict(listing.key, verdict)
             changed += 1
-    return len(rows), changed, dropped
+    return len(rows), changed, forgotten
 
 
 def fingerprint(listing, verdict) -> str:

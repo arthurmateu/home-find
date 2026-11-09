@@ -18,6 +18,7 @@ from urllib.parse import urlencode
 
 from . import nearby
 from .net import Blocked, Fetcher
+from .rules import dropped
 from .store import Store
 from .util import street_of
 
@@ -95,8 +96,7 @@ class Geocoder:
 def _shown(cfg: dict, store: Store) -> list:
     """Listings the web UI shows, the ones you're likeliest to look at first
     (Row.priority): applied, matches, rejected ones in the area, hidden, the rest."""
-    drop = set(cfg["search"].get("drop_reasons") or [])
-    return sorted((r for r in store.all_rows() if not drop & set(r.verdict.codes)), key=lambda r: r.priority)
+    return sorted((r for r in store.all_rows() if not dropped(r.verdict, cfg)), key=lambda r: r.priority)
 
 
 def fill(cfg: dict, store: Store, geocoder: Geocoder) -> int:

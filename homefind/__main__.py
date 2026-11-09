@@ -16,6 +16,7 @@ from . import casa, geo, nearby, web
 from .apply import Applier
 from .net import Fetcher
 from .notify import Notifier, print_reject
+from .rules import dropped
 from .sources import SOURCE_NAMES
 from .store import Store
 
@@ -64,14 +65,13 @@ def main(argv=None) -> int:
         print("sent" if ok else "failed, see warnings above")
         return 0 if ok else 1
     if args.rejected:
-        drop = set(cfg["search"].get("drop_reasons") or [])
         for listing, verdict in store.rejected(args.rejected):
-            if not drop & set(verdict.codes):
+            if not dropped(verdict, cfg):
                 print_reject(listing, verdict)
         return 0
     if args.recheck:
-        total, changed, dropped = recheck(cfg, store)
-        print(f"rechecked {total} listings: {changed} changed verdict, {dropped} will be re-fetched next run")
+        total, changed, forgotten = recheck(cfg, store)
+        print(f"rechecked {total} listings: {changed} changed verdict, {forgotten} will be re-fetched next run")
         return 0
     if args.casa or args.casa_new_link:
         return publish_casa(cfg, store, args.casa_new_link)

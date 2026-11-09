@@ -24,7 +24,7 @@ from urllib.parse import parse_qs, urlsplit
 from . import app, apply, config, geo
 from .notify import headline
 from .rating import band, rate
-from .rules import REASONS, street_budget, street_key, street_stretch
+from .rules import REASONS, dropped, street_budget, street_key, street_stretch
 from .util import parse_published, street_of
 from .store import Row, Store
 
@@ -68,8 +68,7 @@ def flats(cfg: dict, store: Store) -> list[list[Row]]:
     """The listings the web UI shows (all but drop_reasons), newest first, grouped by flat: the
     same flat on several sites (see _copies) is one group, its lead first (see _lead). Where one
     site has two ads that could be it (identical flats in one building), all of them stay apart."""
-    drop = set(cfg["search"].get("drop_reasons") or [])
-    rows = [r for r in store.all_rows() if not drop & set(r.verdict.codes)]
+    rows = [r for r in store.all_rows() if not dropped(r.verdict, cfg)]
     alike = defaultdict(list)
     for r in rows:
         if r.verdict.warm and r.listing.size_sqm and (r.listing.zip_code or r.listing.district):
