@@ -25,22 +25,16 @@ DEFAULTS: dict = {
         "suspicious_below_eur_sqm": 10.0,
         "scam_threshold": 3,
     },
+    # Where to look is yours to say, in config.toml: there's no area by default, so nothing matches.
     "area": {
-        # Postcodes per Wikipedia's Ortsteil infoboxes. Postcodes don't follow
-        # district borders exactly (e.g. 14197, 10777 are partly Friedenau / Schöneberg).
-        "zip_codes": [
-            "10585", "10587", "10589", "10623", "10625", "10627", "10629",  # Charlottenburg
-            "14050", "14052", "14053", "14055", "14057", "14059",           # Westend (+ west Charlottenburg)
-            "10709", "10711",                                                # Halensee
-            "10707", "10713", "10715", "10717", "10719", "10777", "14197",  # Wilmersdorf
-        ],
+        "zip_codes": [],       # flats here are matches
         # Shown under Rejected, as "Edge of the area"; every other postcode is outside the area
         # (reason "avoid": never shown, while it's in drop_reasons).
         "edge_zip_codes": [],
         # Only used when a listing has no postcode: the portal's neighbourhood label.
-        "names": ["Charlottenburg", "Westend", "Halensee", "Wilmersdorf"],
+        "names": [],
         "edge_names": [],
-        "exclude_names": ["Charlottenburg-Nord"],
+        "exclude_names": [],   # names to ignore in a label, if they'd match one of the above by mistake
     },
     # Extra points in the score (rating.py) for where a flat is.
     "bonus": {
@@ -63,20 +57,21 @@ DEFAULTS: dict = {
     # every_minutes: how often --loop checks each source. check_per_run: how many
     # older ads it also looks up per check, to find the ones taken offline.
     # sweep_every_hours: how often inberlinwohnen goes through all its pages, for the same reason.
+    # The searches cover all of Berlin, and [area] sorts what they bring in (Immowelt only has
+    # pages for some neighbourhoods and prices: see sources/immowelt.py).
     "sources": {
         # max_pages: room for growth (523 ads, 53 pages, in Nov 2026); a sweep that can't see them all finds nothing gone
         "inberlinwohnen": {"enabled": True, "every_minutes": 60, "max_pages": 100, "sweep_every_hours": 12},
         "immoscout": {"enabled": True, "every_minutes": 60, "max_pages": 3, "check_per_run": 5,
-                      "geocodes": ["1276003001011", "1276003001076"]},  # Charlottenburg (+Westend), Wilmersdorf (+Halensee)
+                      "geocodes": ["1276003001"]},
         "kleinanzeigen": {
             "enabled": True,
             "every_minutes": 60,
             "max_pages": 2,
             "check_per_run": 5,
-            "locations": [{"slug": "charlottenburg", "id": 3332}, {"slug": "westend", "id": 25905},
-                          {"slug": "wilmersdorf", "id": 3532}],
+            "locations": [{"slug": "berlin", "id": 3331}],
         },
-        "wggesucht": {"enabled": True, "every_minutes": 60, "check_per_run": 2, "districts": [126, 192, 85083]},
+        "wggesucht": {"enabled": True, "every_minutes": 60, "check_per_run": 2, "districts": []},
         "immowelt": {
             "enabled": True,
             "every_minutes": 60,
