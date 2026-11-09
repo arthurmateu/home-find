@@ -31,6 +31,11 @@ class Listing:
     def key(self) -> str:
         return f"{self.source}:{self.id}"
 
+    def photo_urls(self) -> list[str]:
+        """Every photo, or else the one the search showed; never a URL template ("%")."""
+        urls = self.images or ([self.image_url] if self.image_url else [])
+        return [u for u in urls if u and "%" not in u]
+
     def to_dict(self) -> dict:
         return asdict(self)
 

@@ -176,10 +176,10 @@ def _photo(url: str, folder: Path, known: dict) -> str | None:
 
 def _photos(listing, folder: Path, known: dict, most: int) -> list[str]:
     names: list[str] = []
-    for url in listing.images or ([listing.image_url] if listing.image_url else []):
+    for url in listing.photo_urls():
         if len(names) == most:
             break
-        name = "%" not in url and _photo(_phone_sized(url), folder, known)  # "%": a URL template
+        name = _photo(_phone_sized(url), folder, known)
         if name and name not in names:
             names.append(name)
     return names

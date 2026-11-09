@@ -142,7 +142,6 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
     for flat in flats(cfg, store):
         row = flat[0]
         listing, verdict, first_seen = row.listing, row.verdict, row.first_seen
-        images = listing.images or ([listing.image_url] if listing.image_url else [])
         place = geo.locate(listing, places)
         score, parts = rate(listing, verdict, first_seen, cfg, now, place)
         posted = parse_published(listing.published, first_seen)
@@ -156,7 +155,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "landlord": listing.landlord,
             "first_seen": first_seen,  # this ad's: one on ImmoScout24 after another site had the flat is news
             "last_seen": row.last_seen,
-            "images": [u for u in images if u and "%" not in u],  # skip URL templates
+            "images": listing.photo_urls(),
             "description": listing.description,
             "ok": verdict.ok,
             **_state(flat),  # status, gone, gone_at, status_if_back, hide_at, applied_at, applied_by, stage
