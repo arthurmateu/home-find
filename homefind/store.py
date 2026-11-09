@@ -83,28 +83,6 @@ class Store:
                        "stage_at"):
             if column not in columns:
                 self.db.execute(f"ALTER TABLE listings ADD COLUMN {column} TEXT")
-        if "gone" in columns and "hide_at" not in columns:
-            # Offline ads marked when all of them went to Hidden: apply today's rules (see mark_gone).
-            with self.db:
-                self.db.execute("DELETE FROM listings WHERE gone IS NOT NULL AND ok = 0 AND status = 'hidden'"
-                                " AND status_if_back IS NULL")
-                self.db.execute("UPDATE listings SET status = 'saved', hide_at = strftime('%Y-%m-%dT%H:%M:%S', gone_at, ?)"
-                                " WHERE gone IS NOT NULL AND status = 'hidden' AND status_if_back = 'saved'",
-                                (f"+{APPLIED_OFFLINE_DAYS} days",))
-        if not self.meta_get("saved_renamed"):
-            # Saved was renamed Applied.
-            with self.db:
-                for column in ("status", "status_if_back"):
-                    self.db.execute(f"UPDATE listings SET {column} = 'applied' WHERE {column} = 'saved'")
-                self.db.execute("INSERT OR REPLACE INTO meta VALUES ('saved_renamed', '1')")
-        if not self.meta_get("is24_english"):
-            # ImmoScout24 links went to its English pages: the ones kept already too (repost notes' included).
-            old, new = "https://www.immobilienscout24.de/expose/", "https://www.immobilienscout24.de/en/expose/"
-            with self.db:
-                self.db.execute("UPDATE listings SET data = replace(data, ?, ?), verdict = replace(verdict, ?, ?)",
-                                (old, new, old, new))
-                self.db.execute("UPDATE fingerprints SET url = replace(url, ?, ?)", (old, new))
-                self.db.execute("INSERT OR REPLACE INTO meta VALUES ('is24_english', '1')")
 
     def close(self) -> None:
         self.db.close()
