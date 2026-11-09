@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import html
 import re
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 
 def num(value) -> float | None:
@@ -105,8 +105,6 @@ def parse_published(value, reference: str | None = None):
     timestamps ('...Z' = UTC), '18.09.2026', and relative German phrases such as
     'vor 2 Stunden' / 'Online: 11 Stunden' / '5 Min.', counted back from `reference` (when
     we fetched it, ISO)."""
-    from datetime import datetime, timedelta, timezone
-
     if not value:
         return None
     ref = datetime.fromisoformat(reference) if reference else datetime.now()
