@@ -208,6 +208,10 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         log.debug("web: " + fmt, *args)
 
+    def _store(self) -> Store:
+        """A connection of this request's own (they're handled on threads)."""
+        return Store(self.cfg["run"]["db_path"])
+
     def _local(self) -> bool:
         # Rejects requests addressed to any other host name (DNS rebinding).
         host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]")
@@ -225,11 +229,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _read(self, listings: bool = True) -> dict:
         """The payload, or (listings=False) just the status for the header."""
-        store = Store(self.cfg["run"]["db_path"])
-        try:
+        with self._store() as store:
             return payload(self.cfg, store, self.loop, self.applier) if listings else app.status(self.cfg, store, self.loop)
-        finally:
-            store.close()
 
     def do_GET(self):
         if not self._local():
@@ -251,11 +252,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, json.dumps(profile, ensure_ascii=False).encode(), "application/json; charset=utf-8")
         if self.applier and path == "/api/apply-hello":  # the helper, on an ad: it's installed, and which version
             version = parse_qs(urlsplit(self.path).query).get("version", [""])[0]
-            store = Store(self.cfg["run"]["db_path"])
-            try:
+            with self._store() as store:
                 store.meta_set("apply_helper", json.dumps({"version": version, "at": datetime.now().isoformat()}))
-            finally:
-                store.close()
             return self._send(204)
         self._send(404, b"not found")
 
@@ -289,11 +287,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(400, b"bad request")
         if status not in STATUSES:
             return self._send(400, b"bad status")
-        store = Store(self.cfg["run"]["db_path"])
-        try:
+        with self._store() as store:
             found = sum(store.set_status(k, status, applied_at) for k in self._ads(store, key))
-        finally:
-            store.close()
         self._changed()
         self._send(204 if found else 404)
 
@@ -311,11 +306,8 @@ class Handler(BaseHTTPRequestHandler):
         key, stage = body.get("key"), body.get("stage")
         if not isinstance(key, str) or stage not in STAGES:
             return self._send(400, b"bad stage")
-        store = Store(self.cfg["run"]["db_path"])
-        try:
+        with self._store() as store:
             found = sum(store.set_stage(k, stage) for k in self._ads(store, key))
-        finally:
-            store.close()
         self._changed()
         self._send(204 if found else 404)
 
@@ -330,8 +322,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(400, b"bad request")
         if path == "/api/apply-report" and body.get("step") not in (*apply.STEPS, "form"):
             return self._send(400, b"bad step")
-        store = Store(self.cfg["run"]["db_path"])
-        try:
+        with self._store() as store:
             if path == "/api/apply-mode":
                 store.meta_set("apply_mode", body["mode"])
                 log.info("auto-apply: %s", apply.MODES[body["mode"]].lower())
@@ -341,8 +332,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(204 if found else 404)
             else:
                 self.applier.opened(body["key"])
-        finally:
-            store.close()
         self._send(204)
 
 

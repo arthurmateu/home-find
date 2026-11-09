@@ -139,19 +139,17 @@ def start(cfg: dict) -> threading.Thread:
                 except Exception as e:  # noqa: BLE001 - the score does without until it works
                     log.warning("map: couldn't fetch what's nearby (%s); trying again in an hour", e)
                     nearby_after = time.monotonic() + 3600
-            store = Store(cfg["run"]["db_path"])
-            try:
-                n = fill(cfg, store, geocoder)
-                if n:
-                    log.info("map: looked up %d place%s", n, "s" * (n > 1))
-            except Blocked as e:
-                log.warning("map: Nominatim refused (%s); trying again in an hour", e)
-                wait = 3600
-            except Exception as e:  # noqa: BLE001 - maps are a nice-to-have; never stop for them
-                log.warning("map: lookup failed (%s); trying again in 10 min", e)
-                wait = 600
-            finally:
-                store.close()
+            with Store(cfg["run"]["db_path"]) as store:
+                try:
+                    n = fill(cfg, store, geocoder)
+                    if n:
+                        log.info("map: looked up %d place%s", n, "s" * (n > 1))
+                except Blocked as e:
+                    log.warning("map: Nominatim refused (%s); trying again in an hour", e)
+                    wait = 3600
+                except Exception as e:  # noqa: BLE001 - maps are a nice-to-have; never stop for them
+                    log.warning("map: lookup failed (%s); trying again in 10 min", e)
+                    wait = 600
             time.sleep(wait)
 
     t = threading.Thread(target=run, name="geo", daemon=True)

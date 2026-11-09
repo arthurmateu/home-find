@@ -317,18 +317,16 @@ class Publisher:
         self._poke.set()
 
     def _once(self) -> None:
-        store = Store(self.cfg["run"]["db_path"])
-        try:
-            publish(self.cfg, store)
-            if self.failing:
-                log.info("family page: uploading works again")
-            self.failing = False
-        except Exception as e:  # noqa: BLE001 - the flat hunt goes on without it
-            if not self.failing:  # said once, not at every try
-                log.warning("family page: couldn't upload it (%s); will keep trying", problem(e))
-            self.failing = True
-        finally:
-            store.close()
+        with Store(self.cfg["run"]["db_path"]) as store:
+            try:
+                publish(self.cfg, store)
+                if self.failing:
+                    log.info("family page: uploading works again")
+                self.failing = False
+            except Exception as e:  # noqa: BLE001 - the flat hunt goes on without it
+                if not self.failing:  # said once, not at every try
+                    log.warning("family page: couldn't upload it (%s); will keep trying", problem(e))
+                self.failing = True
 
     def _run(self) -> None:
         while True:

@@ -108,6 +108,16 @@ class Store:
                 self.db.execute("UPDATE fingerprints SET url = replace(url, ?, ?)", (old, new))
                 self.db.execute("INSERT OR REPLACE INTO meta VALUES ('is24_english', '1')")
 
+    def close(self) -> None:
+        self.db.close()
+
+    def __enter__(self) -> "Store":
+        """`with Store(path) as store:` closes it afterwards."""
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
     def seen(self, key: str) -> bool:
         return self.db.execute("SELECT 1 FROM listings WHERE key = ?", (key,)).fetchone() is not None
 
@@ -231,9 +241,6 @@ class Store:
             self.db.execute("INSERT OR REPLACE INTO places VALUES (?, ?, ?, ?, ?, ?, ?)",
                             (q, p.get("lat"), p.get("lon"), p.get("precision"), p.get("locality"), p.get("radius"),
                              _now()))
-
-    def close(self) -> None:
-        self.db.close()
 
     def meta_get(self, k: str) -> str | None:
         row = self.db.execute("SELECT v FROM meta WHERE k = ?", (k,)).fetchone()
