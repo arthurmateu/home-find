@@ -50,7 +50,6 @@ def parse(page: str):
             district=district,
             address=street,
             wbs_required=bool(re.search(r"\bWBS\b[^\n]{0,30}(erforderlich|notwendig)|\bmit WBS\b", block)),
-            available_from=_field(block, "Voraus. frei ab"),
             landlord="Charlottenburger Baugenossenschaft eG",
             trusted=True,
             signals={"members_only": "nur für mitglieder" in block.lower()},

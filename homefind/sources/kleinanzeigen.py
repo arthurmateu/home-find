@@ -94,7 +94,6 @@ class Kleinanzeigen(Source):
 
         listing.size_sqm = num(attrs.get("Wohnfläche")) or listing.size_sqm
         listing.rooms = num(attrs.get("Zimmer")) or listing.rooms
-        listing.available_from = attrs.get("Verfügbar ab")
         warm = num(attrs.get("Warmmiete"))
         cold = num(attrs.get("Kaltmiete")) or listed
         extra, heating = num(attrs.get("Nebenkosten")), num(attrs.get("Heizkosten"))

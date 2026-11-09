@@ -19,7 +19,6 @@ class Listing:
     photos: int | None = None        # None = unknown
     private: bool | None = None      # private landlord vs. company
     wbs_required: bool | None = None
-    available_from: str | None = None
     published: str | None = None
     landlord: str | None = None
     image_url: str | None = None     # first photo (thumbnail-sized is fine)

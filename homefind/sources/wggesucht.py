@@ -68,7 +68,6 @@ class WgGesucht(Source):
                 rooms=num(rooms.group(1)) if rooms else None,
                 district=parts[1].replace("Berlin", "").strip() or None if len(parts) > 1 else None,
                 address=parts[2] if len(parts) > 2 else None,
-                available_from=dates[:10] or None,
                 image_url=photo.group(1) if photo else None,
             )
             if " - " in dates:

@@ -122,7 +122,6 @@ class ImmoScout(Source):
                 if pin.get("lat") and re.search(r"\d", street_of(addr) or ""):  # the house's, not the postcode's middle
                     listing.signals["geo"] = [pin["lat"], pin["lng"]]
         listing.description = "\n".join(texts)
-        listing.available_from = attrs.get("Bezugsfrei ab") or listing.available_from
         wbs = next((v for k, v in attrs.items() if "WBS" in k or "Wohnberechtigungsschein" in k), None)
         if wbs is not None:
             listing.wbs_required = wbs.strip().lower() in ("ja", "erforderlich")

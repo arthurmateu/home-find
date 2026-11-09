@@ -207,7 +207,6 @@ def parse(page: str):
             address=" ".join(x for x in (addr.get("street"), addr.get("number")) if x),
             # "erforderlich", "nicht erforderlich" or "unbekannt"; rules.py also reads the title
             wbs_required={"erforderlich": True, "nicht erforderlich": False}.get(wbs),
-            available_from=it.get("occupationDate"),
             published=it.get("createdAt"),
             landlord=(company.get("name") or "").strip() or None,
             image_url=f"https://www.inberlinwohnen.de/img/{img}" if img else None,
