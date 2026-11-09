@@ -275,20 +275,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._apply(path, body)
         if path == "/api/stage":
             return self._stage(body)
-        if path != "/api/status":
-            return self._send(404, b"not found")
-        try:
-            key, status, applied_at = body["key"], body.get("status"), body.get("applied_at")
-            if applied_at is not None:
-                datetime.fromisoformat(applied_at)
-        except (ValueError, KeyError, TypeError):
-            return self._send(400, b"bad request")
-        if status not in STATUSES:
-            return self._send(400, b"bad status")
-        with self._store() as store:
-            found = sum(store.set_status(k, status, applied_at) for k in self._ads(store, key))
-        self._changed()
-        self._send(204 if found else 404)
+        if path == "/api/status":
+            return self._status(body)
+        self._send(404, b"not found")
 
     def _changed(self) -> None:
         if self.casa:
@@ -299,15 +288,31 @@ class Handler(BaseHTTPRequestHandler):
         flat = next((f for f in flats(self.cfg, store) if any(r.listing.key == key for r in f)), [])
         return [r.listing.key for r in flat] or [key]
 
+    def _for_flat(self, key: str, change) -> None:
+        """Makes `change(store, key)` to the flat's ad on every site it's on; 404 if homefind has none."""
+        with self._store() as store:
+            found = sum(change(store, k) for k in self._ads(store, key))
+        self._changed()
+        self._send(204 if found else 404)
+
+    def _status(self, body: dict):
+        """Mark applied, Hide and their Undo ({key, status, applied_at}, see STATUSES)."""
+        try:
+            key, status, applied_at = body["key"], body.get("status"), body.get("applied_at")
+            if applied_at is not None:
+                datetime.fromisoformat(applied_at)
+        except (ValueError, KeyError, TypeError):
+            return self._send(400, b"bad request")
+        if status not in STATUSES:
+            return self._send(400, b"bad status")
+        self._for_flat(key, lambda store, k: store.set_status(k, status, applied_at))
+
     def _stage(self, body: dict):
         """How far an application got ({key, stage}, see STAGES)."""
         key, stage = body.get("key"), body.get("stage")
         if not isinstance(key, str) or stage not in STAGES:
             return self._send(400, b"bad stage")
-        with self._store() as store:
-            found = sum(store.set_stage(k, stage) for k in self._ads(store, key))
-        self._changed()
-        self._send(204 if found else 404)
+        self._for_flat(key, lambda store, k: store.set_stage(k, stage))
 
     def _apply(self, path: str, body: dict):
         """✉ Apply on a card ({key}: it opened the ad for the Firefox helper), auto-apply's
