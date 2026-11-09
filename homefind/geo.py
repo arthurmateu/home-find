@@ -17,14 +17,13 @@ import time
 from urllib.parse import urlencode
 
 from . import nearby
-from .net import Blocked, Fetcher
+from .net import OSM_UA, Blocked, Fetcher
 from .rules import dropped
 from .store import Store
 from .util import street_of
 
 log = logging.getLogger("homefind")
 API = "https://nominatim.openstreetmap.org/search"
-UA = "homefind/1.0 (personal flat search in Berlin)"  # Nominatim wants the app named, not a browser
 BERLIN = (52.33, 52.68, 13.08, 13.77)  # south, north, west, east: answers outside are wrong matches
 EVERY_SECONDS = 120
 
@@ -78,7 +77,7 @@ def _parse(item: dict) -> dict | None:
     else:  # a postcode or neighbourhood: its middle, and roughly how far it reaches
         precision = "area"
         s, n, w, e = map(float, item["boundingbox"])
-        radius = round(max(n - s, (e - w) * math.cos(math.radians(lat))) * 111_320 / 2)
+        radius = round(max(n - s, (e - w) * math.cos(math.radians(lat))) * nearby.M_PER_DEG / 2)
     return {"lat": lat, "lon": lon, "precision": precision, "radius": radius,
             "locality": a.get("suburb") or a.get("city_district") or a.get("borough")}
 
@@ -89,7 +88,7 @@ class Geocoder:
 
     def ask(self, params: dict) -> dict | None:
         q = {**params, "format": "jsonv2", "addressdetails": 1, "limit": 1, "countrycodes": "de"}
-        found = self.http.json(f"{API}?{urlencode(q)}", ua=UA)
+        found = self.http.json(f"{API}?{urlencode(q)}", ua=OSM_UA)
         return _parse(found[0]) if found else None
 
 

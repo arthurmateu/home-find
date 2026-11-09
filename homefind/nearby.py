@@ -20,10 +20,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlencode
 
-from .net import Fetcher
+from .net import OSM_UA, Fetcher
 
 API = "https://overpass-api.de/api/interpreter"
-UA = "homefind/1.0 (personal flat search in Berlin)"
 REFRESH_DAYS = 30
 DETOUR, WALK_M_PER_MIN = 1.3, 80  # 4.8 km/h
 M_PER_DEG = 111_320               # metres per degree of latitude
@@ -180,7 +179,7 @@ def refresh(cfg: dict, http: Fetcher | None = None) -> list[str]:
     for name in due:
         body, parse = LAYERS[name]
         query = f'[out:json][timeout:180];\narea["name"="Berlin"]["admin_level"="4"]->.b;\n{body}'
-        found = http.json(f"{API}?{urlencode({'data': query})}", ua=UA)
+        found = http.json(f"{API}?{urlencode({'data': query})}", ua=OSM_UA)
         layers[name] = {"fetched": datetime.now().isoformat(timespec="seconds"), "points": parse(found["elements"])}
         tmp = p.with_suffix(".tmp")
         tmp.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
