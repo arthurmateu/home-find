@@ -59,6 +59,18 @@ class Row(NamedTuple):
         """Where you put it (None: nowhere). One taken offline keeps that in status_if_back."""
         return self.status_if_back if self.gone else self.status
 
+    @property
+    def priority(self) -> int:
+        """How soon you'd look at it, lowest first: applied, matches, rejected ones in the
+        area, ones you hid, the rest."""
+        if self.status == "applied":
+            return 0
+        if self.status == "hidden":
+            return 3
+        if self.verdict.ok:
+            return 1
+        return 4 if {"area", "avoid"} & set(self.verdict.codes) else 2
+
 
 class Store:
     def __init__(self, path: str):

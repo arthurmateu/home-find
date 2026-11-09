@@ -264,24 +264,14 @@ def _find_offline(src, cfg: dict, store: Store, online: set[str]) -> list[str]:
 
 
 def _to_check(src, cfg: dict, store: Store) -> list:
-    """Ads to look up, most useful first: applied, matches, rejected ones in the
-    area, ones you hid, the rest; least recently seen first. Leaves out ads seen
-    online in the last CHECK_AFTER_HOURS and ones never shown (drop_reasons)."""
+    """Ads to look up, most useful first (Row.priority: applied, matches, rejected
+    ones in the area, ones you hid, the rest); least recently seen first. Leaves out
+    ads seen online in the last CHECK_AFTER_HOURS and ones never shown (drop_reasons)."""
     drop = set(cfg["search"].get("drop_reasons") or [])
     cutoff = (datetime.now() - timedelta(hours=CHECK_AFTER_HOURS)).isoformat(timespec="seconds")
-
-    def rank(r) -> int:
-        if r.status == "applied":
-            return 0
-        if r.status == "hidden":
-            return 3
-        if r.verdict.ok:
-            return 1
-        return 4 if {"area", "avoid"} & set(r.verdict.codes) else 2
-
     due = [r for r in store.all_rows(src.name)
            if not r.gone and r.last_seen < cutoff and not drop & set(r.verdict.codes) and src.can_look_up(r.listing)]
-    return sorted(due, key=lambda r: (rank(r), r.last_seen))
+    return sorted(due, key=lambda r: (r.priority, r.last_seen))
 
 
 def _look_up(src, cfg: dict, store: Store, row) -> bool:

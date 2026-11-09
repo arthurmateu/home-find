@@ -93,20 +93,10 @@ class Geocoder:
 
 
 def _shown(cfg: dict, store: Store) -> list:
-    """Listings the web UI shows, the ones you're likeliest to look at first:
-    applied, matches, rejected ones in the area, hidden, the rest."""
+    """Listings the web UI shows, the ones you're likeliest to look at first
+    (Row.priority): applied, matches, rejected ones in the area, hidden, the rest."""
     drop = set(cfg["search"].get("drop_reasons") or [])
-
-    def rank(r) -> int:
-        if r.status == "applied":
-            return 0
-        if r.status == "hidden":
-            return 3
-        if r.verdict.ok:
-            return 1
-        return 4 if {"area", "avoid"} & set(r.verdict.codes) else 2
-
-    return sorted((r for r in store.all_rows() if not drop & set(r.verdict.codes)), key=rank)
+    return sorted((r for r in store.all_rows() if not drop & set(r.verdict.codes)), key=lambda r: r.priority)
 
 
 def fill(cfg: dict, store: Store, geocoder: Geocoder) -> int:
