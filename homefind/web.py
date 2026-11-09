@@ -26,7 +26,7 @@ from .notify import headline
 from .rating import band, rate
 from .rules import REASONS, dropped, street_budget, street_key, street_stretch
 from .util import parse_published, street_of
-from .store import Row, Store
+from .store import SAME_FLAT_DAYS, Row, Store
 
 log = logging.getLogger("homefind")
 PAGE = Path(__file__).with_name("ui.html")
@@ -35,7 +35,6 @@ CSP = ("default-src 'self'; img-src * data:; style-src 'unsafe-inline'; script-s
 STATUSES = (None, "applied", "hidden")
 STAGES = (None, "replied", "viewing", "turned_down", "got_it")  # how far an application got
 FIRST_CHOICE = "immoscout"  # a flat on several sites: its card shows and opens this site's ad, while it's online
-COPY_DAYS = 30              # ads first seen this far apart aren't taken for the same flat (as in Store.repost_of)
 
 
 def _address(listing) -> tuple[str | None, str | None, str | None]:
@@ -50,13 +49,13 @@ def _address(listing) -> tuple[str | None, str | None, str | None]:
 
 def _copies(a: Row, b: Row) -> bool:
     """Two ads with the same fingerprint (app.fingerprint), on two sites: the same flat, unless their
-    cold rents, streets or house numbers differ, or they were first seen COPY_DAYS or more apart."""
+    cold rents, streets or house numbers differ, or they were first seen SAME_FLAT_DAYS or more apart."""
     la, lb = a.listing, b.listing
     if la.source == lb.source or (la.cold_rent and lb.cold_rent and abs(la.cold_rent - lb.cold_rent) > 1):
         return False
     if any(x and y and x != y for x, y in zip(_address(la), _address(lb))):
         return False
-    return abs(datetime.fromisoformat(a.first_seen) - datetime.fromisoformat(b.first_seen)) < timedelta(days=COPY_DAYS)
+    return abs(datetime.fromisoformat(a.first_seen) - datetime.fromisoformat(b.first_seen)) < timedelta(days=SAME_FLAT_DAYS)
 
 
 def _lead(r: Row) -> tuple:

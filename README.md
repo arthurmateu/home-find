@@ -100,7 +100,8 @@ Only one instance runs at a time; after a reboot, start it again.
   search and the Provider filter. Mark applied and Hide go for every one of
   them, and the card only counts as offline once all of them are. Same flat
   = same warm rent, size and postcode, first seen within 30 days of each
-  other, with no cold rent, street or house number that differs; when one
+  other (`SAME_FLAT_DAYS` in `homefind/store.py`), with no cold rent, street
+  or house number that differs; when one
   site has two ads that could be it (identical flats in one building), they
   all keep their own cards. `FIRST_CHOICE` in `homefind/web.py` is the site
   that's opened first.

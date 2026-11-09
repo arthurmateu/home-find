@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS places (q TEXT PRIMARY KEY, lat REAL, lon REAL, preci
 
 
 APPLIED_OFFLINE_DAYS = 2  # an ad you applied to that's taken offline stays on Applied this long, then moves to Hidden
+SAME_FLAT_DAYS = 30       # ads with the same rent, size and postcode are the same flat if first seen within this of each other
 
 
 def _now() -> str:
@@ -218,11 +219,11 @@ class Store:
         with self.db:
             self.db.execute("DELETE FROM listings WHERE key = ?", (key,))
 
-    def repost_of(self, listing: Listing, fingerprint: str, days: int = 30) -> str | None:
-        """URL of an earlier match with the same fingerprint in the last `days`
+    def repost_of(self, listing: Listing, fingerprint: str) -> str | None:
+        """URL of an earlier match with the same fingerprint in the last SAME_FLAT_DAYS
         days (a repost, or the same flat on another portal); else records this one."""
         row = self.db.execute("SELECT key, url, first_seen FROM fingerprints WHERE fp = ?", (fingerprint,)).fetchone()
-        if row and row[0] != listing.key and (datetime.now() - datetime.fromisoformat(row[2])).days < days:
+        if row and row[0] != listing.key and (datetime.now() - datetime.fromisoformat(row[2])).days < SAME_FLAT_DAYS:
             return row[1]
         with self.db:
             self.db.execute("INSERT OR REPLACE INTO fingerprints VALUES (?, ?, ?, ?)",

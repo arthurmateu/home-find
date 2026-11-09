@@ -15,7 +15,7 @@ from .rating import rate
 from .notify import Notifier, print_match, print_reject
 from .rules import dropped, evaluate
 from .sources import enabled_sources
-from .store import APPLIED_OFFLINE_DAYS, Store
+from .store import APPLIED_OFFLINE_DAYS, SAME_FLAT_DAYS, Store
 from .util import text
 
 log = logging.getLogger("homefind")
@@ -360,14 +360,14 @@ def fingerprint(listing, verdict) -> str:
     return f"{round(verdict.warm or 0)}|{round(listing.size_sqm or 0)}|{listing.zip_code or listing.district}"
 
 
-def _first_here(store: Store, listing, verdict, days: int = 30) -> bool:
+def _first_here(store: Store, listing, verdict) -> bool:
     """A match with the fingerprint of an earlier one (Store.repost_of): is it the flat's first
     on a site you apply on (apply.SOURCES), with you having neither applied to it nor hidden it
     on the other site? That's news: you wait for it to turn up there."""
     if listing.source not in SOURCES:
         return False
     fp = fingerprint(listing, verdict)
-    since = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")
+    since = (datetime.now() - timedelta(days=SAME_FLAT_DAYS)).isoformat(timespec="seconds")
     before = [r for r in store.all_rows() if r.first_seen >= since and r.verdict.ok
               and fingerprint(r.listing, r.verdict) == fp]
     return not any(r.listing.source == listing.source or r.choice for r in before)
