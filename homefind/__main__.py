@@ -58,7 +58,7 @@ def main(argv=None) -> int:
 
     if args.test_notify:
         if not notifier.configured:
-            print("No notification channel configured: set notify.ntfy_topic (or Telegram) in config.toml")
+            print("No notification channel configured: set notify.ntfy_topic (or Telegram) in config.local.toml")
             return 1
         ok = notifier.push("homefind test", "Notifications work.", "https://www.inberlinwohnen.de/wohnungsfinder/")
         print("sent" if ok else "failed, see warnings above")

@@ -29,13 +29,13 @@ its interval, up to 6 hours) while the others carry on.
 
 ## Setup
 
-1. Install the **ntfy** app ([Android](https://play.google.com/store/apps/details?id=io.heckel.ntfy) / [iOS](https://apps.apple.com/app/ntfy/id1625396347), or <https://ntfy.sh/app> in a browser) and subscribe to the `ntfy_topic` in `config.toml`.
+1. Install the **ntfy** app ([Android](https://play.google.com/store/apps/details?id=io.heckel.ntfy) / [iOS](https://apps.apple.com/app/ntfy/id1625396347), or <https://ntfy.sh/app> in a browser) and subscribe to a topic with a name nobody could guess: whoever knows it can read your pushes and send you their own. Set it as `ntfy_topic` under `[notify]` in `config.local.toml` (see 3), not in `config.toml`.
 2. Send a test notification (see below). Listings that were already online when
    a source was first added were stored without a push; from then on only new
    matches are pushed.
-3. Settings you'd rather keep off GitHub (the places in `[bonus] daily`) go in
-   `config.local.toml`, next to `config.toml`: it's in `.gitignore`, and what
-   it sets goes over `config.toml`'s.
+3. Settings you'd rather keep off GitHub (the ntfy topic, the places in
+   `[bonus] daily`) go in `config.local.toml`, next to `config.toml`: it's in
+   `.gitignore`, and what it sets goes over `config.toml`'s.
 
 ## Running it
 

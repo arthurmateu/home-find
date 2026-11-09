@@ -56,8 +56,8 @@ DEFAULTS: dict = {
     },
     "notify": {
         "ntfy_server": "https://ntfy.sh",
-        "ntfy_topic": "",
-        "telegram_bot_token": "",
+        "ntfy_topic": "",  # set it in config.local.toml: whoever knows it can read your pushes
+        "telegram_bot_token": "",  # that one too
         "telegram_chat_id": "",
     },
     # every_minutes: how often --loop checks each source. check_per_run: how many

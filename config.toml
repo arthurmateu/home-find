@@ -106,10 +106,14 @@ highlight_sources = ["immoscout"]  # their cards get a coloured outline and badg
 
 [notify]
 # ntfy.sh: install the ntfy app (Android/iOS) or open https://ntfy.sh/app,
-# subscribe to this topic, then run: python3 -m homefind --test-notify
-# Anyone who knows the topic name can read it, so keep it unguessable.
-ntfy_topic = "homefind-2zop46awwn3mb5"
-# Telegram instead of / as well as ntfy: create a bot with @BotFather.
+# subscribe to a topic, then run: python3 -m homefind --test-notify
+# Anyone who knows the topic's name can read your pushes and send you their own, so
+# make it unguessable and set it in config.local.toml, which stays off GitHub:
+#   [notify]
+#   ntfy_topic = "homefind-..."
+ntfy_topic = ""
+# Telegram instead of / as well as ntfy: create a bot with @BotFather. Its token
+# belongs in config.local.toml too.
 telegram_bot_token = ""
 telegram_chat_id = ""
 
