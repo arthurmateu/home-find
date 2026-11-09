@@ -65,7 +65,7 @@ def main(argv=None) -> int:
         return 0 if ok else 1
     if args.rejected:
         drop = set(cfg["search"].get("drop_reasons") or [])
-        for listing, verdict, *_ in store.rejected(args.rejected):
+        for listing, verdict in store.rejected(args.rejected):
             if not drop & set(verdict.codes):
                 print_reject(listing, verdict)
         return 0

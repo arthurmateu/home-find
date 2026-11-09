@@ -144,19 +144,11 @@ class Store:
                  json.dumps(verdict.to_dict(), ensure_ascii=False)),
             )
 
-    def _rows(self, ok: bool, limit: int):
-        rows = self.db.execute(
-            "SELECT data, verdict, first_seen, last_seen, notified FROM listings"
-            " WHERE ok = ? ORDER BY first_seen DESC LIMIT ?", (int(ok), limit))
-        for data, verdict, first_seen, last_seen, notified in rows:
-            yield (Listing.from_dict(json.loads(data)), Verdict(**json.loads(verdict)),
-                   first_seen, last_seen, bool(notified))
-
-    def matches(self, limit: int = 500):
-        return list(self._rows(True, limit))
-
-    def rejected(self, limit: int = 100):
-        return list(self._rows(False, limit))
+    def rejected(self, limit: int = 100) -> list[tuple[Listing, Verdict]]:
+        """The last `limit` rejected listings, newest first, each with its verdict."""
+        rows = self.db.execute("SELECT data, verdict FROM listings WHERE ok = 0 ORDER BY first_seen DESC LIMIT ?",
+                               (limit,))
+        return [(Listing.from_dict(json.loads(data)), Verdict(**json.loads(verdict))) for data, verdict in rows]
 
     def set_status(self, key: str, status: str | None, applied_at: str | None = None,
                    applied_by: str | None = None) -> bool:
@@ -174,11 +166,6 @@ class Store:
         with self.db:
             return self.db.execute("UPDATE listings SET stage = ?, stage_at = ? WHERE key = ?",
                                    (stage, stage and _now(), key)).rowcount == 1
-
-    def update_listing(self, listing: Listing) -> None:
-        with self.db:
-            self.db.execute("UPDATE listings SET data = ? WHERE key = ?",
-                            (json.dumps(listing.to_dict(), ensure_ascii=False), listing.key))
 
     ROW = ("SELECT data, verdict, first_seen, last_seen, status, gone, gone_at, status_if_back, hide_at,"
            " applied_at, applied_by, stage, stage_at FROM listings")
