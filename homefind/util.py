@@ -1,4 +1,4 @@
-"""Small parsing helpers shared by the sources."""
+"""Small helpers: parsing, shared by the sources, and timestamps."""
 
 from __future__ import annotations
 
@@ -74,6 +74,11 @@ def to_date(value: str | None) -> date | None:
     except ValueError:
         pass
     return None
+
+
+def stamp(when: datetime | None = None) -> str:
+    """A moment (now, if none is given) as it's stored and compared: local time, to the second."""
+    return (when or datetime.now()).isoformat(timespec="seconds")
 
 
 def days_since(value: str | None) -> int | None:

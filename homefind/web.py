@@ -25,7 +25,7 @@ from . import app, apply, config, geo
 from .notify import headline
 from .rating import band, rate
 from .rules import REASONS, dropped, street_budget, street_key, street_stretch
-from .util import parse_published, street_of
+from .util import parse_published, stamp, street_of
 from .store import SAME_FLAT_DAYS, Row, Store
 
 log = logging.getLogger("homefind")
@@ -173,7 +173,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "why": [list(p) for p in parts],  # [points, label, chip]
             "warm": verdict.warm or listing.warm_rent,
             "size": listing.size_sqm,
-            "posted": (posted.isoformat(timespec="seconds") if posted else first_seen),
+            "posted": stamp(posted) if posted else first_seen,
             "geo": place and {k: place[k] for k in ("lat", "lon", "precision", "radius")},  # None until looked up
             "locality": geo.locality(listing, place),
             "street": street_stretch(listing, cfg)[1] or street_budget(listing, cfg)[1],

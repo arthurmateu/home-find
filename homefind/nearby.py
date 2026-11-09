@@ -21,6 +21,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from .net import OSM_UA, Fetcher
+from .util import stamp
 
 API = "https://overpass-api.de/api/interpreter"
 REFRESH_DAYS = 30
@@ -180,7 +181,7 @@ def refresh(cfg: dict, http: Fetcher | None = None) -> list[str]:
         body, parse = LAYERS[name]
         query = f'[out:json][timeout:180];\narea["name"="Berlin"]["admin_level"="4"]->.b;\n{body}'
         found = http.json(f"{API}?{urlencode({'data': query})}", ua=OSM_UA)
-        layers[name] = {"fetched": datetime.now().isoformat(timespec="seconds"), "points": parse(found["elements"])}
+        layers[name] = {"fetched": stamp(), "points": parse(found["elements"])}
         tmp = p.with_suffix(".tmp")
         tmp.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
         os.replace(tmp, p)

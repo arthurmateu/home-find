@@ -16,7 +16,7 @@ from .notify import Notifier, print_match, print_reject
 from .rules import dropped, evaluate
 from .sources import enabled_sources
 from .store import APPLIED_OFFLINE_DAYS, SAME_FLAT_DAYS, Store
-from .util import text
+from .util import stamp, text
 
 log = logging.getLogger("homefind")
 MAX_BACKOFF_MINUTES = 6 * 60
@@ -203,8 +203,7 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False, applier=None) -
                     earlier = None
                 if earlier:
                     verdict.notes.append(f"same rent/size/postcode as {earlier}")
-                score, parts = rate(listing, verdict, datetime.now().isoformat(timespec="seconds"), cfg,
-                                    place=geo.locate(listing, store.places()))
+                score, parts = rate(listing, verdict, stamp(), cfg, place=geo.locate(listing, store.places()))
                 print_match(listing, verdict, score)
                 fresh = not first_run and not earlier
                 if fresh:
@@ -231,7 +230,7 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False, applier=None) -
         if offline:
             log.info("%-14s %d ad%s taken offline", src.name, len(offline), "s" * (len(offline) > 1))
     if first_run:
-        store.meta_set(f"init:{src.name}", datetime.now().isoformat(timespec="seconds"))
+        store.meta_set(f"init:{src.name}", stamp())
     if not quiet or new or first_run:
         log.info("%-14s scanned %3d  new %3d  matches %d  (%.0fs)%s", src.name, scanned, new, len(matches),
                  time.monotonic() - started,
@@ -267,7 +266,7 @@ def _to_check(src, cfg: dict, store: Store) -> list:
     """Ads to look up, most useful first (Row.priority: applied, matches, rejected
     ones in the area, ones you hid, the rest); least recently seen first. Leaves out
     ads seen online in the last CHECK_AFTER_HOURS and ones never shown (drop_reasons)."""
-    cutoff = (datetime.now() - timedelta(hours=CHECK_AFTER_HOURS)).isoformat(timespec="seconds")
+    cutoff = stamp(datetime.now() - timedelta(hours=CHECK_AFTER_HOURS))
     due = [r for r in store.all_rows(src.name)
            if not r.gone and r.last_seen < cutoff and not dropped(r.verdict, cfg) and src.can_look_up(r.listing)]
     return sorted(due, key=lambda r: (r.priority, r.last_seen))
@@ -367,7 +366,7 @@ def _first_here(store: Store, listing, verdict) -> bool:
     if listing.source not in SOURCES:
         return False
     fp = fingerprint(listing, verdict)
-    since = (datetime.now() - timedelta(days=SAME_FLAT_DAYS)).isoformat(timespec="seconds")
+    since = stamp(datetime.now() - timedelta(days=SAME_FLAT_DAYS))
     before = [r for r in store.all_rows() if r.first_seen >= since and r.verdict.ok
               and fingerprint(r.listing, r.verdict) == fp]
     return not any(r.listing.source == listing.source or r.choice for r in before)

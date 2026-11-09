@@ -10,6 +10,7 @@ from typing import NamedTuple
 
 from .models import Listing
 from .rules import Verdict
+from .util import stamp
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS listings (
@@ -34,10 +35,6 @@ CREATE TABLE IF NOT EXISTS places (q TEXT PRIMARY KEY, lat REAL, lon REAL, preci
 
 APPLIED_OFFLINE_DAYS = 2  # an ad you applied to that's taken offline stays on Applied this long, then moves to Hidden
 SAME_FLAT_DAYS = 30       # ads with the same rent, size and postcode are the same flat if first seen within this of each other
-
-
-def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
 
 
 class Row(NamedTuple):
@@ -128,7 +125,7 @@ class Store:
         with self.db:
             self.db.execute("UPDATE listings SET last_seen = ?,"
                             " status = CASE WHEN gone IS NULL THEN status ELSE status_if_back END,"
-                            " gone = NULL, gone_at = NULL, hide_at = NULL WHERE key = ?", (_now(), key))
+                            " gone = NULL, gone_at = NULL, hide_at = NULL WHERE key = ?", (stamp(), key))
 
     def mark_gone(self, keys, why: str) -> None:
         """The ads were taken offline ('deactivated' or 'deleted'). Rejected ones
@@ -136,7 +133,7 @@ class Store:
         Applied for APPLIED_OFFLINE_DAYS (see hide_due); ones you hid stay hidden. All but the
         deleted ones are tagged with `why`."""
         now = datetime.now()
-        hide_at = (now + timedelta(days=APPLIED_OFFLINE_DAYS)).isoformat(timespec="seconds")
+        hide_at = stamp(now + timedelta(days=APPLIED_OFFLINE_DAYS))
         with self.db:
             self.db.executemany("DELETE FROM listings WHERE key = ? AND ok = 0 AND status IS NULL",
                                 [(key,) for key in keys])
@@ -144,20 +141,20 @@ class Store:
                 "UPDATE listings SET gone = ?, gone_at = ?, status_if_back = status,"
                 " status = CASE WHEN status IS NULL THEN 'hidden' ELSE status END,"
                 " hide_at = CASE WHEN status = 'applied' THEN ? END WHERE key = ? AND gone IS NULL",
-                [(why, now.isoformat(timespec="seconds"), hide_at, key) for key in keys])
+                [(why, stamp(now), hide_at, key) for key in keys])
 
     def hide_due(self) -> int:
         """Ads you applied to that were taken offline APPLIED_OFFLINE_DAYS ago move to Hidden."""
         with self.db:
             return self.db.execute("UPDATE listings SET status = 'hidden', hide_at = NULL"
-                                   " WHERE hide_at <= ? AND status = 'applied'", (_now(),)).rowcount
+                                   " WHERE hide_at <= ? AND status = 'applied'", (stamp(),)).rowcount
 
     def online_keys(self, source: str) -> set[str]:
         """Keys of the source's ads not known to be offline."""
         return {k for (k,) in self.db.execute("SELECT key FROM listings WHERE source = ? AND gone IS NULL", (source,))}
 
     def add(self, listing: Listing, verdict: Verdict, notified: bool = False) -> None:
-        now = _now()
+        now = stamp()
         with self.db:
             self.db.execute(
                 "INSERT OR REPLACE INTO listings (key, source, first_seen, last_seen, ok, notified, data, verdict)"
@@ -188,7 +185,7 @@ class Store:
         """How far the application got (None: no answer yet)."""
         with self.db:
             return self.db.execute("UPDATE listings SET stage = ?, stage_at = ? WHERE key = ?",
-                                   (stage, stage and _now(), key)).rowcount == 1
+                                   (stage, stage and stamp(), key)).rowcount == 1
 
     ROW = ("SELECT data, verdict, first_seen, last_seen, status, gone, gone_at, status_if_back, hide_at,"
            " applied_at, applied_by, stage, stage_at FROM listings")
@@ -227,7 +224,7 @@ class Store:
             return row[1]
         with self.db:
             self.db.execute("INSERT OR REPLACE INTO fingerprints VALUES (?, ?, ?, ?)",
-                            (fingerprint, listing.key, listing.url, _now()))
+                            (fingerprint, listing.key, listing.url, stamp()))
         return None
 
     def places(self) -> dict[str, dict | None]:
@@ -241,7 +238,7 @@ class Store:
         with self.db:
             self.db.execute("INSERT OR REPLACE INTO places VALUES (?, ?, ?, ?, ?, ?, ?)",
                             (q, p.get("lat"), p.get("lon"), p.get("precision"), p.get("locality"), p.get("radius"),
-                             _now()))
+                             stamp()))
 
     def meta_get(self, k: str) -> str | None:
         row = self.db.execute("SELECT v FROM meta WHERE k = ?", (k,)).fetchone()
@@ -258,4 +255,4 @@ class Store:
     def save_page(self, url: str, name: str, lines: list[str]) -> None:
         with self.db:
             self.db.execute("INSERT OR REPLACE INTO pages VALUES (?, ?, ?, ?)",
-                            (url, name, json.dumps(lines, ensure_ascii=False), _now()))
+                            (url, name, json.dumps(lines, ensure_ascii=False), stamp()))

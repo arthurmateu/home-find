@@ -23,11 +23,12 @@ import shutil
 import subprocess
 import time
 import tomllib
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 from .notify import Notifier, headline
 from .store import Store
+from .util import stamp
 
 log = logging.getLogger("homefind")
 SOURCES = ["immoscout"]  # the ones whose contact form the userscript knows
@@ -151,8 +152,7 @@ class Applier:
         if s["step"] == "sent":
             by_homefind = body.get("by") == "homefind"
             if row.status != "applied" or by_homefind:
-                store.set_status(key, "applied", datetime.now().isoformat(timespec="seconds"),
-                                 "homefind" if by_homefind else None)
+                store.set_status(key, "applied", stamp(), "homefind" if by_homefind else None)
             if by_homefind:
                 store.meta_set("apply_sent", f"{date.today().isoformat()} {self._sent_today(store) + 1}")
                 self.notifier.push(f"✓ Applied · {headline(listing)}", f"homefind sent your message: {listing.title}",
@@ -170,8 +170,7 @@ class Applier:
     def _keep(self, key: str, body: dict) -> None:
         """What the last form asked for and how it went, for when a field doesn't get filled in."""
         try:
-            self.report_path.write_text(json.dumps({"key": key, "url": body.get("url"),
-                                                    "at": datetime.now().isoformat(timespec="seconds"),
+            self.report_path.write_text(json.dumps({"key": key, "url": body.get("url"), "at": stamp(),
                                                     **(body.get("form") or {})}, ensure_ascii=False, indent=1),
                                         encoding="utf-8")
         except OSError:
