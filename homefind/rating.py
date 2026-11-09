@@ -49,6 +49,7 @@ SHOP, SHOP_MINUTES = 10, 5  # a supermarket: worth a lot to you
 GREEN, GREEN_MINUTES = 3, 5  # a park, woods, a lake or the river
 QUIET = 2        # the quiet side: back buildings, rooms facing the courtyard
 DAILY, DAILY_KM = 6, (2, 8)  # [bonus] daily: all points up to 2 km away (straight line), none from 8 km
+DAILY_WALK_MINUTES = 15      # ... and a chip on the card when it's at most this many minutes on foot
 RESIDENTIAL_PER_KM2, RESIDENTIAL_M = 18, 300  # too residential: fewer places to eat or drink than this, in this radius (5 or fewer)
 BANDS = [(95, "great"), (75, "good"), (55, "ok"), (0, "weak")]  # each as rare as 75 / 60 / 45 were before the bonuses
 
@@ -287,10 +288,15 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
     # kilometres are fine by the postcode's middle too, if that's all there is ("~")
     rough = None if at or not place else (place["lat"], place["lon"])
     for daily in bonus.get("daily", []) if at or rough else []:
-        km = nearby.distance(at or rough, (daily["lat"], daily["lon"])) / 1000
+        metres = nearby.distance(at or rough, (daily["lat"], daily["lon"]))
+        km, walk = metres / 1000, nearby.on_foot(metres)
         near, far = DAILY_KM
-        parts.append((round(DAILY * _clamp((far - km) / (far - near))),
-                      f"{'~' if rough else ''}{km:.1f} km from {daily['name']} (straight line)"))
+        points = round(DAILY * _clamp((far - km) / (far - near)))
+        label = f"{'~' if rough else ''}{km:.1f} km from {daily['name']} (straight line)"
+        if at and walk <= DAILY_WALK_MINUTES:  # a postcode's middle says nothing about a walk
+            parts.append((points, f"{label}, about {walk} min on foot", f"{daily['name']} {walk} min walk"))
+        else:
+            parts.append((points, label))
 
     # minus
     if verdict.score:

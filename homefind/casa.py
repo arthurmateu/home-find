@@ -56,6 +56,8 @@ SAID = [
     (r"on [^:]+$", "Numa rua de que gosto"),
     (r"(~?[\d.]+) km from work", r"\1 km do trabalho"),
     (r"(~?[\d.]+) km from ", r"\1 km de um lugar frequente"),
+    (r"work (\d+) min walk", r"Trabalho a \1 min a pé"),
+    (r".+ (\d+) min walk", r"Lugar frequente a \1 min a pé"),
     (r"scam warning signs", "Sinais de alerta"),
     (r"warm rent is an estimate", "Warmmiete estimada"),
     # the chips that go with them

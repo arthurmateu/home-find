@@ -152,7 +152,7 @@ Only one instance runs at a time; after a reboot, start it again.
   within 2 minutes 2 · a supermarket within 5 minutes 10 · a park, woods, a
   lake, the Spree or the Landwehrkanal within 5 minutes 3 · near a place you
   go every day (`[bonus] daily`, in `config.local.toml`) up to 6: all of it
-  up to 2 km away in a straight line, none from 8 km; minus scam signs, Ablöse, an estimated warm rent, semi-basement. ImmoScout Plus-only listings aren't
+  up to 2 km away in a straight line, none from 8 km, and a chip on the card within 15 minutes on foot; minus scam signs, Ablöse, an estimated warm rent, semi-basement. ImmoScout Plus-only listings aren't
   marked down (you're a member). Tune it in `homefind/rating.py`. Push
   notifications start with the score.
   What's within walking distance needs the flat's house: ImmoScout24's pin

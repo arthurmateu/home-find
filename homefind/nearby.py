@@ -152,6 +152,11 @@ def distance(a: tuple[float, float], b: tuple[float, float]) -> float:
     return math.hypot((a[0] - b[0]) * M_PER_DEG, (a[1] - b[1]) * M_PER_DEG * LON_SCALE)
 
 
+def on_foot(metres: float) -> int:
+    """Minutes on foot for a straight-line distance, rounded up."""
+    return max(1, math.ceil(metres * DETOUR / WALK_M_PER_MIN))
+
+
 def path(cfg: dict) -> Path:
     return Path(cfg["run"]["db_path"]).with_name("nearby.json")
 
@@ -207,7 +212,7 @@ def walk(cfg: dict, lat: float, lon: float, kinds, minutes: float) -> tuple[int,
     if not found:
         return None
     metres, (kind, _, _, name) = found
-    return max(1, math.ceil(metres * DETOUR / WALK_M_PER_MIN)), name, kind
+    return on_foot(metres), name, kind
 
 
 def count(cfg: dict, lat: float, lon: float, kinds, metres: float) -> int | None:
