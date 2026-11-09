@@ -111,10 +111,11 @@ class Applier:
             s.update(step="failed", note=NO_HELPER)
         return s and {k: s[k] for k in ("step", "note", "at")}
 
-    def opened(self, key: str) -> None:
-        """✉ Apply on a card: the page opened the ad in a new tab, for the userscript to fill in."""
+    def opened(self, key: str, auto: bool = False, send: bool = False) -> None:
+        """The ad is opening in a new tab, for the userscript to fill in: ✉ Apply on a card
+        did that, or auto-apply (`auto`), which may be going to send it too (`send`)."""
         self.steps[key] = {"step": "opening", "note": "Opening the ad in Firefox…", "at": time.time(),
-                           "auto": False, "send": False}
+                           "auto": auto, "send": send}
 
     def auto(self, listing, verdict, score: int, store: Store) -> None:
         """A new match that isn't a repost: auto-apply opens it in Firefox if it's on and the match qualifies."""
@@ -129,8 +130,7 @@ class Applier:
         if how == "send" and not send:
             log.info("auto-apply: %d sent today already (apply.max_per_day), only filling it in", self.opts["max_per_day"])
         log.info("auto-apply (%s): %s, score %d", "send" if send else "fill in", listing.url, score)
-        self.steps[listing.key] = {"step": "opening", "note": "Opening the ad in Firefox…", "at": time.time(),
-                                   "auto": True, "send": send}
+        self.opened(listing.key, auto=True, send=send)
         open_in_firefox(f"{form_page(listing.url)}#homefind={'send' if send else 'auto'}", self.opts.get("firefox") or "")
 
     def report(self, key: str, body: dict, store: Store) -> bool:
