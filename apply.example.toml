@@ -6,9 +6,11 @@
 message = """Guten Tag, ich bin Max Mustermann und ... Ich würde gerne einen
 Besichtigungstermin für diese Wohnung vereinbaren."""
 
-# One line per field: its label on the form, and what to put there. A label only
-# has to match the start of the form's ("Haustiere" covers "Haustiere (außer
-# Kleintiere, z. B. Hamster)"), and case and the * don't matter. Dropdowns take the
+# One line per field: its label on the form, and what to put there, the way the
+# German form says them (the helper knows their English names: SAME in
+# homefind/apply.user.js). A label only has to match the start of the form's
+# ("Haustiere" covers "Haustiere (außer Kleintiere, z. B. Hamster)"), and case and
+# the * don't matter. Dropdowns take the
 # option's text; switches and checkboxes true or false; amounts plain numbers (a
 # dropdown of ranges, like the income one, gets the range the amount is in).
 # Fields a form doesn't ask for are skipped, and the e-mail comes from your login.
@@ -20,6 +22,8 @@ Besichtigungstermin für diese Wohnung vereinbaren."""
 "Vorname" = "Max"
 "Nachname" = "Mustermann"
 "Telefonnummer" = "+49 151 00000000"
+"Einzugstermin" = "ab sofort"
+"Haushaltsgröße" = "Einpersonenhaushalt"
 "Erwachsene" = 1
 "Kinder" = 0
 "Haustiere" = "Nein"
@@ -32,3 +36,4 @@ Besichtigungstermin für diese Wohnung vereinbaren."""
 "Anbieter:in darf dein Profil sehen" = true
 "Anbieter:in folgen für Inserate & Profi-Tipps" = false
 "Erhalte Angebote von Umzugsfirmen" = false
+"Stich hervor: Ja zur Kautionsbürgschaft+" = true  # only on ads whose landlord takes it
