@@ -257,6 +257,11 @@ main { padding-top: 18px; padding-bottom: 80px; }
 
 <script id="data" type="application/json">__DATA__</script>
 <script>
+// A script of its own: if the one below doesn't get going (the page was saved halfway through an
+// edit, say, as it reloads itself into updates), try again every half minute, until it does.
+setTimeout(() => { if (!window.started) location.reload(); }, 30000);
+</script>
+<script>
 "use strict";
 const $ = (id) => document.getElementById(id);
 const showError = (msg) => { $("error").textContent = "Something went wrong: " + msg; $("error").hidden = false; };
@@ -268,6 +273,15 @@ const prefs = {
   get(k, d) { try { const v = localStorage.getItem("homefind:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem("homefind:" + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
 };
+// Where you were, when the page reloaded itself into an update (see reloadWhenAway): it comes back as you left it.
+const RESUME = "homefind:resume";
+const resume = (() => {
+  try {
+    const r = JSON.parse(sessionStorage.getItem(RESUME));
+    sessionStorage.removeItem(RESUME);
+    return r && Date.now() - r.at < 300000 ? r : null;  // not one left over from a reload that didn't happen
+  } catch { return null; }
+})();
 
 const PAGE = 48;
 const BROKEN = "data:image/svg+xml," + encodeURIComponent(
@@ -294,7 +308,7 @@ const EMPTY = {
 function normalize(d) {
   d.highlight ??= []; d.streets ??= [];
   d.checks ??= { sources: [], loop: null };
-  d.outdated ??= true;  // a homefind that doesn't say is older than this page, which is read from disk on each load
+  d.update ??= null;  // a homefind from before it restarted itself into updates doesn't say
   d.apply ??= null;
   for (const l of d.listings) {
     l.why ??= []; l.score ??= 0; l.band ??= "weak"; l.posted ??= l.first_seen;
@@ -322,7 +336,7 @@ const SORTS = {
 };
 const state = { tab: "matches", picked: {}, menu: null, shown: PAGE, q: "", expandAll: prefs.get("expandAll", false),
                 sort: SORTS[prefs.get("sort", "score")] ? prefs.get("sort", "score") : "score" };
-const prevSeen = prefs.get("lastSeen", "");  // newest listing at the previous visit
+const prevSeen = resume?.prevSeen ?? prefs.get("lastSeen", "");  // newest listing at the previous visit
 
 const inArea = (l) => !l.codes.includes("area") && !l.codes.includes("avoid");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -659,18 +673,27 @@ function render() {
   bannerSeen();
 }
 
-// Redraws with new data without moving the page under the reader: unless it's at the very top,
-// the first card on screen stays where it was (or the next one, if that one left the list).
-// Maps and scores' points that were pinned open stay open.
+// Redraws with new data without moving the page under the reader (see view).
 function refresh() {
-  const edge = Math.max(0, document.querySelector(".top").getBoundingClientRect().bottom);
-  const onScreen = scrollY > 0
-    ? [...$("grid").children].filter((c) => c.getBoundingClientRect().bottom > edge).slice(0, 12)
-        .map((c) => [c.dataset.key, c.getBoundingClientRect().top])
-    : [];
-  const maps = [...document.querySelectorAll(".loc.open")].map((el) => el.closest(".card").dataset.key);
-  const scores = [...document.querySelectorAll('.score[aria-expanded="true"]')].map((el) => el.closest(".card").dataset.key);
+  const v = view();
   render();
+  restoreView(v);
+}
+// Where the reader is: the cards on screen (none at the very top), and the maps and scores' points pinned open.
+function view() {
+  const edge = Math.max(0, document.querySelector(".top").getBoundingClientRect().bottom);
+  return {
+    onScreen: scrollY > 0
+      ? [...$("grid").children].filter((c) => c.getBoundingClientRect().bottom > edge).slice(0, 12)
+          .map((c) => [c.dataset.key, c.getBoundingClientRect().top])
+      : [],
+    maps: [...document.querySelectorAll(".loc.open")].map((el) => el.closest(".card").dataset.key),
+    scores: [...document.querySelectorAll('.score[aria-expanded="true"]')].map((el) => el.closest(".card").dataset.key),
+  };
+}
+// Back there after a redraw: the first card on screen stays where it was (or the next one, if that
+// one left the list), and what was pinned open stays open.
+function restoreView({ onScreen, maps, scores }) {
   const kept = onScreen.find(([key]) => cardOf(key));
   if (kept) scrollBy(0, cardOf(kept[0]).getBoundingClientRect().top - kept[1]);
   for (const key of maps) {
@@ -942,6 +965,32 @@ function report(r) {
 
 // ---- live updates: the page keeps itself current while it's open (without jumping, see refresh)
 let stale = false;  // homefind was updated since this page loaded: only a reload gets the new page
+// An out-of-date page reloads itself (once homefind runs the update too, see poll) when you aren't using it:
+// right away when it's out of sight (another tab, a minimized window, the phone's browser in the
+// background), else after AWAY_MS without you touching it. Until then, the banner offers a Reload.
+const AWAY_MS = 5 * 60000;
+let touchedAt = Date.now();
+for (const type of ["pointerdown", "pointermove", "keydown", "wheel", "scroll", "touchstart"]) {
+  addEventListener(type, () => { touchedAt = Date.now(); }, { capture: true, passive: true });
+}
+function reloadWhenAway() {
+  if (!stale || update || !(document.hidden || Date.now() - touchedAt >= AWAY_MS)) return;
+  if (!$("toast").hidden || [...editedAt.values()].includes(Infinity)) return;  // an Undo on offer, or a save on its way
+  try {
+    sessionStorage.setItem(RESUME, JSON.stringify({
+      at: Date.now(), tab: state.tab, picked: state.picked, q: state.q, shown: state.shown, prevSeen, view: view(),
+      openDesc: [...openDesc], photoAt: [...photoAt], unseen: [...unseen], viewer: lb.l && { key: lb.l.key, i: lb.i },
+      searching: document.activeElement === $("q"),
+    }));
+  } catch {
+    return;  // it would come back changed: that's the Reload banner's to offer
+  }
+  history.scrollRestoration = "manual";  // back to the cards that were on screen, not to the same height
+  location.reload();
+}
+// Coming back to it counts as touching it: it doesn't reload under your eyes then.
+document.addEventListener("visibilitychange", () => { if (document.hidden) reloadWhenAway(); else touchedAt = Date.now(); });
+addEventListener("focus", () => { touchedAt = Date.now(); });
 // homefind's code or config changed since it started (see update.py): null while it runs the latest, else
 // {problem}: it restarts into the update by itself, or (problem) can't, as the update doesn't start.
 let update = null;
@@ -1009,6 +1058,7 @@ async function poll() {
     } else if (before?.problem) {
       $("banner").hidden = true;
     }
+    reloadWhenAway();
     if (busy()) watchCheck();
     clearTimeout(applyPoll);  // while a form is on its way or waiting for you, so the card keeps up
     if (data.listings.some(applyActive)) applyPoll = setTimeout(poll, 3000);
@@ -1219,9 +1269,24 @@ $("lb").addEventListener("touchend", (e) => {
 
 const fromHash = location.hash.slice(1).replace(/^saved$/, "applied");  // bookmarks from before the rename
 if (TABS.some((t) => t[0] === fromHash)) state.tab = fromHash;
+if (resume) {  // it reloaded itself into an update: as you left it
+  Object.assign(state, { tab: resume.tab, picked: resume.picked, q: resume.q, shown: resume.shown });
+  $("q").value = state.q;
+  for (const key of resume.openDesc) openDesc.add(key);
+  for (const [key, i] of resume.photoAt) photoAt.set(key, i);
+  for (const key of resume.unseen) unseen.add(key);
+}
 index();
 update = data.update;
 render();
+if (resume) {
+  restoreView(resume.view);
+  const l = resume.viewer && byKey.get(resume.viewer.key);
+  if (l?.images.length) openViewer(l, Math.min(resume.viewer.i, l.images.length - 1));
+  if (resume.searching) $("q").focus();
+  // Once the browser is past restoring the scroll position itself, a reload of yours gets that back.
+  addEventListener("load", () => setTimeout(() => { history.scrollRestoration = "auto"; }), { once: true });
+}
 if (update?.problem) showUpdate();
 markTab();
 prefs.set("lastSeen", data.listings.reduce((m, l) => (l.first_seen > m ? l.first_seen : m), ""));
@@ -1229,6 +1294,7 @@ setInterval(poll, 60000);
 setInterval(renderStatus, 20000);  // "3 min ago" moves on
 if (busy()) watchCheck();
 if (data.listings.some(applyActive)) poll();
+window.started = true;  // see the script before this one
 </script>
 </body>
 </html>

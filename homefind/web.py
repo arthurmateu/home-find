@@ -14,6 +14,7 @@ import re
 import shutil
 import subprocess
 import threading
+import time
 import webbrowser
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -111,9 +112,20 @@ def _state(flat: list[Row]) -> dict:
     return state
 
 
+_page = {"seen": "", "since": 0.0, "build": ""}  # see build
+_page_lock = threading.Lock()
+
+
 def build() -> str:
-    """Changes whenever ui.html does, so an open page can tell it's out of date."""
-    return hashlib.sha1(PAGE.read_bytes()).hexdigest()[:12]
+    """Changes when ui.html does, so an open page can tell it's out of date and reload itself into
+    it. Only once ui.html has stayed the same for update.SETTLE_SECONDS: an edit is often a few saves."""
+    now = hashlib.sha1(PAGE.read_bytes()).hexdigest()[:12]
+    with _page_lock:
+        if now != _page["seen"]:
+            _page.update(seen=now, since=time.monotonic())
+        if not _page["build"] or time.monotonic() - _page["since"] >= update.SETTLE_SECONDS:
+            _page["build"] = now
+        return _page["build"]
 
 
 def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: apply.Applier | None = None,

@@ -68,9 +68,17 @@ filling in, sending, or waiting for you to send it, for up to half an hour) or
 the family page is uploading. It first makes sure the new version starts; if
 it doesn't (a mistake in the code or in a config file), the one running keeps
 going, and the terminal and the page say what's wrong, until the files change
-again. Open pages offer a Reload once it has restarted, if the page itself
-changed too (`ui.html` is read on every page load, so a change to just that
-needs no restart either).
+again.
+
+Open pages reload themselves into a new version of the page (`ui.html`, read
+on every page load, so that needs no restart), once it has stayed the same for
+30 seconds and homefind runs the update too: straight away when the page is out
+of sight (another tab, a minimized window, the phone's browser in the
+background), else once you haven't touched it for 5 minutes (`AWAY_MS` in
+`ui.html`). Until then, a banner offers a Reload. It comes back as you left it:
+the same tab, search, filters, cards on screen, open descriptions, photos, the
+photo viewer, and the new-match count in the tab's title. A page that doesn't
+start (saved halfway through an edit, say) tries again every half minute.
 
 ## The web page
 
