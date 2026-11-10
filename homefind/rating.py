@@ -17,7 +17,7 @@ Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over; stre
          near a place you go daily up to 6, 9 within a 15-minute walk ([bonus] daily, in config.local.toml),
          minus: scam signs (8 per point), Ablöse, estimated rent, semi-basement.
 IS24 Plus-only listings aren't marked down: you're a Plus member.
-A note, worth no points: too residential (see residential).
+Notes, worth no points: too residential (see residential), Altbau.
 """
 
 from __future__ import annotations
@@ -36,10 +36,10 @@ FEATURES = [  # (points, label, pattern); "kein Balkon" / "ohne EBK" don't count
     (5, "balcony", r"balkon|loggia|terrasse"),
     (2, "fitted kitchen", r"einbauküche|\bebk\b"),
     (1, "lift", r"aufzug|fahrstuhl|\blift\b"),
-    (1, "Altbau", r"altbau|dielenboden|dielen\b"),
     (1, "garden", r"\bgarten\b|gartenanteil|gartennutzung"),
 ]
 MAX_FEATURES = 10
+ALTBAU = r"altbau|dielenboden|dielen\b"  # a heads-up, not a feature: a note under Heads up, no points
 UPPER_FLOOR = 3  # not on the ground floor
 OLD_AREA = 5     # [bonus] old_area: a postcode you were after before
 BIG_STREET = 4   # [bonus] streets
@@ -253,6 +253,8 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
         if budget > 0:
             parts.append((min(p, budget), label, label))
             budget -= p
+    if _has(ALTBAU, text):
+        parts.append((0, "Altbau: an old building, says the ad", "Altbau"))
     floor, floor_label = storey(listing)
     if floor and floor > 0:
         parts.append((UPPER_FLOOR, floor_label, floor_label.split(" (")[0]))

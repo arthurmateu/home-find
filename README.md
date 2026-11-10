@@ -142,7 +142,7 @@ Only one instance runs at a time; after a reboot, start it again.
   size 20 (25 m² none, 70 m² and up all) + rooms 10 (2 or more; 1.5
   rooms 4, 1 room none) · freshness 10 (the first hours after posting count most) ·
   photos / verified or municipal landlord / description 10 · balcony 5,
-  kitchen, lift, Altbau, garden up to 10 · not on the ground floor 3 (the
+  kitchen, lift, garden up to 10 · not on the ground floor 3 (the
   floor the portal states, else the one the ad's text names; the points
   say which) · on the quiet side, says the text (Hinterhaus, Seitenflügel,
   Gartenhaus, Quergebäude, or rooms facing the courtyard) 2 · where it is,
@@ -166,9 +166,9 @@ Only one instance runs at a time; after a reboot, start it again.
 - **Notes** on a card, summed up in rows (hover a chip for the full text):
   **⚠ Watch out**, the scam signs (see Filtering); **Heads up**, what to
   know before going for it (fewer rooms than wanted, Nachmieter, Ablöse, an
-  estimated warm rent, furnished, semi-basement, too residential, ...); **Nice extras**, what
+  estimated warm rent, furnished, semi-basement, too residential, Altbau, ...); **Nice extras**, what
   the score gives points for besides price and size (balcony, kitchen, lift,
-  Altbau, garden, the floor, the quiet side, what's within walking distance,
+  garden, the floor, the quiet side, what's within walking distance,
   a verified or municipal landlord) and ImmoScout Plus-only for now (fewer
   can apply); **Good to know**, the rest (private landlord, a street's own
   budget, on another site first, ...).
