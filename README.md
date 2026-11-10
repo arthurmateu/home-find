@@ -170,8 +170,9 @@ Only one instance runs at a time; after a reboot, start it again.
   its points) and ImmoScout Plus-only for now (fewer can apply); **Cons**, in red, the
   scam signs marked ⚠ (see Filtering), then what to know before going for it
   (fewer rooms than wanted, Nachmieter, Ablöse, an estimated warm rent,
-  furnished, semi-basement, too residential, Altbau, ...); **Info**, how far
-  work is on foot and by public transport (each `[bonus] daily` place) and the
+  furnished, semi-basement, too residential, Altbau, ...); **Info**, how long
+  work takes (each `[bonus] daily` place: by public transport, and on foot too
+  when that's 30 minutes or less; just the walk, under Pros, within 15) and the
   nearest supermarket, U-Bahn, S-Bahn and bus stop (up to 30 minutes on foot;
   hover for the name and metres), unless they're under Pros, then the rest
   (private landlord, a street's own budget, on another site first, ...).
