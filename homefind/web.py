@@ -23,7 +23,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from . import app, apply, config, geo
 from .notify import headline
-from .rating import band, rate
+from .rating import band, info, rate
 from .rules import REASONS, dropped, street_budget, street_key, street_stretch
 from .util import parse_published, stamp, street_of
 from .store import SAME_FLAT_DAYS, Row, Store
@@ -170,7 +170,8 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "notes": verdict.notes,
             "score": score,
             "band": band(score),
-            "why": [list(p) for p in parts],  # [points, label, chip]
+            "why": [list(p) for p in parts],  # [points, label, chip, in_info]
+            "info": info(cfg, listing, place),  # [chip, full text]: work, the nearest supermarket and stations
             "warm": verdict.warm or listing.warm_rent,
             "size": listing.size_sqm,
             "posted": stamp(posted) if posted else first_seen,

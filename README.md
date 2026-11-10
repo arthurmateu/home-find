@@ -166,12 +166,15 @@ Only one instance runs at a time; after a reboot, start it again.
 - **Notes** on a card, summed up in rows (hover a chip for the full text):
   **⚠ Watch out**, the scam signs (see Filtering); **Heads up**, what to
   know before going for it (fewer rooms than wanted, Nachmieter, Ablöse, an
-  estimated warm rent, furnished, semi-basement, too residential, Altbau, ...); **Nice extras**, what
-  the score gives points for besides price and size (balcony, kitchen, lift,
-  garden, the floor, the quiet side, what's within walking distance,
-  a verified or municipal landlord) and ImmoScout Plus-only for now (fewer
-  can apply); **Good to know**, the rest (private landlord, a street's own
-  budget, on another site first, ...).
+  estimated warm rent, furnished, semi-basement, too residential, Altbau, ...); **Info**, how far
+  work is on foot (each `[bonus] daily` place) and the nearest supermarket,
+  U-Bahn, S-Bahn and bus stop (up to 30 minutes on foot; hover for the name
+  and metres), then what else the score gives points for besides price and
+  size (balcony, kitchen, lift, garden, the floor, the quiet side, a park
+  nearby, a verified or municipal landlord) and ImmoScout Plus-only for now
+  (fewer can apply); **Good to know**, the rest (private landlord, a street's own
+  budget, on another site first, ...). Info's distances need the house, like
+  the score's; with only the postcode known, it has the kilometres to work.
 - **Too residential** (under Heads up, worth no points) = 5 or fewer
   restaurants, takeaways, bars and the like within 300 m of the house, so a
   courier at 1am is one the neighbours notice. When only the postcode is

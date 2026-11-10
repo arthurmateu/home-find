@@ -50,6 +50,7 @@ GREEN, GREEN_MINUTES = 3, 5  # a park, woods, a lake or the river
 QUIET = 2        # the quiet side: back buildings, rooms facing the courtyard
 DAILY, DAILY_KM = 6, (2, 8)  # [bonus] daily: all points up to 2 km away (straight line), none from 8 km
 DAILY_WALK, DAILY_WALK_MINUTES = 3, 15  # ... these on top, and a chip on the card, when it's at most this many minutes on foot
+INFO_MINUTES = 30  # how far on foot the card's Info row looks for a supermarket or a station (see info)
 RESIDENTIAL_PER_KM2, RESIDENTIAL_M = 18, 300  # too residential: fewer places to eat or drink than this, in this radius (5 or fewer)
 BANDS = [(95, "great"), (75, "good"), (55, "ok"), (0, "weak")]  # each as rare as 75 / 60 / 45 were before the bonuses
 
@@ -80,12 +81,14 @@ COURTYARD = re.compile(
 
 
 class Part(NamedTuple):
-    """A line under a score. `chip`: how it reads on the card, under "Nice extras" (or under
-    "Heads up", when it costs points or is only a note, 0 points); empty for the price, size,
-    freshness and the like."""
+    """A line under a score. `chip`: how it reads on the card, under "Info" (or under "Heads up",
+    when it costs points or is only a note, 0 points); empty for the price, size, freshness and
+    the like. `in_info`: the card's Info row says it already, with info()'s own distance, so the
+    web UI leaves its chip out (the family page still shows it)."""
     points: int
     label: str
     chip: str = ""
+    in_info: bool = False
 
 
 def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -189,7 +192,7 @@ def residential(cfg: dict, at: tuple[float, float] | None, place: dict | None) -
 
 def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
          now: datetime | None = None, place: dict | None = None) -> tuple[int, list[Part]]:
-    """Returns (score, [Part(points, reason, chip), ...]). `place` is geo.locate's for the listing."""
+    """Returns (score, [Part(points, reason, chip, in_info), ...]). `place` is geo.locate's for the listing."""
     now = now or datetime.now()
     s, sig = cfg["search"], listing.signals
     parts: list[tuple[int, str]] = []
@@ -273,14 +276,14 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
     if at:
         rail = nearby.walk(cfg, *at, ("U", "S"), RAIL_MINUTES)
         if rail:
-            parts.append((RAIL, f"{rail[1]}, {rail[0]} min walk", f"{rail[1]} {rail[0]} min"))
+            parts.append((RAIL, f"{rail[1]}, {rail[0]} min walk", f"{rail[1]} {rail[0]} min", True))
         stop = nearby.walk(cfg, *at, ("bus", "tram"), STOP_MINUTES)
-        if stop:
+        if stop:  # Info has the nearest bus stop, not tram stops
             parts.append((STOP, f"{stop[2]} stop {stop[1]}, {stop[0]} min walk".replace("  ", " "),
-                          f"{stop[2]} stop {stop[0]} min"))
+                          f"{stop[2]} stop {stop[0]} min", stop[2] == "bus"))
         shop = nearby.walk(cfg, *at, ("supermarket",), SHOP_MINUTES)
         if shop:
-            parts.append((SHOP, f"supermarket {shop[1]}, {shop[0]} min walk".replace("  ", " "), f"supermarket {shop[0]} min"))
+            parts.append((SHOP, f"supermarket {shop[1]}, {shop[0]} min walk".replace("  ", " "), f"supermarket {shop[0]} min", True))
         green = nearby.walk(cfg, *at, ("green",), GREEN_MINUTES)
         if green:
             parts.append((GREEN, f"{green[1]}, {green[0]} min walk", f"{green[1]} {green[0]} min"))
@@ -296,7 +299,7 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
         points = round(DAILY * _clamp((far - km) / (far - near)))
         label = f"{'~' if rough else ''}{km:.1f} km from {daily['name']} (straight line)"
         if at and walk <= DAILY_WALK_MINUTES:  # a postcode's middle says nothing about a walk
-            parts.append((points + DAILY_WALK, f"{label}, about {walk} min on foot", f"{daily['name']} {walk} min walk"))
+            parts.append((points + DAILY_WALK, f"{label}, about {walk} min on foot", f"{daily['name']} {walk} min walk", True))
         else:
             parts.append((points, label))
 
@@ -312,6 +315,43 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
 
     score = max(0, round(sum(p[0] for p in parts)))  # no ceiling: the points under a score add up, and the best stay in order
     return score, [q for q in (Part(*p) for p in parts) if q.points or q.chip or q.label.startswith(("posted", "first seen"))]
+
+
+def _duration(minutes: int) -> str:
+    return f"{minutes} min" if minutes < 60 else f"{minutes // 60} h" + (f" {minutes % 60} min" if minutes % 60 else "")
+
+
+def _far(metres: float) -> str:
+    return f"{round(metres, -1):.0f} m" if metres < 950 else f"{metres / 1000:.1f} km"
+
+
+def info(cfg: dict, listing: Listing, place: dict | None) -> list[tuple[str, str]]:
+    """The card's Info row, whatever the score makes of it: how far each [bonus] daily place (work)
+    is on foot, and the nearest supermarket, U-Bahn, S-Bahn and bus stop; as (chip, full text).
+    It needs the house (see spot): with only the postcode known, there's just the kilometres to work."""
+    at = spot(listing, place)
+    rough = None if at or not place else (place["lat"], place["lon"])
+    out = []
+    for daily in (cfg.get("bonus") or {}).get("daily", []) if at or rough else []:
+        name, metres = daily["name"], nearby.distance(at or rough, (daily["lat"], daily["lon"]))
+        if rough:
+            out.append((f"{name} ~{_far(metres)}",
+                        f"{name}: about {_far(metres)} in a straight line (only the area is known, so no times)"))
+            continue
+        walk = _duration(nearby.on_foot(metres))
+        out.append((f"{name} {walk} walk", f"{name}: {_far(metres)} in a straight line, about {walk} on foot"))
+    for kinds, what in ((("supermarket",), "supermarket"), (("U",), "U-Bahn"), (("S",), "S-Bahn"), (("bus",), "bus stop")):
+        if not at or not nearby.known(cfg, kinds):
+            continue
+        found = nearby.walk(cfg, *at, kinds, INFO_MINUTES)
+        if not found:
+            out.append((f"no {what} within {INFO_MINUTES} min", f"no {what} within {INFO_MINUTES} min on foot"))
+            continue
+        minutes, name, _, metres = found
+        chip = name if what in ("U-Bahn", "S-Bahn") else what.split()[0]  # "U Wilmersdorfer Straße", "bus"
+        full = f"{what} {name}" if what in ("supermarket", "bus stop") and name else name or f"a {what}"
+        out.append((f"{chip} {minutes} min", f"{full}: about {minutes} min on foot ({_far(metres)} in a straight line)"))
+    return out
 
 
 def band(score: int) -> str:

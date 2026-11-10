@@ -10,13 +10,13 @@
 :root {
   --bg: #f6f6f3; --card: #fff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e3e3de; --chip: #f0f0ec;
   --accent: #1f6f5c; --accent-ink: #fff; --warn: #a2560c; --warn-bg: #fdf1e3; --bad: #a3322a; --bad-bg: #fbeceb;
-  --fav: #6e56cf; --fav-ink: #fff; --nice-bg: #e6f2ee;
+  --fav: #6e56cf; --fav-ink: #fff; --info-bg: #e6f2ee;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #141413; --card: #1e1e1c; --ink: #ececE8; --muted: #9a9a93; --line: #33332f; --chip: #2a2a27;
     --accent: #6fc2a9; --accent-ink: #0d2a22; --warn: #f0b36b; --warn-bg: #3a2a17; --bad: #f19a92; --bad-bg: #3a1d1b;
-    --fav: #b4a5ff; --fav-ink: #1f1640; --nice-bg: #1b2e28;
+    --fav: #b4a5ff; --fav-ink: #1f1640; --info-bg: #1b2e28;
   }
 }
 * { box-sizing: border-box; }
@@ -141,7 +141,7 @@ main { padding-top: 18px; padding-bottom: 80px; }
 .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--chip); color: var(--muted); }
 .chip.warn { background: var(--warn-bg); color: var(--warn); }
 .chip.heads { color: var(--ink); }
-.chip.nice { background: var(--nice-bg); color: var(--accent); }
+.chip.info { background: var(--info-bg); color: var(--accent); }
 /* The notes, summed up: a row per group, its name beside its chips. */
 .notes { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 8px; align-items: baseline; }
 .notes .group { font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
@@ -495,19 +495,19 @@ function shortNote(t) {
   if (t === "identity-verified landlord") return "verified landlord";
   return tidy(t);
 }
-// The notes on a card, summed up: the scam signs, what to know before going for it, what it has going
-// for it besides price and size (the score's chips, see rating.Part), and the rest. [name, chip class,
-// [[short, full], ...]], each group that has something.
+// The notes on a card, summed up: the scam signs, what to know before going for it, the facts (how far
+// work, the supermarket and the stations are, see rating.info; then the score's other chips, see
+// rating.Part), and the rest. [name, chip class, [[short, full], ...]], each group that has something.
 const HEADS_UP = /^(heads-up|Nachmieter|asks for Ablöse|warm rent estimated|furnished|partly furnished|WBS|co-op)/;
-const NICE = /^(ImmoScout Plus|identity-verified)/;  // Plus members only: fewer can apply, and you're one
+const INFO = /^(ImmoScout Plus|identity-verified)/;  // Plus members only: fewer can apply, and you're one
 function noteGroups(l) {
-  const watch = l.flags.map((f) => [tidy(f), f]), heads = [], nice = [], info = [];
-  for (const [p, t, c] of l.why) if (c) (p > 0 ? nice : heads).push([c, t]);
+  const watch = l.flags.map((f) => [tidy(f), f]), heads = [], info = [...l.info], rest = [];
+  for (const [p, t, c, inInfo] of l.why) if (c && !inInfo) (p > 0 ? info : heads).push([c, t]);
   for (const t of l.notes) {  // same as an ad that's on this card: no news
     if (l.ads.some((a) => t.endsWith(`same rent/size/postcode as ${a.url}`))) continue;
-    (HEADS_UP.test(t) ? heads : NICE.test(t) ? nice : info).push([shortNote(t), t]);
+    (HEADS_UP.test(t) ? heads : INFO.test(t) ? info : rest).push([shortNote(t), t]);
   }
-  return [["⚠ Watch out", "warn", watch], ["Heads up", "heads", heads], ["Nice extras", "nice", nice], ["Good to know", "", info]]
+  return [["⚠ Watch out", "warn", watch], ["Heads up", "heads", heads], ["Info", "info", info], ["Good to know", "", rest]]
     .map(([name, cls, items]) => [name, cls, items.filter(([short]) => short)]).filter(([, , items]) => items.length);
 }
 // The day you applied (no day on ones marked before that was kept), on Applied and on ones hidden after applying.

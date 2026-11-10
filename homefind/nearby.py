@@ -204,22 +204,29 @@ def _index(cfg: dict) -> Index | None:
     return _cache["index"]
 
 
-def walk(cfg: dict, lat: float, lon: float, kinds, minutes: float) -> tuple[int, str, str] | None:
+def walk(cfg: dict, lat: float, lon: float, kinds, minutes: float) -> tuple[int, str, str, float] | None:
     """The nearest of `kinds` (see LAYERS' parsers) at most `minutes` away on foot:
-    (minutes, rounded up; its name; its kind). None if there's none, or no data yet."""
+    (minutes, rounded up; its name; its kind; metres in a straight line). None if
+    there's none, or no data yet (see known)."""
     index = _index(cfg)
     found = index and index.nearest(lat, lon, set(kinds), minutes * WALK_M_PER_MIN / DETOUR)
     if not found:
         return None
     metres, (kind, _, _, name) = found
-    return on_foot(metres), name, kind
+    return on_foot(metres), name, kind, metres
+
+
+def known(cfg: dict, kinds) -> bool:
+    """Whether there's data on any of `kinds` yet."""
+    index = _index(cfg)
+    return bool(index and index.kinds & set(kinds))
 
 
 def count(cfg: dict, lat: float, lon: float, kinds, metres: float) -> int | None:
     """How many of `kinds` are within `metres` in a straight line. None until there's data on them."""
-    index = _index(cfg)
-    if not index or not index.kinds & set(kinds):
+    if not known(cfg, kinds):
         return None
+    index = _index(cfg)
     key, counts = (lat, lon, tuple(kinds), metres), _cache["counts"]
     if key not in counts:
         counts[key] = sum(1 for _ in index.around(lat, lon, set(kinds), metres))
