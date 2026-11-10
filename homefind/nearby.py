@@ -33,8 +33,9 @@ EDGE_STEP = 50                    # a park's edge, as points this far apart
 
 
 def _station(name: str) -> str:
-    """ "Berlin-Charlottenburg" -> "Charlottenburg", "Berlin Hauptbahnhof (tief)" -> "Hauptbahnhof"."""
-    return re.sub(r"\s*\(.*?\)", "", re.sub(r"^Berlin[- ]", "", name)).strip()
+    """ "Berlin-Charlottenburg" -> "Charlottenburg", "Berlin Hauptbahnhof (tief)" -> "Hauptbahnhof",
+    "U Potsdamer Platz" -> "Potsdamer Platz" (the U or S goes back on by its kind)."""
+    return re.sub(r"\s*\(.*?\)", "", re.sub(r"^(Berlin[- ]|S\s*\+\s*U |[US] )", "", name)).strip()
 
 
 def _stops(elements: list[dict]) -> list[list]:
