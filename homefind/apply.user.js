@@ -32,6 +32,8 @@
     "www.immowelt.de": { source: "immowelt", name: "Immowelt", ad: /^\/expose\/([\w-]+)/ },
   }[location.hostname];
   const adId = () => location.pathname.match(SITE.ad)?.[1];
+  // A bot check in place of the ad (Immowelt's DataDome slider, ImmoScout24's own): the ad comes after it.
+  const botCheck = () => !!document.querySelector('iframe[src*="captcha"], script[src*="captcha"], img[src*="captcha"], [id*="captcha" i]');
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
   const norm = (s) => String(s ?? "").replace(/[*\s]+/g, " ").trim().toLowerCase();
   const digits = (s) => String(s ?? "").replace(/\D/g, "");
@@ -388,9 +390,14 @@
     setInterval(update, 1000);
     const how = adId() && sessionStorage.getItem(`homefind:${adId()}`);
     if (!how) return;
-    sessionStorage.removeItem(`homefind:${adId()}`);  // once: a reload doesn't send it again
     history.replaceState(history.state, "", location.href.replace(/#homefind=\w+$/, ""));
     for (let i = 0; i < 40 && !messageBox() && !opener(); i++) await sleep(250);  // the page may still be drawing it
+    if (!messageBox() && !opener() && botCheck()) {  // `how` stays for the ad, which comes once you've passed it
+      const note = `${SITE.name} wants to know you're not a robot: pass its check in Firefox, and the form gets filled in then.`;
+      say(note, "wait");
+      return tell("ready", note);
+    }
+    sessionStorage.removeItem(`homefind:${adId()}`);  // once: a reload doesn't send it again
     run(how);
   });
 })();
