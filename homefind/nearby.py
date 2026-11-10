@@ -30,6 +30,7 @@ M_PER_DEG = 111_320               # metres per degree of latitude
 LON_SCALE = math.cos(math.radians(52.5))  # ... and of longitude, in Berlin
 CELL = 300                        # grid cells, in metres
 EDGE_STEP = 50                    # a park's edge, as points this far apart
+NEAR_FIRST = 600                  # nearest(): how far it looks first
 
 
 def _station(name: str) -> str:
@@ -144,8 +145,13 @@ class Index:
                             yield d, p
 
     def nearest(self, lat: float, lon: float, kinds, metres: float) -> tuple[float, list] | None:
-        """(distance in metres, point) of the nearest point of `kinds` within `metres`."""
-        return min(self.around(lat, lon, kinds, metres), key=lambda found: found[0], default=None)
+        """(distance in metres, point) of the nearest point of `kinds` within `metres`. Looks
+        within NEAR_FIRST first, where it mostly is, and further out only when there's none."""
+        for reach in dict.fromkeys((min(metres, NEAR_FIRST), metres)):
+            found = min(self.around(lat, lon, kinds, reach), key=lambda found: found[0], default=None)
+            if found:
+                return found
+        return None
 
 
 def distance(a: tuple[float, float], b: tuple[float, float]) -> float:
