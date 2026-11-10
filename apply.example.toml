@@ -38,6 +38,11 @@ Besichtigungstermin für diese Wohnung vereinbaren."""
 "Anbieter:in folgen für Inserate & Profi-Tipps" = false
 "Erhalte Angebote von Umzugsfirmen" = false
 "Stich hervor: Ja zur Kautionsbürgschaft+" = true  # only on ads whose landlord takes it
-# Immowelt's
+# Immowelt's. It asks for your address too (ImmoScout24 has it from your profile), and for
+# your e-mail unless you're logged in there.
+"Straße / Hausnummer" = "Musterstraße 1"
+"PLZ" = "10115"
+"Ort" = "Berlin"
+# "E-Mail" = "max@example.com"
 "Ich möchte per E-Mail von" = false  # ... Immobilienpartnern für ähnliche Immobilien kontaktiert werden
 "Ich möchte passende Inserate und Neuigkeiten von" = false  # ... immowelt per E-Mail erhalten
