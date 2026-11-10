@@ -39,7 +39,7 @@ FEATURES = [  # (points, label, pattern); "kein Balkon" / "ohne EBK" don't count
     (1, "garden", r"\bgarten\b|gartenanteil|gartennutzung"),
 ]
 MAX_FEATURES = 10
-ALTBAU = r"altbau|dielenboden|dielen\b"  # a heads-up, not a feature: a note under Heads up, no points
+ALTBAU = r"altbau|dielenboden|dielen\b"  # a heads-up, not a feature: a note under Cons, no points
 UPPER_FLOOR = 3  # not on the ground floor
 OLD_AREA = 5     # [bonus] old_area: a postcode you were after before
 BIG_STREET = 4   # [bonus] streets
@@ -50,7 +50,7 @@ GREEN, GREEN_MINUTES = 3, 5  # a park, woods, a lake or the river
 QUIET = 2        # the quiet side: back buildings, rooms facing the courtyard
 DAILY, DAILY_KM = 6, (2, 8)  # [bonus] daily: all points up to 2 km away (straight line), none from 8 km
 DAILY_WALK, DAILY_WALK_MINUTES = 3, 15  # ... these on top, and a chip on the card, when it's at most this many minutes on foot
-INFO_MINUTES = 30  # how far on foot the card's Info row looks for a supermarket or a station (see info)
+INFO_MINUTES = 30  # how far on foot the card looks for a supermarket or a station (see info)
 RESIDENTIAL_PER_KM2, RESIDENTIAL_M = 18, 300  # too residential: fewer places to eat or drink than this, in this radius (5 or fewer)
 BANDS = [(95, "great"), (75, "good"), (55, "ok"), (0, "weak")]  # each as rare as 75 / 60 / 45 were before the bonuses
 
@@ -81,10 +81,10 @@ COURTYARD = re.compile(
 
 
 class Part(NamedTuple):
-    """A line under a score. `chip`: how it reads on the card, under "Info" (or under "Heads up",
-    when it costs points or is only a note, 0 points); empty for the price, size, freshness and
-    the like. `in_info`: the card's Info row says it already, with info()'s own distance, so the
-    web UI leaves its chip out (the family page still shows it)."""
+    """A line under a score. `chip`: how it reads on the card, under Pros (or under Cons, when it
+    costs points or is only a note, 0 points); empty for the price, size, freshness and the like.
+    `in_info`: info() says it already, with its own distance (under Pros, being this close), so
+    the web UI leaves its chip out (the family page still shows it)."""
     points: int
     label: str
     chip: str = ""
@@ -325,10 +325,12 @@ def _far(metres: float) -> str:
     return f"{round(metres, -1):.0f} m" if metres < 950 else f"{metres / 1000:.1f} km"
 
 
-def info(cfg: dict, listing: Listing, place: dict | None, trips: dict | None = None) -> list[tuple[str, str]]:
-    """The card's Info row, whatever the score makes of it: how far each [bonus] daily place (work)
-    is on foot and by public transport (`trips`: Store.trips), and the nearest supermarket, U-Bahn,
-    S-Bahn and bus stop on foot; as (chip, full text). The walks need the house (see spot): with only
+def info(cfg: dict, listing: Listing, place: dict | None,
+         trips: dict | None = None) -> list[tuple[str, str, bool]]:
+    """How far each [bonus] daily place (work) is on foot and by public transport (`trips`:
+    Store.trips), and the nearest supermarket, U-Bahn, S-Bahn and bus stop on foot, whatever the
+    score makes of it; as (chip, full text, pro). `pro`: close enough for the score's points, so
+    the card has it under Pros, else under Info. The walks need the house (see spot): with only
     the street or postcode known, work is "~" kilometres and minutes by public transport from there."""
     at = spot(listing, place)
     rough = None if at or not place else (place["lat"], place["lon"])
@@ -336,6 +338,7 @@ def info(cfg: dict, listing: Listing, place: dict | None, trips: dict | None = N
     for daily in (cfg.get("bonus") or {}).get("daily", []) if at or rough else []:
         there = (daily["lat"], daily["lon"])
         name, metres = daily["name"], nearby.distance(at or rough, there)
+        pro = bool(at) and nearby.on_foot(metres) <= DAILY_WALK_MINUTES
         if rough:
             chip, full = f"{name} ~{_far(metres)}", f"{name}: about {_far(metres)} in a straight line"
         else:
@@ -352,18 +355,20 @@ def info(cfg: dict, listing: Listing, place: dict | None, trips: dict | None = N
         if rough:
             full += (" (only the street is known, so from somewhere along it)" if place["precision"] == "street"
                      else " (only the area is known, so from its middle)")
-        out.append((chip, full))
-    for kinds, what in ((("supermarket",), "supermarket"), (("U",), "U-Bahn"), (("S",), "S-Bahn"), (("bus",), "bus stop")):
+        out.append((chip, full, pro))
+    for kinds, what, close in ((("supermarket",), "supermarket", SHOP_MINUTES), (("U",), "U-Bahn", RAIL_MINUTES),
+                               (("S",), "S-Bahn", RAIL_MINUTES), (("bus",), "bus stop", STOP_MINUTES)):
         if not at or not nearby.known(cfg, kinds):
             continue
         found = nearby.walk(cfg, *at, kinds, INFO_MINUTES)
         if not found:
-            out.append((f"no {what} within {INFO_MINUTES} min", f"no {what} within {INFO_MINUTES} min on foot"))
+            out.append((f"no {what} within {INFO_MINUTES} min", f"no {what} within {INFO_MINUTES} min on foot", False))
             continue
         minutes, name, _, metres = found
         chip = name if what in ("U-Bahn", "S-Bahn") else what.split()[0]  # "U Wilmersdorfer Straße", "bus"
         full = f"{what} {name}" if what in ("supermarket", "bus stop") and name else name or f"a {what}"
-        out.append((f"{chip} {minutes} min", f"{full}: about {minutes} min on foot ({_far(metres)} in a straight line)"))
+        out.append((f"{chip} {minutes} min", f"{full}: about {minutes} min on foot ({_far(metres)} in a straight line)",
+                    minutes <= close))
     return out
 
 

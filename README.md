@@ -163,27 +163,28 @@ Only one instance runs at a time; after a reboot, start it again.
   stops, supermarkets, parks and places to eat or drink come from OpenStreetMap (Overpass API), for all of Berlin, into
   `data/nearby.json`: fetched by the mini-map's background thread (or
   `--geocode`) and again once a month.
-- **Notes** on a card, summed up in rows (hover a chip for the full text):
-  **⚠ Watch out**, the scam signs (see Filtering); **Heads up**, what to
-  know before going for it (fewer rooms than wanted, Nachmieter, Ablöse, an
-  estimated warm rent, furnished, semi-basement, too residential, Altbau, ...); **Info**, how far
-  work is on foot and by public transport (each `[bonus] daily` place) and the nearest supermarket,
-  U-Bahn, S-Bahn and bus stop (up to 30 minutes on foot; hover for the name
-  and metres), then what else the score gives points for besides price and
-  size (balcony, kitchen, lift, garden, the floor, the quiet side, a park
-  nearby, a verified or municipal landlord) and ImmoScout Plus-only for now
-  (fewer can apply); **Good to know**, the rest (private landlord, a street's own
-  budget, on another site first, ...). Info's walks need the house, like
-  the score's; with only the street or postcode known, work is "~" kilometres
-  and minutes by public transport from there.
-- **Public transport to work** (on Info) comes from BVG's journey planner,
+- **Notes** on a card, in three rows (hover a chip for the full text):
+  **Pros**, what the score gives points for besides price and size (balcony,
+  kitchen, lift, garden, the floor, the quiet side, a park nearby, a verified or
+  municipal landlord, and work, a supermarket or a station close enough for
+  its points) and ImmoScout Plus-only for now (fewer can apply); **Cons**, the
+  scam signs in orange (see Filtering), then what to know before going for it
+  (fewer rooms than wanted, Nachmieter, Ablöse, an estimated warm rent,
+  furnished, semi-basement, too residential, Altbau, ...); **Info**, how far
+  work is on foot and by public transport (each `[bonus] daily` place) and the
+  nearest supermarket, U-Bahn, S-Bahn and bus stop (up to 30 minutes on foot;
+  hover for the name and metres), unless they're under Pros, then the rest
+  (private landlord, a street's own budget, on another site first, ...).
+  The walks need the house, like the score's; with only the street or
+  postcode known, work is "~" kilometres and minutes by public transport from there.
+- **Public transport to work** (on the card's work chip) comes from BVG's journey planner,
   through transport.rest (`v6.bvg.transport.rest`, free, no key): door to door,
   leaving at 08:30 on the next weekday, the fastest of the first few
   connections, by the timetable. It gets the two ends' coordinates (the flat's
   and your `[bonus] daily` place's), nothing else. Asked once per flat and
   kept in the database (table `trips`): the map's background thread asks about
   new ones after placing them, 30 at a time; `--geocode` does all of them.
-- **Too residential** (under Heads up, worth no points) = 5 or fewer
+- **Too residential** (under Cons, worth no points) = 5 or fewer
   restaurants, takeaways, bars and the like within 300 m of the house, so a
   courier at 1am is one the neighbours notice. When only the postcode is
   known it's **too residential?**, from how many there are per km² across the
@@ -202,7 +203,7 @@ Only one instance runs at a time; after a reboot, start it again.
   (`edge_zip_codes`): fine, but not a match. Loaded in full, like a match.
 - **Too few rooms** = under `min_rooms` (1). The searches don't filter on
   rooms, so these do show up. Flats with fewer than `wanted_rooms` (2), so 1
-  or 1.5 rooms, are matches, with "only 1 room" under Heads up on the card
+  or 1.5 rooms, are matches, with "only 1 room" under Cons on the card
   ("heads-up: only 1 room" in the push); the score gives them no points for rooms (2+ get 10).
 - WG rooms, senior housing, swap offers, WBS-only flats and anything outside
   the area and its edge don't show up at all (`drop_reasons` in

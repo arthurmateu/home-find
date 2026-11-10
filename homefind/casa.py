@@ -207,7 +207,7 @@ def _part(p: rating.Part) -> str | None:
 
 
 def _chips(verdict, parts: list[rating.Part]) -> dict[str, list[str]]:
-    """The notes on the card, in the groups the web UI has them in; its Watch out goes in with Heads up."""
+    """The notes on the card, in the web UI's rows: Atenção its Cons (scam signs first), Tem its Pros, Bom saber its Info."""
     heads = [_said(flag) or "Sinal de alerta" for flag in verdict.flags]
     nice, info = [], []
     for p in parts:
