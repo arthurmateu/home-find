@@ -167,14 +167,22 @@ Only one instance runs at a time; after a reboot, start it again.
   **⚠ Watch out**, the scam signs (see Filtering); **Heads up**, what to
   know before going for it (fewer rooms than wanted, Nachmieter, Ablöse, an
   estimated warm rent, furnished, semi-basement, too residential, Altbau, ...); **Info**, how far
-  work is on foot (each `[bonus] daily` place) and the nearest supermarket,
+  work is on foot and by public transport (each `[bonus] daily` place) and the nearest supermarket,
   U-Bahn, S-Bahn and bus stop (up to 30 minutes on foot; hover for the name
   and metres), then what else the score gives points for besides price and
   size (balcony, kitchen, lift, garden, the floor, the quiet side, a park
   nearby, a verified or municipal landlord) and ImmoScout Plus-only for now
   (fewer can apply); **Good to know**, the rest (private landlord, a street's own
-  budget, on another site first, ...). Info's distances need the house, like
-  the score's; with only the postcode known, it has the kilometres to work.
+  budget, on another site first, ...). Info's walks need the house, like
+  the score's; with only the street or postcode known, work is "~" kilometres
+  and minutes by public transport from there.
+- **Public transport to work** (on Info) comes from BVG's journey planner,
+  through transport.rest (`v6.bvg.transport.rest`, free, no key): door to door,
+  leaving at 08:30 on the next weekday, the fastest of the first few
+  connections, by the timetable. It gets the two ends' coordinates (the flat's
+  and your `[bonus] daily` place's), nothing else. Asked once per flat and
+  kept in the database (table `trips`): the map's background thread asks about
+  new ones after placing them, 30 at a time; `--geocode` does all of them.
 - **Too residential** (under Heads up, worth no points) = 5 or fewer
   restaurants, takeaways, bars and the like within 300 m of the house, so a
   courier at 1am is one the neighbours notice. When only the postcode is
@@ -296,7 +304,7 @@ python3 -m homefind --only immoscout,kleinanzeigen
 python3 -m homefind --rejected 50    # what got filtered out, and why
 python3 -m homefind --recheck        # re-apply the rules after editing config.toml
 python3 -m homefind --check-offline  # look up every stored ad now and file away the offline ones
-python3 -m homefind --geocode        # place every listing on the map now (and fetch data/nearby.json)
+python3 -m homefind --geocode        # place every listing on the map now (and fetch data/nearby.json, and the trips to work)
 python3 -m homefind --no-push        # store + print, no notifications
 python3 -m homefind --casa           # upload the family page now and print its private link
 python3 -m homefind --casa-new-link  # replace that link (the old one stops working) and upload

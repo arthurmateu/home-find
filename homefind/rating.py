@@ -27,7 +27,7 @@ import re
 from datetime import datetime
 from typing import NamedTuple
 
-from . import nearby
+from . import nearby, transit
 from .models import Listing
 from .rules import ABLOESE, Verdict, on_street, street_budget
 from .util import parse_published
@@ -325,21 +325,34 @@ def _far(metres: float) -> str:
     return f"{round(metres, -1):.0f} m" if metres < 950 else f"{metres / 1000:.1f} km"
 
 
-def info(cfg: dict, listing: Listing, place: dict | None) -> list[tuple[str, str]]:
+def info(cfg: dict, listing: Listing, place: dict | None, trips: dict | None = None) -> list[tuple[str, str]]:
     """The card's Info row, whatever the score makes of it: how far each [bonus] daily place (work)
-    is on foot, and the nearest supermarket, U-Bahn, S-Bahn and bus stop; as (chip, full text).
-    It needs the house (see spot): with only the postcode known, there's just the kilometres to work."""
+    is on foot and by public transport (`trips`: Store.trips), and the nearest supermarket, U-Bahn,
+    S-Bahn and bus stop on foot; as (chip, full text). The walks need the house (see spot): with only
+    the street or postcode known, work is "~" kilometres and minutes by public transport from there."""
     at = spot(listing, place)
     rough = None if at or not place else (place["lat"], place["lon"])
     out = []
     for daily in (cfg.get("bonus") or {}).get("daily", []) if at or rough else []:
-        name, metres = daily["name"], nearby.distance(at or rough, (daily["lat"], daily["lon"]))
+        there = (daily["lat"], daily["lon"])
+        name, metres = daily["name"], nearby.distance(at or rough, there)
         if rough:
-            out.append((f"{name} ~{_far(metres)}",
-                        f"{name}: about {_far(metres)} in a straight line (only the area is known, so no times)"))
-            continue
-        walk = _duration(nearby.on_foot(metres))
-        out.append((f"{name} {walk} walk", f"{name}: {_far(metres)} in a straight line, about {walk} on foot"))
+            chip, full = f"{name} ~{_far(metres)}", f"{name}: about {_far(metres)} in a straight line"
+        else:
+            walk = _duration(nearby.on_foot(metres))
+            chip, full = f"{name} {walk} walk", f"{name}: {_far(metres)} in a straight line, about {walk} on foot"
+        trip = (trips or {}).get(transit.key(at or rough, there), False)  # False: not asked yet
+        if trip:
+            by = _duration(trip["minutes"])
+            chip += f" · {'~' * bool(rough)}{by} transit"
+            full += (f"; {'about ' * bool(rough)}{by} by public transport ({trip['how']}, "
+                     f"leaving {transit.LEAVE:%H:%M} on a weekday)")
+        else:
+            full += "; BVG's journey planner found no connection" if trip is None else "; by public transport: not looked up yet"
+        if rough:
+            full += (" (only the street is known, so from somewhere along it)" if place["precision"] == "street"
+                     else " (only the area is known, so from its middle)")
+        out.append((chip, full))
     for kinds, what in ((("supermarket",), "supermarket"), (("U",), "U-Bahn"), (("S",), "S-Bahn"), (("bus",), "bus stop")):
         if not at or not nearby.known(cfg, kinds):
             continue

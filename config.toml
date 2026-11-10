@@ -95,7 +95,8 @@ streets = [
   "Rheinstraße", "Hauptstraße",  # Friedenau, Schöneberg
 ]
 # Places you go every day, each worth up to 6 points by how close it is (all up to 2 km
-# away in a straight line, none from 8 km; 3 more within 15 minutes on foot). Put them in config.local.toml, which stays
+# away in a straight line, none from 8 km; 3 more within 15 minutes on foot). Cards' Info says how long each takes
+# on foot and by public transport (transit.py asks BVG's planner). Put them in config.local.toml, which stays
 # off GitHub, as: [bonus] daily = [{ name = "work", lat = 52.5219, lon = 13.4132 }]
 # (right-click the place in Google Maps; the first line is lat, lon).
 

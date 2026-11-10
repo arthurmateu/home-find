@@ -4,7 +4,8 @@ UI's mini-maps and its locality filter.
 Looked up on OpenStreetMap's Nominatim, at most one request every second or so
 as its usage policy asks, and kept in the database (table `places`), so each
 address is only asked once. While the web UI runs, a background thread places
-new listings every couple of minutes; `--geocode` does everything at once.
+new listings every couple of minutes, and then asks how long work takes from
+them by public transport (transit.py); `--geocode` does everything at once.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ import threading
 import time
 from urllib.parse import urlencode
 
-from . import nearby
+from . import nearby, rating, transit
 from .net import OSM_UA, Blocked, Fetcher
 from .rules import dropped
 from .store import Store
@@ -115,6 +116,14 @@ def fill(cfg: dict, store: Store, geocoder: Geocoder) -> int:
     return asked
 
 
+def homes(cfg: dict, store: Store) -> list[tuple[float, float]]:
+    """Where the listings shown are, in _shown's order: their house (rating.spot), or else
+    their street or postcode's middle, the way rating.info measures from it."""
+    places = store.places()
+    found = ((r.listing, locate(r.listing, places)) for r in _shown(cfg, store))
+    return [rating.spot(listing, place) or (place["lat"], place["lon"]) for listing, place in found if place]
+
+
 def coverage(cfg: dict, store: Store) -> tuple[int, int]:
     """(listings on the map, listings shown)."""
     places = store.places()
@@ -123,11 +132,12 @@ def coverage(cfg: dict, store: Store) -> tuple[int, int]:
 
 
 def start(cfg: dict) -> threading.Thread:
-    """Places new listings in the background, every EVERY_SECONDS, and keeps
-    nearby.py's stations and such up to date."""
+    """Places new listings in the background, every EVERY_SECONDS, asks how long work takes
+    from them by public transport, and keeps nearby.py's stations and such up to date."""
     def run():
-        geocoder = Geocoder()
+        geocoder, planner = Geocoder(), Fetcher(delay=1)  # transport.rest takes up to 100 a minute
         nearby_after = 0.0  # after a failed fetch, give Overpass an hour
+        transit_after = 0.0
         while True:
             wait = EVERY_SECONDS
             if time.monotonic() >= nearby_after:
@@ -149,6 +159,16 @@ def start(cfg: dict) -> threading.Thread:
                 except Exception as e:  # noqa: BLE001 - maps are a nice-to-have; never stop for them
                     log.warning("map: lookup failed (%s); trying again in 10 min", e)
                     wait = 600
+                if time.monotonic() >= transit_after:
+                    try:
+                        n = transit.fill(cfg, store, homes(cfg, store), planner, transit.PER_ROUND)
+                        if n:
+                            log.info("map: looked up %d trip%s by public transport", n, "s" * (n > 1))
+                    except Exception as e:  # noqa: BLE001 - the card's Info does without until it works
+                        later = 3600 if isinstance(e, Blocked) else 600
+                        log.warning("map: couldn't look up trips by public transport (%s); trying again in %d min",
+                                    e, later // 60)
+                        transit_after = time.monotonic() + later
             time.sleep(wait)
 
     t = threading.Thread(target=run, name="geo", daemon=True)

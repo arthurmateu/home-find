@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS fingerprints (fp TEXT PRIMARY KEY, key TEXT, url TEXT
 -- Geocoder answers (see geo.py), misses included (lat NULL) so they aren't asked again.
 CREATE TABLE IF NOT EXISTS places (q TEXT PRIMARY KEY, lat REAL, lon REAL, precision TEXT, locality TEXT,
                                    radius REAL, at TEXT);
+-- Trips by public transport (see transit.py), misses included (minutes NULL) so they aren't asked again.
+CREATE TABLE IF NOT EXISTS trips (q TEXT PRIMARY KEY, minutes INTEGER, how TEXT, at TEXT);
 """
 
 
@@ -217,6 +219,16 @@ class Store:
             self.db.execute("INSERT OR REPLACE INTO places VALUES (?, ?, ?, ?, ?, ?, ?)",
                             (q, p.get("lat"), p.get("lon"), p.get("precision"), p.get("locality"), p.get("radius"),
                              stamp()))
+
+    def trips(self) -> dict[str, dict | None]:
+        """Every trip by public transport asked about: transit.key -> {minutes, how}, or None if there's no connection."""
+        rows = self.db.execute("SELECT q, minutes, how FROM trips")
+        return {q: (dict(minutes=m, how=how) if m is not None else None) for q, m, how in rows}
+
+    def save_trip(self, q: str, trip: dict | None) -> None:
+        t = trip or {}
+        with self.db:
+            self.db.execute("INSERT OR REPLACE INTO trips VALUES (?, ?, ?, ?)", (q, t.get("minutes"), t.get("how"), stamp()))
 
     def meta_get(self, k: str) -> str | None:
         row = self.db.execute("SELECT v FROM meta WHERE k = ?", (k,)).fetchone()

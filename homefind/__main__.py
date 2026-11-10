@@ -12,7 +12,7 @@ from pathlib import Path
 
 from . import config
 from .app import Loop, check_offline, recheck, run_once, seconds_until_due
-from . import casa, geo, nearby, web
+from . import casa, geo, nearby, transit, web
 from .apply import Applier
 from .net import Fetcher
 from .notify import Notifier, print_reject
@@ -104,6 +104,9 @@ def main(argv=None) -> int:
             print(f"fetched {', '.join(got)} from OpenStreetMap")
         placed, shown = geo.coverage(cfg, store)
         print(f"{asked} lookups; {placed} of {shown} listings are on the map")
+        if (cfg.get("bonus") or {}).get("daily"):
+            print("asking how long work takes by public transport from each (about one a second)...")
+            print(f"{transit.fill(cfg, store, geo.homes(cfg, store), Fetcher(delay=1))} trips looked up")
         return 0
     if not notifier.configured and not (args.dry_run or args.no_push):
         log.warning("no notification channel configured; matches only show in the console and the web UI")

@@ -137,7 +137,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
         reasons["stretch"] = " / ".join(f"{street} (warm ≤ {budget:g} €)"
                                         for street, budget in s["street_stretch_warm_rent"].items())
     now = datetime.now()
-    places = store.places()
+    places, trips = store.places(), store.trips()
     listings = []
     for flat in flats(cfg, store):
         row = flat[0]
@@ -171,7 +171,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "score": score,
             "band": band(score),
             "why": [list(p) for p in parts],  # [points, label, chip, in_info]
-            "info": info(cfg, listing, place),  # [chip, full text]: work, the nearest supermarket and stations
+            "info": info(cfg, listing, place, trips),  # [chip, full text]: work, the nearest supermarket and stations
             "warm": verdict.warm or listing.warm_rent,
             "size": listing.size_sqm,
             "posted": stamp(posted) if posted else first_seen,
