@@ -231,7 +231,18 @@
     // Not the stand-ins a dropdown of the site's own making keeps for screen readers (aria-hidden).
     const controls = [...root.querySelectorAll(CONTROLS)].filter((el) => el !== msg && !el.disabled && !el.readOnly &&
       !el.closest("[aria-hidden=true]") && !(el.matches("input") && /^(hidden|submit|button|file|image|reset)$/.test(el.type)));
-    const labels = new Map(controls.map((el) => [el, labelOf(el).replace(/\s*\*\s*$/, "")]));
+    // Radio buttons are one field, by their group's label (or else their name); each one is an option,
+    // by its own label (Immowelt's Anrede: Herr, Frau, Neutral).
+    const radio = (el) => el.matches("input[type=radio]");
+    const groupOf = (el) => el.closest("fieldset, [role=radiogroup]");
+    const groupLabel = (el) => {
+      const g = groupOf(el), ids = g?.getAttribute("aria-labelledby");
+      return (g && (g.matches("fieldset") ? textOf(g.querySelector("legend"))
+                    : ids ? ids.split(/\s+/).map((id) => textOf(document.getElementById(id))).join(" ") : g.getAttribute("aria-label"))) ||
+             el.name || "";
+    };
+    const optionsOf = (el) => controls.filter((c) => radio(c) && c.name === el.name && groupOf(c) === groupOf(el));
+    const labels = new Map(controls.map((el) => [el, (radio(el) ? groupLabel(el) : labelOf(el)).replace(/\s*\*\s*$/, "")]));
     const used = new Set();
     const native = (el) => el.matches("input, select, textarea");
     for (const [name, want] of Object.entries(fields)) {
@@ -245,6 +256,16 @@
                  free.find((c) => starts(c) && native(c)) || free.find(starts);
       if (!el) continue;  // this ad's form doesn't ask for it
       used.add(el);
+      if (radio(el)) {  // the one whose label is the option
+        const options = optionsOf(el), opt = pick(options, want, labelOf);
+        options.forEach((o) => used.add(o));
+        if (opt && !opt.checked) opt.click();
+        await sleep(60);
+        const why = !opt ? `no option “${want}” (it has ${options.map(labelOf).join(", ")})`
+                  : opt.checked ? "" : `“${labelOf(opt)}” didn't get picked`;
+        if (why) unset.push([labels.get(el), why]); else filled.push(labels.get(el));
+        continue;
+      }
       let why = "", expect = want;  // what the field should show then: for a dropdown, the option picked
       if (el.matches("input[type=checkbox], [role=switch], [role=checkbox]")) {
         if (isOn(el) !== !!want) el.click();
@@ -272,9 +293,11 @@
     }
 
     // Asked for, but neither the site nor apply.toml filled it in.
-    const required = (el) => el.required || el.getAttribute("aria-required") === "true" || /\*\s*$/.test(labelOf(el));
-    const missing = controls.filter((el) => required(el) && !used.has(el) && shown(el) &&
-                                            (valueOf(el) === "" || valueOf(el) === false)).map((el) => labels.get(el));
+    const required = (el) => el.required || el.getAttribute("aria-required") === "true" || /\*\s*$/.test(labelOf(el)) ||
+      (radio(el) && (groupOf(el)?.getAttribute("aria-required") === "true" || /\*\s*$/.test(groupLabel(el))));
+    const empty = (el) => radio(el) ? !optionsOf(el).some((o) => o.checked) : valueOf(el) === "" || valueOf(el) === false;
+    const missing = [...new Set(controls.filter((el) => required(el) && !used.has(el) && shown(el) && empty(el))
+                                        .map((el) => labels.get(el)))];
     const email = [...root.querySelectorAll("input")].find((el) => el.type === "email" || /^e-?mail/i.test(norm(labelOf(el))));
     const loggedOut = !!email && !email.disabled && !email.readOnly && !email.value;
     for (const el of controls) {  // mark what's left to do
@@ -283,7 +306,8 @@
     const buttons = [...root.querySelectorAll("button, input[type=submit]")].filter(shown);
     const submit = buttons.find((b) => SUBMIT.test(textOf(b) || b.value)) || buttons.find((b) => b.type === "submit");
     const done = { filled, unset, missing, loggedOut, submit,
-                   fields: controls.map((el) => [labels.get(el), el.tagName.toLowerCase() + (el.type ? ":" + el.type : ""),
+                   fields: controls.map((el) => [labels.get(el) + (radio(el) ? ` › ${labelOf(el)}` : ""),
+                                                 el.tagName.toLowerCase() + (el.type ? ":" + el.type : ""),
                                                  String(valueOf(el)).slice(0, 40),
                                                  el.name || el.getAttribute("data-testid") || el.id || ""]) };
     if (!submit) return { ...done, error: "found no button to send the form" };
