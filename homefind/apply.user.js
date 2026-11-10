@@ -31,6 +31,7 @@
     "www.immobilienscout24.de": { source: "immoscout", name: "ImmoScout24", ad: /^\/(?:en\/)?expose\/(\d+)/ },
     "www.immowelt.de": { source: "immowelt", name: "Immowelt", ad: /^\/expose\/([\w-]+)/ },
   }[location.hostname];
+  if (!SITE) return;
   const adId = () => location.pathname.match(SITE.ad)?.[1];
   // A bot check in place of the ad (Immowelt's DataDome slider, ImmoScout24's own): the ad comes after it.
   const botCheck = () => !!document.querySelector('iframe[src*="captcha"], script[src*="captcha"], img[src*="captcha"], [id*="captcha" i]');
@@ -313,8 +314,8 @@
       }
       const press = sendName(r.submit);
       const problems = [...(r.error ? [r.error] : []), ...(r.loggedOut ? [`you're not logged in to ${SITE.name}`] : []),
-                        ...r.unset.map(([label, why]) => `${label}: ${why}`),
-                        ...r.missing.map((label) => `${label}: apply.toml doesn't say`)];
+                        ...(r.unset || []).map(([label, why]) => `${label}: ${why}`),
+                        ...(r.missing || []).map((label) => `${label}: apply.toml doesn't say`)];
       if (how === "send" && !problems.length) {
         say("Sending…");
         for (let i = 0; i < 120 && r.submit.disabled; i++) await sleep(500);  // "Abschicken in 30 s"
