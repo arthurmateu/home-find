@@ -14,7 +14,8 @@ Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over; stre
          where it is ([bonus] in config.toml): the old area 5 · a street you like 4 ·
          U/S-Bahn within 5 min on foot 4 · bus/tram stop within 2 min 2 ·
          supermarket within 5 min 10 · park or water within 5 min 3 (nearby.py) ·
-         near a place you go daily up to 6, 9 within a 15-minute walk ([bonus] daily, in config.local.toml),
+         near a place you go daily up to 6, 9 within a 15-minute walk ([bonus] daily, in config.local.toml;
+         not the ones with score = false),
          minus: scam signs (8 per point), Ablöse, estimated rent, semi-basement.
 IS24 Plus-only listings aren't marked down: you're a Plus member.
 Notes, worth no points: too residential (see residential), Altbau.
@@ -293,7 +294,7 @@ def rate(listing: Listing, verdict: Verdict, first_seen: str, cfg: dict,
         parts.append(quiet_area)
     # kilometres are fine by the postcode's middle too, if that's all there is ("~")
     rough = None if at or not place else (place["lat"], place["lon"])
-    for daily in bonus.get("daily", []) if at or rough else []:
+    for daily in [d for d in bonus.get("daily", []) if d.get("score", True)] if at or rough else []:
         metres = nearby.distance(at or rough, (daily["lat"], daily["lon"]))
         km, walk = metres / 1000, nearby.on_foot(metres)
         near, far = DAILY_KM
@@ -327,12 +328,12 @@ def _far(metres: float) -> str:
 
 
 def info(cfg: dict, listing: Listing, place: dict | None,
-         trips: dict | None = None) -> list[tuple[str, str, bool]]:
+         trips: dict | None = None) -> list[tuple[str, str, bool, str]]:
     """How long each [bonus] daily place (work) takes, on foot or by public transport (`trips`:
     Store.trips), whichever is quicker; and the nearest supermarket, U-Bahn, S-Bahn and bus stop
-    on foot, whatever the score makes of it. As (chip, full text, pro): `pro`, close enough for
-    the score's points, so the card has it under Pros, else under Info. The supermarket and
-    stations need the house (see spot); with only
+    on foot, whatever the score makes of it. As (chip, full text, pro, pill): `pro`, close enough
+    for the score's points, so the card has it under Pros, else under Info; `pill`, the daily
+    place's colour on the card. The supermarket and stations need the house (see spot); with only
     the street or postcode known, work is measured from there, marked "~"."""
     at = spot(listing, place)
     rough = None if at or not place else (place["lat"], place["lon"])
@@ -355,21 +356,21 @@ def info(cfg: dict, listing: Listing, place: dict | None,
         if rough:
             full += (" (only the street is known, so from somewhere along it)" if place["precision"] == "street"
                      else " (only the area is known, so from its middle)")
-        pro = bool(at) and walk <= DAILY_WALK_MINUTES
-        out.append((chip, full, pro))
+        pro = bool(at) and daily.get("score", True) and walk <= DAILY_WALK_MINUTES
+        out.append((chip, full, pro, daily.get("pill", "")))
     for kinds, what, close in ((("supermarket",), "supermarket", SHOP_MINUTES), (("U",), "U-Bahn", RAIL_MINUTES),
                                (("S",), "S-Bahn", RAIL_MINUTES), (("bus",), "bus stop", STOP_MINUTES)):
         if not at or not nearby.known(cfg, kinds):
             continue
         found = nearby.walk(cfg, *at, kinds, INFO_MINUTES)
         if not found:
-            out.append((f"no {what} within {INFO_MINUTES} min", f"no {what} within {INFO_MINUTES} min on foot", False))
+            out.append((f"no {what} within {INFO_MINUTES} min", f"no {what} within {INFO_MINUTES} min on foot", False, ""))
             continue
         minutes, name, _, metres = found
         chip = name if what in ("U-Bahn", "S-Bahn") else what.split()[0]  # "U Wilmersdorfer Straße", "bus"
         full = f"{what} {name}" if what in ("supermarket", "bus stop") and name else name or f"a {what}"
         out.append((f"{chip} {minutes} min", f"{full}: about {minutes} min on foot ({_far(metres)} in a straight line)",
-                    minutes <= close))
+                    minutes <= close, ""))
     return out
 
 

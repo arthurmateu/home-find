@@ -152,7 +152,7 @@ Only one instance runs at a time; after a reboot, start it again.
   station (or its entrance) within 5 minutes on foot 4, a bus or tram stop
   within 2 minutes 2 · a supermarket within 5 minutes 10 · a park, woods, a
   lake, the Spree or the Landwehrkanal within 5 minutes 3 · near a place you
-  go every day (`[bonus] daily`, in `config.local.toml`) up to 6: all of it
+  go every day (`[bonus] daily`, in `config.local.toml`; not one with `score = false`) up to 6: all of it
   up to 2 km away in a straight line, none from 8 km, and 3 more with a chip on the card within 15 minutes on foot; minus scam signs, Ablöse, an estimated warm rent, semi-basement. ImmoScout Plus-only listings aren't
   marked down (you're a member). Tune it in `homefind/rating.py`. Push
   notifications start with the score.
@@ -172,8 +172,8 @@ Only one instance runs at a time; after a reboot, start it again.
   (fewer rooms than wanted, Nachmieter, Ablöse, an estimated warm rent,
   furnished, semi-basement, too residential, Altbau, ...); **Info**, how long
   each `[bonus] daily` place (work) takes, on foot or by public transport,
-  whichever is quicker, and how far ("20 min by transport (5.4 km)"; under Pros
-  within a 15-minute walk), and the
+  whichever is quicker, and how far ("20 min by transport (5.4 km)"; in the
+  place's own colour, its `pill`, and under Pros within a 15-minute walk), and the
   nearest supermarket, U-Bahn, S-Bahn and bus stop (up to 30 minutes on foot;
   hover for the name and metres), unless they're under Pros, then the rest
   (private landlord, a street's own budget, on another site first, ...).

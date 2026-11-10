@@ -40,7 +40,7 @@ DEFAULTS: dict = {
     "bonus": {
         "old_area": [],  # postcodes
         "streets": [],   # matched like street_max_warm_rent's
-        "daily": [],     # [{name, lat, lon}]: places you go every day (in config.local.toml)
+        "daily": [],     # [{name, lat, lon, pill?, score?}]: places you go every day (in config.local.toml)
     },
     "run": {
         "request_delay_seconds": 2.0,

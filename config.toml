@@ -98,7 +98,8 @@ streets = [
 # away in a straight line, none from 8 km; 3 more within 15 minutes on foot). Cards say how long each takes, on
 # foot or by public transport, whichever is quicker (transit.py asks BVG's planner). Put them in config.local.toml,
 # which stays off GitHub, as: [bonus] daily = [{ name = "work", lat = 52.5219, lon = 13.4132 }]
-# (right-click the place in Google Maps; the first line is lat, lon).
+# (right-click the place in Google Maps; the first line is lat, lon). Each can also have
+# pill = "blue" or "light-blue", its chip's colour on the cards, and score = false: on the cards only, no points.
 
 [run]
 request_delay_seconds = 2.0  # minimum gap between two requests to the same site

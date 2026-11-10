@@ -11,12 +11,14 @@
   --bg: #f6f6f3; --card: #fff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e3e3de; --chip: #f0f0ec;
   --accent: #1f6f5c; --accent-ink: #fff; --warn: #a2560c; --warn-bg: #fdf1e3; --bad: #a3322a; --bad-bg: #fbeceb;
   --fav: #6e56cf; --fav-ink: #fff; --pro-bg: #e6f2ee;
+  --pill-blue: #2563eb; --pill-blue-ink: #fff; --pill-light-blue: #d6e8fb; --pill-light-blue-ink: #174a7c;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #141413; --card: #1e1e1c; --ink: #ececE8; --muted: #9a9a93; --line: #33332f; --chip: #2a2a27;
     --accent: #6fc2a9; --accent-ink: #0d2a22; --warn: #f0b36b; --warn-bg: #3a2a17; --bad: #f19a92; --bad-bg: #3a1d1b;
     --fav: #b4a5ff; --fav-ink: #1f1640; --pro-bg: #1b2e28;
+    --pill-blue: #2f6bc9; --pill-blue-ink: #fff; --pill-light-blue: #a9d0f5; --pill-light-blue-ink: #0d2840;
   }
 }
 * { box-sizing: border-box; }
@@ -141,6 +143,9 @@ main { padding-top: 18px; padding-bottom: 80px; }
 .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--chip); color: var(--muted); }
 .chip.con { background: var(--bad-bg); color: var(--bad); }
 .chip.pro { background: var(--pro-bg); color: var(--accent); }
+/* [bonus] daily places' own colours (their pill), whichever row they're in */
+.chip.pill-blue { background: var(--pill-blue); color: var(--pill-blue-ink); }
+.chip.pill-light-blue { background: var(--pill-light-blue); color: var(--pill-light-blue-ink); }
 /* The notes, summed up: a row per group, its name beside its chips. */
 .notes { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 8px; align-items: baseline; }
 .notes .group { font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
@@ -497,12 +502,13 @@ function shortNote(t) {
 // (the work, supermarket and stations close enough for it, see rating.info; the score's chips, see
 // rating.Part). Cons, in red: the scam signs (marked ⚠), then what to know before going for it. Info: how
 // far work, the supermarket and the stations are otherwise, then the rest.
-// [name, chip class, [[short, full], ...]], each row that has something.
+// [name, chip class, [[short, full, its own class], ...]], each row that has something.
 const CON = /^(heads-up|Nachmieter|asks for Ablöse|warm rent estimated|furnished|partly furnished|WBS|co-op)/;
 const PRO = /^(ImmoScout Plus|identity-verified)/;  // Plus members only: fewer can apply, and you're one
+const PILLS = new Set(["blue", "light-blue"]);  // [bonus] daily places' colours (pill in the config)
 function noteGroups(l) {
   const pros = [], cons = l.flags.map((f) => [`⚠ ${tidy(f)}`, f]), info = [];
-  for (const [short, full, pro] of l.info) (pro ? pros : info).push([short, full]);
+  for (const [short, full, pro, pill] of l.info) (pro ? pros : info).push([short, full, PILLS.has(pill) ? `pill-${pill}` : ""]);
   for (const [p, t, c, inInfo] of l.why) if (c && !inInfo) (p > 0 ? pros : cons).push([c, t]);
   for (const t of l.notes) {  // same as an ad that's on this card: no news
     if (l.ads.some((a) => t.endsWith(`same rent/size/postcode as ${a.url}`))) continue;
@@ -600,7 +606,7 @@ function card(l) {
                          `Moves back by itself if it comes online again.">${esc(gone)} ${esc(day(l.gone_at))}</span>` : "");
   const notes = noteGroups(l).map(([name, cls, items]) =>
     `<span class="group">${name}</span>` +
-    `<div class="chips">${items.map(([short, full]) => chip(cls && " " + cls, short, full)).join("")}</div>`).join("");
+    `<div class="chips">${items.map(([short, full, own]) => chip(` ${own || cls}`.trimEnd(), short, full)).join("")}</div>`).join("");
   const sites = l.ads.length ? `\nThe same flat on ${l.ads.map((a) => sourceName(a.source)).join(" and ")} ` +
                                `(same rent, size and postcode): ▾ next to Open has each one` : "";
   const open = state.expandAll || openDesc.has(l.key);

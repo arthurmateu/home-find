@@ -171,7 +171,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "score": score,
             "band": band(score),
             "why": [list(p) for p in parts],  # [points, label, chip, in_info]
-            "info": info(cfg, listing, place, trips),  # [chip, full text, pro]: work, the nearest supermarket and stations
+            "info": info(cfg, listing, place, trips),  # [chip, full text, pro, pill]: work, the nearest supermarket and stations
             "warm": verdict.warm or listing.warm_rent,
             "size": listing.size_sqm,
             "posted": stamp(posted) if posted else first_seen,
