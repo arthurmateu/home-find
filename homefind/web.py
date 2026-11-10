@@ -21,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from . import app, apply, config, geo
+from . import app, apply, geo, update
 from .notify import headline
 from .rating import band, info, rate
 from .rules import REASONS, dropped, street_budget, street_key, street_stretch
@@ -116,17 +116,8 @@ def build() -> str:
     return hashlib.sha1(PAGE.read_bytes()).hexdigest()[:12]
 
 
-def code(cfg: dict) -> str:
-    """The Python code and the config files as they are on disk now. They're only read
-    at startup (ui.html on every page load), so when this changes homefind needs a restart."""
-    h = hashlib.sha1()
-    files = [Path(cfg["path"]), config.local_path(cfg["path"])] if cfg.get("path") else []
-    for f in [*sorted(Path(__file__).parent.rglob("*.py")), *files]:
-        h.update(f.read_bytes() if f.is_file() else b"")
-    return h.hexdigest()[:12]
-
-
-def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: apply.Applier | None = None) -> dict:
+def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: apply.Applier | None = None,
+            updater: update.Updater | None = None) -> dict:
     s = cfg["search"]
     reasons = dict(REASONS)
     if s.get("stretch_warm_rent"):
@@ -186,7 +177,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "apply": applier and {"mode": apply.mode(store), "modes": apply.MODES, "problem": applier.problem(),
                                   "forms": list(apply.FORMS), "min_score": cfg["apply"]["min_score"],
                                   "max_per_day": cfg["apply"]["max_per_day"], "helper": helper(store)},
-            "outdated": code(cfg) != Handler.started}
+            "update": updater and updater.status()}  # homefind's code or config changed: see update.py
 
 
 def helper(store: Store) -> str | None:
@@ -201,7 +192,7 @@ class Handler(BaseHTTPRequestHandler):
     loop: app.Loop | None = None  # the --loop run this UI belongs to; None with --serve
     applier: apply.Applier | None = None
     casa = None                   # casa.Publisher: told when something the family page shows changes
-    started = ""                  # code() when it started
+    updater: update.Updater | None = None
 
     def log_message(self, fmt, *args):
         log.debug("web: " + fmt, *args)
@@ -228,7 +219,8 @@ class Handler(BaseHTTPRequestHandler):
     def _read(self, listings: bool = True) -> dict:
         """The payload, or (listings=False) just the status for the header."""
         with self._store() as store:
-            return payload(self.cfg, store, self.loop, self.applier) if listings else app.status(self.cfg, store, self.loop)
+            return (payload(self.cfg, store, self.loop, self.applier, self.updater) if listings
+                    else app.status(self.cfg, store, self.loop))
 
     def do_GET(self):
         if not self._local():
@@ -344,11 +336,11 @@ def url(cfg: dict) -> str:
 
 
 def serve(cfg: dict, loop: app.Loop | None = None, applier: apply.Applier | None = None,
-          casa=None) -> ThreadingHTTPServer | None:
+          casa=None, updater: update.Updater | None = None) -> ThreadingHTTPServer | None:
     """Start the UI in a background thread. Raises OSError if the port is taken."""
     if not cfg["run"].get("web_port"):
         return None
-    Handler.cfg, Handler.loop, Handler.applier, Handler.casa, Handler.started = cfg, loop, applier, casa, code(cfg)
+    Handler.cfg, Handler.loop, Handler.applier, Handler.casa, Handler.updater = cfg, loop, applier, casa, updater
     server = ThreadingHTTPServer(("127.0.0.1", int(cfg["run"]["web_port"])), Handler)
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, name="web", daemon=True).start()

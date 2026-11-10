@@ -51,16 +51,26 @@ you like (bookmark it). The page is always current when opened, and while it
 stays open it keeps itself current: new listings, ads taken offline, and an
 Applied or Hide made in another tab (straight away) all show up without the page
 jumping under you; if new matches arrive while you're scrolled down or on
-another tab of the page, a "new match" banner offers them. After an update to
-homefind, open pages offer a Reload, or say to restart it when the update
-needs that (a change to its Python code or to `config.toml` /
-`config.local.toml`, which are only read at startup). If a new match comes in while you're in
+another tab of the page, a "new match" banner offers them. If a new match comes in while you're in
 another tab or window, the page's tab shows it: "(1) New match · Flat hunt"
 and a red dot on its icon, until you switch back. No sound, no pop-up.
 
 Test notification: `python3 -m homefind --test-notify`
 
 Only one instance runs at a time; after a reboot, start it again.
+
+**Updates need no restart.** When homefind's Python code, `config.toml` or
+`config.local.toml` change (they're only read at startup), it restarts by
+itself, in the same terminal and with the same options: once the files have
+stayed the same for 30 seconds (`SETTLE_SECONDS` in `homefind/update.py`),
+between two checks, and not while an application is under way (opening,
+filling in, sending, or waiting for you to send it, for up to half an hour) or
+the family page is uploading. It first makes sure the new version starts; if
+it doesn't (a mistake in the code or in a config file), the one running keeps
+going, and the terminal and the page say what's wrong, until the files change
+again. Open pages offer a Reload once it has restarted, if the page itself
+changed too (`ui.html` is read on every page load, so a change to just that
+needs no restart either).
 
 ## The web page
 

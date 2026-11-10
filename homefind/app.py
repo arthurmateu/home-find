@@ -74,6 +74,10 @@ class Loop:
         self.asked = True
         self._wake.set()
 
+    def wake(self) -> None:
+        """Ends the wait between checks, without a check (see sleep): homefind was updated."""
+        self._wake.set()
+
     def done(self, result: dict) -> None:
         if result["checked"] or self.forced:
             self.result = {**result, "forced": self.forced, "at": time.time()}

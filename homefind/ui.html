@@ -775,7 +775,7 @@ async function setStatus(key, status, appliedAt = stamp()) {
     put(key, before);
     editedAt.delete(key);
     render();
-    toast(restart ? "Couldn't save that: homefind needs a restart first." : "Couldn't save that. Is homefind still running?");
+    toast(update ? `Couldn't save that: ${updating()}` : "Couldn't save that. Is homefind still running?");
   }
 }
 
@@ -794,7 +794,7 @@ async function setStage(key, stage) {
     put(key, { stage: before });
     editedAt.delete(key);
     render();
-    toast(restart ? "Couldn't save that: homefind needs a restart first." : "Couldn't save that. Is homefind still running?");
+    toast(update ? `Couldn't save that: ${updating()}` : "Couldn't save that. Is homefind still running?");
   }
 }
 
@@ -890,7 +890,7 @@ async function post(path, body) {  // the error says what went wrong, in words
   } catch {
     throw new Error("Is homefind still running?");
   }
-  if (!r.ok) throw new Error(r.status === 409 ? await r.text() : r.status === 404 && restart ? "homefind needs a restart first." : `HTTP ${r.status}`);
+  if (!r.ok) throw new Error(r.status === 409 ? await r.text() : r.status === 404 && update ? updating() : `HTTP ${r.status}`);
 }
 // ✉ Apply: the link opens the ad; homefind hears of it, so the card can follow along.
 async function applying(key) {
@@ -942,8 +942,13 @@ function report(r) {
 
 // ---- live updates: the page keeps itself current while it's open (without jumping, see refresh)
 let stale = false;  // homefind was updated since this page loaded: only a reload gets the new page
-let restart = false;  // its code or config.toml changed since it started: only a restart gets them
-const RESTART = "homefind was updated: restart it (Ctrl+C in its terminal, then start it again).";
+// homefind's code or config changed since it started (see update.py): null while it runs the latest, else
+// {problem}: it restarts into the update by itself, or (problem) can't, as the update doesn't start.
+let update = null;
+const updating = () => update.problem ? "homefind's update doesn't start (see the top of the page)."
+                                      : "homefind is restarting into an update: try again in a minute.";
+const showUpdate = () => banner(`homefind was updated, but the new version doesn't start (${update.problem}), ` +
+                                "so the one from before keeps running until that's fixed.");
 let bannerAct = null;
 function banner(text, label, act) {  // without a label: a notice, no button
   $("banner-text").textContent = text;
@@ -960,7 +965,7 @@ function showMatches() {
   scrollTo(0, 0);
 }
 // The new-matches banner goes away once they're on screen.
-function bannerSeen() { if (!stale && !restart && state.tab === "matches" && scrollY < 50) $("banner").hidden = true; }
+function bannerSeen() { if (!stale && !update?.problem && state.tab === "matches" && scrollY < 50) $("banner").hidden = true; }
 // Worth a redraw: any change but when an ad was last seen online, and the score with the points
 // under it, which move on by themselves ("posted 5 h ago"); those come along with the next change.
 const shape = (l) => JSON.stringify({ ...l, last_seen: 0, score: 0, band: 0, why: 0 });
@@ -992,16 +997,16 @@ async function poll() {
       markTab();
     }
     const matches = fresh.filter((l) => l.ok && !l.status).length;
-    const wasRestart = restart;
-    restart = next.outdated;
-    if (restart) {
-      banner(RESTART);
-    } else if (stale || (next.build && next.build !== BUILD)) {
+    const before = update;
+    update = next.update;
+    if (update?.problem) {
+      showUpdate();
+    } else if (!update && (stale || (next.build && next.build !== BUILD))) {  // once it has restarted into the update
       stale = true;
       banner("homefind was updated.", "Reload", () => location.reload());
     } else if (matches && (state.tab !== "matches" || scrollY >= 50)) {
       banner(`${matches} new match${matches > 1 ? "es" : ""}`, "Show", showMatches);
-    } else if (wasRestart) {
+    } else if (before?.problem) {
       $("banner").hidden = true;
     }
     if (busy()) watchCheck();
@@ -1215,9 +1220,9 @@ $("lb").addEventListener("touchend", (e) => {
 const fromHash = location.hash.slice(1).replace(/^saved$/, "applied");  // bookmarks from before the rename
 if (TABS.some((t) => t[0] === fromHash)) state.tab = fromHash;
 index();
-restart = data.outdated;
+update = data.update;
 render();
-if (restart) banner(RESTART);
+if (update?.problem) showUpdate();
 markTab();
 prefs.set("lastSeen", data.listings.reduce((m, l) => (l.first_seen > m ? l.first_seen : m), ""));
 setInterval(poll, 60000);

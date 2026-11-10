@@ -311,6 +311,7 @@ class Publisher:
     def __init__(self, cfg: dict):
         self.cfg = cfg
         self.failing = False
+        self.uploading = False  # homefind waits for it to be done before restarting into an update
         self._poke = threading.Event()
 
     def poke(self) -> None:
@@ -319,6 +320,7 @@ class Publisher:
     def _once(self) -> None:
         with Store(self.cfg["run"]["db_path"]) as store:
             try:
+                self.uploading = True
                 publish(self.cfg, store)
                 if self.failing:
                     log.info("family page: uploading works again")
@@ -327,6 +329,8 @@ class Publisher:
                 if not self.failing:  # said once, not at every try
                     log.warning("family page: couldn't upload it (%s); will keep trying", problem(e))
                 self.failing = True
+            finally:
+                self.uploading = False
 
     def _run(self) -> None:
         while True:

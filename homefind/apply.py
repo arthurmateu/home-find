@@ -44,6 +44,7 @@ STEPS = ("opening", "filling", "ready", "sending", "sent", "failed")
 USERSCRIPT = Path(__file__).with_name("apply.user.js")
 FIREFOX = "/mnt/c/Program Files/Mozilla Firefox/firefox.exe"  # Windows' Firefox, from WSL
 REPORT_SECONDS = 120  # an ad opened for the userscript that hasn't reported back by then: it isn't there
+ACTIVE_SECONDS = 1800  # an application that hasn't moved on since then isn't under way any more (see busy)
 NO_HELPER = ("Firefox didn't fill it in: is the homefind helper installed in Tampermonkey? "
              "(Install Firefox helper, in the header)")
 
@@ -122,6 +123,14 @@ class Applier:
         if s and s["step"] == "opening" and time.time() - s["at"] > REPORT_SECONDS:
             s.update(step="failed", note=NO_HELPER)
         return s and {k: s[k] for k in ("step", "note", "at")}
+
+    def busy(self) -> bool:
+        """An application is under way: on its way (opening, filling in, sending) or waiting for you to
+        send it, since less than ACTIVE_SECONDS. Restarting homefind now would lose track of it."""
+        now = time.time()
+        return any(s["step"] in ("opening", "filling", "ready", "sending")
+                   and now - s["at"] < (REPORT_SECONDS if s["step"] == "opening" else ACTIVE_SECONDS)
+                   for s in list(self.steps.values()))
 
     def opened(self, key: str, auto: bool = False, send: bool = False) -> None:
         """The ad is opening in a new tab, for the userscript to fill in: ✉ Apply on a card

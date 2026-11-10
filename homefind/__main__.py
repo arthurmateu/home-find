@@ -7,12 +7,11 @@ import fcntl
 import logging
 import random
 import sys
-import time
 from pathlib import Path
 
 from . import config
 from .app import Loop, check_offline, recheck, run_once, seconds_until_due
-from . import casa, geo, nearby, transit, web
+from . import casa, geo, nearby, transit, update, web
 from .apply import Applier
 from .net import Fetcher
 from .notify import Notifier, print_reject
@@ -117,19 +116,24 @@ def main(argv=None) -> int:
     loop = Loop(only)
     applier = Applier(cfg, notifier)
     publisher = casa.start(cfg)
+    updater = update.Updater(cfg, applier, publisher, wake=loop.wake)
+    server = None
     try:
-        if web.serve(cfg, loop, applier, publisher):
+        server = web.serve(cfg, loop, applier, publisher, updater)
+        if server:
             log.info("web UI: %s", web.url(cfg))
             geo.start(cfg)
             if args.open:
                 web.open_browser(web.url(cfg))
     except OSError as e:
         log.warning("web UI not started (port %s: %s)", cfg["run"]["web_port"], e.strerror)
+    updater.start()
     log.info("watching; each source is checked on its own schedule (sources.*.every_minutes). Ctrl+C stops.")
     while True:
         loop.done(run_once(cfg, store, http, notifier, only=only, scheduled=True, forced=loop.forced, loop=loop,
                            applier=applier))
-        loop.sleep(seconds_until_due(cfg, store, only) * random.uniform(0.9, 1.15))
+        if not loop.sleep(seconds_until_due(cfg, store, only) * random.uniform(0.9, 1.15)):  # Check now goes first
+            updater.restart_if_ready(server)  # homefind was updated (it woke the loop): between checks is the time
 
 
 def publish_casa(cfg: dict, store: Store, new_link: bool) -> int:
@@ -149,8 +153,10 @@ def publish_casa(cfg: dict, store: Store, new_link: bool) -> int:
 
 
 def serve_only(cfg: dict, open_it: bool, applier: Applier) -> int:
+    publisher = casa.start(cfg)
+    updater = update.Updater(cfg, applier, publisher)
     try:
-        server = web.serve(cfg, applier=applier, casa=casa.start(cfg))
+        server = web.serve(cfg, applier=applier, casa=publisher, updater=updater)
     except OSError:
         print(f"port {cfg['run']['web_port']} is in use; if homefind --loop is running, the UI is already at {web.url(cfg)}")
         return 1
@@ -161,8 +167,10 @@ def serve_only(cfg: dict, open_it: bool, applier: Applier) -> int:
     geo.start(cfg)
     if open_it:
         web.open_browser(web.url(cfg))
+    updater.start()
     while True:
-        time.sleep(3600)
+        updater.nudged.wait()
+        updater.restart_if_ready(server)
 
 
 if __name__ == "__main__":
