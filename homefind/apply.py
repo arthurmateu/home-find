@@ -1,14 +1,15 @@
 """Applying to ads through Firefox. A userscript for Tampermonkey (apply.user.js,
-served by the web UI at /homefind.user.js) fills in ImmoScout24's contact form
-on the ad's page (German or English) with what's in apply.toml, and tells homefind
-whenever a form is sent there, so the ad moves to Applied (also when you apply
-without it).
+served by the web UI at /homefind.user.js) fills in the contact form on the ad's
+page with what's in apply.toml, on the sites in FORMS (ImmoScout24, its German
+and English pages, and Immowelt), and tells homefind whenever a form is sent
+there, so the ad moves to Applied (also when you apply without it).
 
 ✉ Apply on a card opens the ad in a new tab with #homefind=fill: the form gets
-filled in, for you to check and send. Auto-apply (Off / Fill in, I
-send / Send by itself, in the header) opens new matches in Firefox by itself:
-ImmoScout24 ones scoring at least apply.min_score, without ⚠ warnings and not
-reposts (a flat's first ad on ImmoScout24 isn't one, see app._first_here). "Send by itself" (#homefind=send) presses Abschicken too, at most
+filled in, for you to check and send. Auto-apply (Off / Fill in, I send / Send
+by itself, in the header) opens new matches in Firefox by itself: ImmoScout24
+ones (SOURCES) scoring at least apply.min_score, without ⚠ warnings and not
+reposts (a flat's first ad on ImmoScout24 isn't one, see app._first_here).
+"Send by itself" (#homefind=send) presses the send button too, at most
 apply.max_per_day a day; a form that asks for something apply.toml doesn't
 cover is left waiting for you instead.
 
@@ -20,6 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -32,7 +34,11 @@ from .store import Store
 from .util import stamp
 
 log = logging.getLogger("homefind")
-SOURCES = ["immoscout"]  # the ones whose contact form the userscript knows
+# The sites whose contact form the userscript fills in (✉ Apply), with where their ad pages' address
+# has the ad: the userscript reports it that way (Immowelt's isn't homefind's id for the ad).
+FORMS = {"immoscout": re.compile(r"immobilienscout24\.de/(?:en/)?expose/(\d+)"),
+         "immowelt": re.compile(r"immowelt\.de/expose/([\w-]+)")}
+SOURCES = ["immoscout"]  # where you apply: auto-apply opens new matches there, and a flat turning up there is news
 MODES = {"off": "Off", "confirm": "Fill in, I send", "send": "Send by itself"}
 STEPS = ("opening", "filling", "ready", "sending", "sent", "failed")
 USERSCRIPT = Path(__file__).with_name("apply.user.js")
@@ -71,6 +77,17 @@ def version() -> str:
 def userscript(cfg: dict) -> str:
     return USERSCRIPT.read_text(encoding="utf-8").replace("__PORT__", str(cfg["run"]["web_port"])) \
                                                   .replace("__VERSION__", version())
+
+
+def key_of(store: Store, site: str, ad: str) -> str | None:
+    """The listing an ad page is for, from the site and the ad in the page's address (FORMS)."""
+    pattern = FORMS.get(site)
+    if not pattern:
+        return None
+    if store.row(f"{site}:{ad}"):  # ImmoScout24's ads go by the same id here
+        return f"{site}:{ad}"
+    return next((r.listing.key for r in store.all_rows(site)
+                 if (m := pattern.search(r.listing.url)) and m.group(1).lower() == ad.lower()), None)
 
 
 def open_in_firefox(url: str, configured: str = "") -> None:
@@ -128,16 +145,17 @@ class Applier:
         self.opened(listing.key, auto=True, send=send)
         open_in_firefox(f"{listing.url}#homefind={'send' if send else 'auto'}", self.opts.get("firefox") or "")
 
-    def report(self, key: str, body: dict, store: Store) -> bool:
-        """What the userscript says about an ad: a step with a note (and `by` for sent: homefind or
-        you), or the form it filled in (step "form", kept in data/apply-last.json). False for an ad
-        homefind doesn't know."""
-        row = store.row(key)
+    def report(self, site: str, ad: str, body: dict, store: Store) -> bool:
+        """What the userscript says about an ad on `site` (`ad` as in the page's address, see key_of):
+        a step with a note (and `by` for sent: homefind or you), or the form it filled in (step "form",
+        kept in data/apply-last.json). False for an ad homefind doesn't know."""
+        key = key_of(store, site, ad)
         if body["step"] == "form":
-            self._keep(key, body)
-            return bool(row)
-        if not row:
+            self._keep(key or f"{site}:{ad}", body)
+            return bool(key)
+        if not key:
             return False
+        row = store.row(key)
         before = self.steps.get(key, {"auto": False, "send": False})
         if before.get("step") == "sent" and body["step"] == "sent":
             return True  # told twice

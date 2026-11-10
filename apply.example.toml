@@ -1,16 +1,17 @@
-# What homefind puts in ImmoScout24's contact form (✉ Apply and auto-apply in the
-# web UI). Copy this file to apply.toml and fill it in: apply.toml is in .gitignore,
-# so your details stay on this machine. Read when a form is filled in, so changes
-# here need no restart.
+# What homefind puts in the contact form on ImmoScout24 and Immowelt (✉ Apply and
+# auto-apply in the web UI). Copy this file to apply.toml and fill it in: apply.toml
+# is in .gitignore, so your details stay on this machine. Read when a form is filled
+# in, so changes here need no restart.
 
 message = """Guten Tag, ich bin Max Mustermann und ... Ich würde gerne einen
 Besichtigungstermin für diese Wohnung vereinbaren."""
 
-# One line per field: its label on the form, and what to put there, the way the
-# German form says them (the helper knows their English names: SAME in
-# homefind/apply.user.js). A label only has to match the start of the form's
-# ("Haustiere" covers "Haustiere (außer Kleintiere, z. B. Hamster)"), and case and
-# the * don't matter. Dropdowns take the
+# One line per field: its label on the form, and what to put there, the way
+# ImmoScout24's German form says them. The helper finds them on ImmoScout24's
+# English pages and on Immowelt too ("Telefonnummer" is Immowelt's "Telefon",
+# "Nein" is "No" in English: SAME in homefind/apply.user.js has those). A label
+# only has to match the start of the form's ("Haustiere" covers "Haustiere (außer
+# Kleintiere, z. B. Hamster)"), and case and the * don't matter. Dropdowns take the
 # option's text; switches and checkboxes true or false; amounts plain numbers (a
 # dropdown of ranges, like the income one, gets the range the amount is in).
 # Fields a form doesn't ask for are skipped, and the e-mail comes from your login.
@@ -37,3 +38,6 @@ Besichtigungstermin für diese Wohnung vereinbaren."""
 "Anbieter:in folgen für Inserate & Profi-Tipps" = false
 "Erhalte Angebote von Umzugsfirmen" = false
 "Stich hervor: Ja zur Kautionsbürgschaft+" = true  # only on ads whose landlord takes it
+# Immowelt's
+"Ich möchte per E-Mail von" = false  # ... Immobilienpartnern für ähnliche Immobilien kontaktiert werden
+"Ich möchte passende Inserate und Neuigkeiten von" = false  # ... immowelt per E-Mail erhalten

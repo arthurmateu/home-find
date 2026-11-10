@@ -525,9 +525,9 @@ function appliedBadge(l) {
          `✓ ${what}${l.applied_at ? ` ${esc(day(l.applied_at))}` : ""}</span>`;
 }
 
-// ---- applying (apply.py): the Firefox helper fills in the ad's contact form on ImmoScout24.
+// ---- applying (apply.py): the Firefox helper fills in the ad's contact form on ImmoScout24 and Immowelt.
 // l.applying is where that's at: a step, and a note to show on the card.
-const canApply = (l) => !!data.apply && data.apply.sources.includes(l.source) && !l.gone;
+const canApply = (l) => !!data.apply && data.apply.forms.includes(l.source) && !l.gone;
 const BUSY = { opening: "Opening…", filling: "Filling in…", sending: "Sending…" };
 const waitsForYou = (l) => l.applying?.step === "ready";
 // Worth following closely (see poll): on its way, or waiting for you since less than half an hour.
@@ -542,7 +542,7 @@ function applyButton(l) {
   if (!canApply(l) || l.status === "applied") return "";
   if (BUSY[l.applying?.step]) return `<button class="btn" disabled>${BUSY[l.applying.step]}</button>`;
   const tip = data.apply.problem ? `Can't apply: ${data.apply.problem}`
-    : "Opens the ad in a new tab and fills in ImmoScout24's contact form there, for you to check and send";
+    : `Opens the ad in a new tab and fills in ${sourceName(l.source)}'s contact form there, for you to check and send`;
   return `<a class="btn" data-act="fill" href="${esc(l.url)}#homefind=fill" target="_blank" rel="noopener" title="${esc(tip)}">✉ Apply</a>`;
 }
 // Open ↗ goes to the card's ad (ImmoScout24's, while it's online there); on a flat that's on several sites,
@@ -870,7 +870,7 @@ function renderApply() {
   $("auto-box").hidden = !a || !data.checks.loop;
   if (!a) return;
   $("helper").textContent = a.helper === "outdated" ? "Update Firefox helper" : "Install Firefox helper";
-  $("helper").title = "The Tampermonkey script that fills in ImmoScout24's contact form, and tells homefind once you've " +
+  $("helper").title = "The Tampermonkey script that fills in ImmoScout24's and Immowelt's contact forms, and tells homefind once you've " +
                       "sent it. Click, then Install (Tampermonkey shows the script first).";
   const sel = $("auto");
   if (sel.options.length !== Object.keys(a.modes).length) {

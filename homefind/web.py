@@ -184,7 +184,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "highlight": cfg["run"].get("highlight_sources") or [],
             "checks": app.status(cfg, store, loop), "build": build(),
             "apply": applier and {"mode": apply.mode(store), "modes": apply.MODES, "problem": applier.problem(),
-                                  "sources": apply.SOURCES, "min_score": cfg["apply"]["min_score"],
+                                  "forms": list(apply.FORMS), "min_score": cfg["apply"]["min_score"],
                                   "max_per_day": cfg["apply"]["max_per_day"], "helper": helper(store)},
             "outdated": code(cfg) != Handler.started}
 
@@ -316,12 +316,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def _apply(self, path: str, body: dict):
         """✉ Apply on a card ({key}: it opened the ad for the Firefox helper), auto-apply's
-        mode ({mode}), and what the helper reports ({key, step, ...}, see Applier.report)."""
+        mode ({mode}), and what the helper reports ({site, ad, step, ...}, see Applier.report)."""
         if not self.applier:
             return self._send(409, b"applying is off")
         if path == "/api/apply-mode" and body.get("mode") not in apply.MODES:
             return self._send(400, b"bad mode")
-        if path != "/api/apply-mode" and not isinstance(body.get("key"), str):
+        names = {"/api/apply": ("key",), "/api/apply-report": ("site", "ad")}.get(path, ())
+        if not all(isinstance(body.get(n), str) for n in names):
             return self._send(400, b"bad request")
         if path == "/api/apply-report" and body.get("step") not in (*apply.STEPS, "form"):
             return self._send(400, b"bad step")
@@ -330,7 +331,7 @@ class Handler(BaseHTTPRequestHandler):
                 store.meta_set("apply_mode", body["mode"])
                 log.info("auto-apply: %s", apply.MODES[body["mode"]].lower())
             elif path == "/api/apply-report":
-                found = self.applier.report(body["key"], body, store)
+                found = self.applier.report(body["site"], body["ad"], body, store)
                 self._changed()  # it may have just been sent
                 return self._send(204 if found else 404)
             else:
