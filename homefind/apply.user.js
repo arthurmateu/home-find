@@ -26,10 +26,12 @@
   "use strict";
   const HOMEFIND = "http://localhost:__PORT__";
   const VERSION = "__VERSION__";
-  // The site it's on (see @match): homefind's name for it, and the ad in an ad page's address.
+  // The site it's on (see @match): homefind's name for it, the ad in an ad page's address, and whether
+  // you have to be logged in (on ImmoScout24 your Plus profile only goes along then; on Immowelt the
+  // e-mail can come from apply.toml).
   const SITE = {
-    "www.immobilienscout24.de": { source: "immoscout", name: "ImmoScout24", ad: /^\/(?:en\/)?expose\/(\d+)/ },
-    "www.immowelt.de": { source: "immowelt", name: "Immowelt", ad: /^\/expose\/([\w-]+)/ },
+    "www.immobilienscout24.de": { source: "immoscout", name: "ImmoScout24", ad: /^\/(?:en\/)?expose\/(\d+)/, login: true },
+    "www.immowelt.de": { source: "immowelt", name: "Immowelt", ad: /^\/expose\/([\w-]+)/, login: false },
   }[location.hostname];
   if (!SITE) return;
   const adId = () => location.pathname.match(SITE.ad)?.[1];
@@ -53,7 +55,7 @@
   // apply.toml has them), Immowelt's and ImmoScout24's English ones, as the sites' own texts have them.
   const SAME = [
     ["Anrede", "Salutation"], ["Herr", "Mr."], ["Frau", "Ms."], ["Divers", "Neutral", "Diverse"],
-    ["Vorname", "First name"], ["Nachname", "Last name"], ["Telefonnummer", "Telefon", "Phone number"],
+    ["Vorname", "First name"], ["Nachname", "Last name"], ["E-Mail", "Email"], ["Telefonnummer", "Telefon", "Phone number"],
     ["Straße", "Street"], ["Hausnummer", "House number"], ["Postleitzahl", "PLZ", "Postal code"], ["Ort", "City"],
     ["Einzugstermin", "Gewünschtes Einzugsdatum", "Move-in date"],
     ["ab sofort", "So bald wie möglich", "From now on"], ["flexibel", "Ich bin flexibel", "Flexible"],
@@ -244,6 +246,9 @@
     const optionsOf = (el) => controls.filter((c) => radio(c) && c.name === el.name && groupOf(c) === groupOf(el));
     const labels = new Map(controls.map((el) => [el, (radio(el) ? groupLabel(el) : labelOf(el)).replace(/\s*\*\s*$/, "")]));
     const used = new Set();
+    // Logged in: the site filled in your e-mail (or doesn't ask for it), before apply.toml could.
+    const email = [...root.querySelectorAll("input")].find((el) => el.type === "email" || /^e-?mail/i.test(norm(labelOf(el))));
+    const loggedIn = !email || email.disabled || email.readOnly || !!email.value;
     const native = (el) => el.matches("input, select, textarea");
     for (const [name, want] of Object.entries(fields)) {
       const words = alike(name);
@@ -298,8 +303,7 @@
     const empty = (el) => radio(el) ? !optionsOf(el).some((o) => o.checked) : valueOf(el) === "" || valueOf(el) === false;
     const missing = [...new Set(controls.filter((el) => required(el) && !used.has(el) && shown(el) && empty(el))
                                         .map((el) => labels.get(el)))];
-    const email = [...root.querySelectorAll("input")].find((el) => el.type === "email" || /^e-?mail/i.test(norm(labelOf(el))));
-    const loggedOut = !!email && !email.disabled && !email.readOnly && !email.value;
+    const loggedOut = !loggedIn && (SITE.login || !email.value);
     for (const el of controls) {  // mark what's left to do
       if (missing.includes(labels.get(el)) || unset.some(([l]) => l === labels.get(el))) el.style.outline = "3px solid #e5484d";
     }
