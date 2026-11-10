@@ -31,9 +31,9 @@
   const shown = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
   const textOf = (el) => (el?.innerText ?? el?.textContent ?? "").replace(/\s+/g, " ").trim();
   const CONTROLS = "input, select, textarea, [role=switch], [role=checkbox], [role=combobox], button[aria-haspopup=listbox]";
-  // The form's send button, and its name.
-  const SUBMIT = /^(abschicken|absenden|senden|nachricht senden|anfrage senden|send|send (message|request|enquiry|inquiry)|submit)$/i;
-  const sendName = (b) => textOf(b) || b?.value || "Abschicken";
+  // The form's send button ("Abschicken in 5 s" while ImmoScout24 makes you wait), and its name.
+  const SUBMIT = /^(abschicken|absenden|senden|nachricht senden|anfrage senden|send|send (message|request|enquiry|inquiry)|submit)( in \d+ s)?$/i;
+  const sendName = (b) => (textOf(b) || b?.value || "Abschicken").replace(/ in \d+ s$/i, "");
   // What ImmoScout says once a message is sent (in German, then on its English pages).
   const sentTexts = () => textOf(document.body).match(new RegExp(
     "(nachricht|anfrage)[^.]{0,60}(gesendet|versendet|verschickt|übermittelt)|erfolgreich (gesendet|versendet|verschickt|übermittelt)|" +
@@ -277,11 +277,15 @@
                         ...r.unset.map(([label, why]) => `${label}: ${why}`),
                         ...r.missing.map((label) => `${label}: apply.toml doesn't say`)];
       if (how === "send" && !problems.length) {
-        tell("sending", `Pressed ${press}, waiting for ImmoScout to confirm…`);
         say("Sending…");
-        pressing = true;
-        try { r.submit.click(); } finally { pressing = false; }
-        return;
+        for (let i = 0; i < 120 && r.submit.disabled; i++) await sleep(500);  // "Abschicken in 30 s"
+        if (!r.submit.disabled) {
+          tell("sending", `Pressed ${press}, waiting for ImmoScout to confirm…`);
+          watch("homefind", r.submit);
+          r.submit.click();
+          return;
+        }
+        problems.push(`${press} stayed greyed out`);
       }
       const note = problems.length ? `Fill in the rest, then press ${press}: ${problems.join("; ")}.`
                                    : `Check the form and press ${press}.`;
@@ -298,7 +302,7 @@
 
   // ---- the form was sent (by you, or by `run`): it went through once ImmoScout says so, or the form
   // closes without complaining. Ads homefind sent by itself close their tab after a few seconds.
-  let pressing = false, watching = false;
+  let watching = false;
   function watch(by, button) {
     if (watching || !adId()) return;
     watching = true;
@@ -326,11 +330,9 @@
   const isSend = (b) => SUBMIT.test(textOf(b) || b.value || "") && !!b.closest("form, [role=dialog], dialog")?.querySelector("textarea");
   document.addEventListener("click", (e) => {
     const b = e.target.closest?.("button, input[type=submit]");
-    if (b && isSend(b)) watch(pressing ? "homefind" : "you", b);
+    if (b && isSend(b)) watch("you", b);
   }, true);
-  document.addEventListener("submit", (e) => {
-    if (e.target.querySelector?.("textarea")) watch(pressing ? "homefind" : "you", e.submitter);
-  }, true);
+  document.addEventListener("submit", (e) => { if (e.target.querySelector?.("textarea")) watch("you", e.submitter); }, true);
 
   // ---- on an ad: what homefind opened it for (read now, before the page's own scripts can change
   // the address; kept for this tab until it's done), then the corner box once the page is up.

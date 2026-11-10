@@ -237,9 +237,9 @@ auto-apply leaves their new matches alone: apply to those on the site itself
   warnings, and not reposts (a flat that was on another site first counts as
   new once it's on ImmoScout24: see below).
   - **Fill in, I send**: their form gets filled in, for you to send.
-  - **Send by itself**: the helper sends it too, at most `max_per_day` (10) a
-    day, closes the tab and your phone gets "✓ Applied". Their badge says
-    "Auto-applied".
+  - **Send by itself**: the helper sends it too (once ImmoScout24's "Send in
+    … s" has run down), at most `max_per_day` (10) a day, closes the tab and
+    your phone gets "✓ Applied". Their badge says "Auto-applied".
 
   A form that asks for something `apply.toml` doesn't cover, or finds you logged
   out, isn't sent: it's left open in Firefox, with the field named on the page,
