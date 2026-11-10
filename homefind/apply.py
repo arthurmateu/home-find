@@ -1,10 +1,11 @@
 """Applying to ads through Firefox. A userscript for Tampermonkey (apply.user.js,
 served by the web UI at /homefind.user.js) fills in ImmoScout24's contact form
-on the ad's page with what's in apply.toml, and tells homefind whenever a form
-is sent there, so the ad moves to Applied (also when you apply without it).
+on the ad's page (German or English) with what's in apply.toml, and tells homefind
+whenever a form is sent there, so the ad moves to Applied (also when you apply
+without it).
 
 ✉ Apply on a card opens the ad in a new tab with #homefind=fill: the form gets
-filled in, for you to check and press Abschicken. Auto-apply (Off / Fill in, I
+filled in, for you to check and send. Auto-apply (Off / Fill in, I
 send / Send by itself, in the header) opens new matches in Firefox by itself:
 ImmoScout24 ones scoring at least apply.min_score, without ⚠ warnings and not
 reposts (a flat's first ad on ImmoScout24 isn't one, see app._first_here). "Send by itself" (#homefind=send) presses Abschicken too, at most
@@ -72,12 +73,6 @@ def userscript(cfg: dict) -> str:
                                                   .replace("__VERSION__", version())
 
 
-def form_page(url: str) -> str:
-    """The ad's German page, for applying: links go to ImmoScout24's English one, but the userscript
-    and apply.toml go by the German form's wording."""
-    return url.replace("immobilienscout24.de/en/expose/", "immobilienscout24.de/expose/")
-
-
 def open_in_firefox(url: str, configured: str = "") -> None:
     """In a new tab of Firefox (Windows' one under WSL), or else the default browser."""
     exe = configured or next((p for p in (FIREFOX, shutil.which("firefox")) if p and os.access(p, os.X_OK)), None)
@@ -131,7 +126,7 @@ class Applier:
             log.info("auto-apply: %d sent today already (apply.max_per_day), only filling it in", self.opts["max_per_day"])
         log.info("auto-apply (%s): %s, score %d", "send" if send else "fill in", listing.url, score)
         self.opened(listing.key, auto=True, send=send)
-        open_in_firefox(f"{form_page(listing.url)}#homefind={'send' if send else 'auto'}", self.opts.get("firefox") or "")
+        open_in_firefox(f"{listing.url}#homefind={'send' if send else 'auto'}", self.opts.get("firefox") or "")
 
     def report(self, key: str, body: dict, store: Store) -> bool:
         """What the userscript says about an ad: a step with a note (and `by` for sent: homefind or

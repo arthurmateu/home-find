@@ -16,30 +16,57 @@
 // homefind's Firefox helper (homefind serves it at /homefind.user.js, for Tampermonkey; apply.py
 // has the whole story). On an ImmoScout24 ad it fills in the contact form with what's in
 // apply.toml when homefind opened the ad for that (#homefind=fill from ✉ Apply, =auto or =send
-// from auto-apply; send also presses Abschicken), or when you press "✉ Fill in" in the corner.
-// Whenever Abschicken goes through on an ad, it tells homefind, which moves the ad to Applied.
-// It knows ImmoScout24's English ad pages (/en/expose/…, where homefind's links go) too: Send
-// there counts as Abschicken, and "✉ Fill in" switches to the ad's German page, whose form
-// apply.toml goes by.
+// from auto-apply; send also presses the form's send button), or when you press "✉ Fill in" in the
+// corner. Whenever a form is sent on an ad, it tells homefind, which moves the ad to Applied.
+// apply.toml names the fields the way the German form does; SAME finds them on ImmoScout24's
+// English pages too, which get filled in as they are.
 (() => {
   "use strict";
   const HOMEFIND = "http://localhost:__PORT__";
   const VERSION = "__VERSION__";
   const adId = () => location.pathname.match(/^\/(?:en\/)?expose\/(\d+)/)?.[1];
-  const english = () => location.pathname.startsWith("/en/");
-  const germanPage = () => location.origin + location.pathname.replace(/^\/en\//, "/") + location.search + "#homefind=fill";
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
   const norm = (s) => String(s ?? "").replace(/[*\s]+/g, " ").trim().toLowerCase();
   const digits = (s) => String(s ?? "").replace(/\D/g, "");
   const shown = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
   const textOf = (el) => (el?.innerText ?? el?.textContent ?? "").replace(/\s+/g, " ").trim();
   const CONTROLS = "input, select, textarea, [role=switch], [role=checkbox], [role=combobox], button[aria-haspopup=listbox]";
+  // The form's send button, and its name.
   const SUBMIT = /^(abschicken|absenden|senden|nachricht senden|anfrage senden|send|send (message|request|enquiry|inquiry)|submit)$/i;
+  const sendName = (b) => textOf(b) || b?.value || "Abschicken";
   // What ImmoScout says once a message is sent (in German, then on its English pages).
   const sentTexts = () => textOf(document.body).match(new RegExp(
     "(nachricht|anfrage)[^.]{0,60}(gesendet|versendet|verschickt|übermittelt)|erfolgreich (gesendet|versendet|verschickt|übermittelt)|" +
     "\\b(message|request|enquiry|inquiry)\\b[^.]{0,60}\\b(sent|delivered|submitted)\\b|\\b(successfully (sent|delivered|submitted)|(sent|delivered|submitted) successfully)\\b",
     "gi")) || [];
+  // Words that mean the same on the form, labels and options alike: its German ones (as apply.toml
+  // has them) and its English ones, as ImmoScout24's own texts have them.
+  const SAME = [
+    ["Anrede", "Salutation"], ["Herr", "Mr."], ["Frau", "Ms."], ["Divers", "Diverse"],
+    ["Vorname", "First name"], ["Nachname", "Last name"], ["Telefonnummer", "Phone number"],
+    ["Straße", "Street"], ["Hausnummer", "House number"], ["Postleitzahl", "Postal code"], ["Ort", "City"],
+    ["Einzugstermin", "Move-in date"], ["ab sofort", "From now on"], ["flexibel", "Flexible"],
+    ["Haushaltsgröße", "Household size"], ["Einpersonenhaushalt", "Single-person household"],
+    ["Zwei Erwachsene", "Two adults"], ["Familie", "Family"], ["Wohngemeinschaft", "Shared flat"],
+    ["Erwachsene", "Adults"], ["Kinder", "Children"], ["Haustiere", "Pets"], ["Beschäftigungsart", "Employment type"],
+    ["Angestellte:r", "Employee"], ["Arbeiter:in", "Worker"], ["Selbstständige:r", "Self-employed"],
+    ["Beamter:Beamtin", "Civil servant"], ["Auszubildende:r", "Trainee"], ["Student:in", "Student"],
+    ["Arbeitssuchende:r", "Job seeker"], ["Rentner:in", "Retired"],
+    ["Monatliches netto Haushaltseinkommen", "Monthly net household income"],
+    ["Bewerbungsunterlagen", "Application documents"], ["Vorhanden", "Available"], ["Nicht vorhanden", "Not available"],
+    ["Nutzung für gewerbliche Zwecke", "Use for commercial purposes"],
+    ["Mietrückstände in den letzten 5 Jahren", "Rent arrears in the last 5 years"],
+    ["Insolvenzverfahren in den letzten 5 Jahren", "Insolvency proceedings in the last 5 years"],
+    ["Raucher:in", "Smoker"], ["Ja", "Yes"], ["Nein", "No"],
+    ["Anbieter:in darf dein Profil sehen", "Agent may view your profile"],
+    ["Anbieter:in folgen für Inserate & Profi-Tipps", "Follow agent for listings & pro tips"],
+    ["Erhalte Angebote von Umzugsfirmen", "Receive offers from moving companies"],
+    ["Stich hervor: Ja zur Kautionsbürgschaft+", "Stand out: Choose Kautionsbürgschaft+"],
+  ];
+  const alike = (word) => {
+    const w = norm(word);
+    return (SAME.find((group) => group.some((s) => norm(s) === w)) || [word]).map(norm);
+  };
 
   // ---- talking to homefind
   const call = (method, path, body) => new Promise((done, fail) => GM_xmlhttpRequest({
@@ -50,10 +77,11 @@
     onerror: () => fail(new Error(`homefind isn't running (${HOMEFIND})`)),
     ontimeout: () => fail(new Error("homefind didn't answer")),
   }));
-  // Where the application is at, for the ad's card in homefind (it ignores ads it doesn't know).
-  const tell = (step, note, by) => {
-    if (adId()) call("POST", "/api/apply-report", { key: `immoscout:${adId()}`, step, note, by }).catch(() => {});
+  // How the application is going, for the ad's card in homefind (it ignores ads it doesn't know).
+  const report = (step, body) => {
+    if (adId()) call("POST", "/api/apply-report", { key: `immoscout:${adId()}`, step, ...body }).catch(() => {});
   };
+  const tell = (step, note, by) => report(step, { note, by });
 
   // ---- the box in the corner: what it did, and "✉ Fill in"
   let box;
@@ -74,7 +102,7 @@
     </style><div class="box"><div class="head"><b>homefind</b><button id="go">✉ Fill in</button></div><p id="say" hidden></p></div>`;
     document.documentElement.append(host);
     box = { host, say: root.getElementById("say"), go: root.getElementById("go") };
-    box.go.addEventListener("click", () => english() ? location.assign(germanPage()) : run("fill"));
+    box.go.addEventListener("click", () => run("fill"));
     return box;
   }
   function say(text, kind = "") {
@@ -142,16 +170,17 @@
     if (/^\s*(>|≥|über|ab|mehr als|over|from|more than)/i.test(t)) return ends ? n >= nums[0] : n > nums[0];
     return false;
   };
-  // The option to pick for `want`: by its text (or value), else, for an amount, the range it's in.
+  // The option to pick for `want`: by its text (or value) or a word that means the same (SAME), else,
+  // for an amount, the range it's in.
   const pick = (opts, want, text) => {
-    const w = norm(want);
-    return opts.find((o) => norm(text(o)) === w || (o.value !== undefined && norm(o.value) === w)) ||
-           opts.find((o) => norm(text(o)).startsWith(w)) ||
+    const words = alike(want);
+    return opts.find((o) => words.includes(norm(text(o))) || (o.value !== undefined && words.includes(norm(o.value)))) ||
+           opts.find((o) => words.some((w) => w && norm(text(o)).startsWith(w))) ||
            (typeof want === "number" ? opts.find((o) => holds(text(o), want, false)) ||
                                        opts.find((o) => holds(text(o), want, true)) : undefined);
   };
 
-  // Fills in the form (opening it first if need be) and returns what it did, with the Abschicken button.
+  // Fills in the form (opening it first if need be) and returns what it did, with the send button.
   // With `auto`, an ad ImmoScout says you've contacted before is left alone.
   async function fill({ message, fields }, auto) {
     const already = textOf(document.body).match(/(bereits|schon) (kontaktiert|angefragt|eine nachricht)[^.]{0,40}|du hast [^.]{0,40}(kontaktiert|angefragt|eine nachricht gesendet)|nachricht (gesendet|verschickt) am [\d.]+/i)?.[0] ||
@@ -176,10 +205,10 @@
     const labels = new Map(controls.map((el) => [el, labelOf(el).replace(/\s*\*\s*$/, "")]));
     const used = new Set();
     for (const [name, want] of Object.entries(fields)) {
-      const key = norm(name);
+      const words = alike(name);
       const fits = (el) => !used.has(el) && ![...used].some((u) => u.contains(el) || el.contains(u));
-      const el = controls.find((c) => fits(c) && norm(labels.get(c)) === key) ||
-                 controls.find((c) => fits(c) && norm(labels.get(c)).startsWith(key));
+      const el = controls.find((c) => fits(c) && words.includes(norm(labels.get(c)))) ||
+                 controls.find((c) => fits(c) && words.some((w) => w && norm(labels.get(c)).startsWith(w)));
       if (!el) continue;  // this ad's form doesn't ask for it
       used.add(el);
       let why = "", expect = want;  // what the field should show then: for a dropdown, the option picked
@@ -214,19 +243,19 @@
     }
     const buttons = [...root.querySelectorAll("button, input[type=submit]")].filter(shown);
     const submit = buttons.find((b) => SUBMIT.test(textOf(b) || b.value)) || buttons.find((b) => b.type === "submit");
-    const report = { filled, unset, missing, loggedOut, submit,
-                     fields: controls.map((el) => [labels.get(el), el.tagName.toLowerCase() + (el.type ? ":" + el.type : ""),
-                                                   String(valueOf(el)).slice(0, 40)]) };
-    if (!submit) return { ...report, error: "found no Abschicken button" };
+    const done = { filled, unset, missing, loggedOut, submit,
+                   fields: controls.map((el) => [labels.get(el), el.tagName.toLowerCase() + (el.type ? ":" + el.type : ""),
+                                                 String(valueOf(el)).slice(0, 40)]) };
+    if (!submit) return { ...done, error: "found no button to send the form" };
     submit.scrollIntoView({ block: "center" });  // the last step, for you to take
     submit.style.outline = "3px solid #00d9b1";
     submit.style.outlineOffset = "3px";
     await sleep(800);  // let the form check what it was given
-    return report;
+    return done;
   }
 
   // ---- fill in (and maybe send): `how` is fill (you send; ✉ Apply or the corner button), auto (the
-  // same, from auto-apply) or send (auto-apply presses Abschicken too).
+  // same, from auto-apply) or send (auto-apply presses the send button too).
   let busy = false;
   async function run(how) {
     if (busy) return;
@@ -237,25 +266,25 @@
     try {
       const profile = await call("GET", "/api/apply-profile");
       const r = await fill(profile, how !== "fill");
-      call("POST", "/api/apply-report", { key: `immoscout:${adId()}`, step: "form", url: location.href,
-                                          form: { ...r, submit: !!r.submit } }).catch(() => {});
+      report("form", { url: location.href, form: { ...r, submit: !!r.submit } });
       if (r.already) {
         const note = `Not applied: ImmoScout says you've been in touch already (“${r.already}”).`;
         say(note, "wait");
         return tell("failed", note);
       }
+      const press = sendName(r.submit);
       const problems = [...(r.error ? [r.error] : []), ...(r.loggedOut ? ["you're not logged in to ImmoScout24"] : []),
                         ...r.unset.map(([label, why]) => `${label}: ${why}`),
                         ...r.missing.map((label) => `${label}: apply.toml doesn't say`)];
       if (how === "send" && !problems.length) {
-        tell("sending", "Pressed Abschicken, waiting for ImmoScout to confirm…");
+        tell("sending", `Pressed ${press}, waiting for ImmoScout to confirm…`);
         say("Sending…");
         pressing = true;
         try { r.submit.click(); } finally { pressing = false; }
         return;
       }
-      const note = problems.length ? `Fill in the rest, then press Abschicken: ${problems.join("; ")}.`
-                                   : "Check the form and press Abschicken.";
+      const note = problems.length ? `Fill in the rest, then press ${press}: ${problems.join("; ")}.`
+                                   : `Check the form and press ${press}.`;
       say(note, problems.length ? "wait" : "");
       tell("ready", (how === "send" ? "Not sent by itself. " : "") + note.replace("Check the form", "Check the form in Firefox"));
     } catch (e) {
@@ -267,12 +296,13 @@
     }
   }
 
-  // ---- Abschicken was pressed (by you, or by `run`): it went through once ImmoScout says so, or the
-  // form closes without complaining. Ads homefind sent by itself close their tab after a few seconds.
+  // ---- the form was sent (by you, or by `run`): it went through once ImmoScout says so, or the form
+  // closes without complaining. Ads homefind sent by itself close their tab after a few seconds.
   let pressing = false, watching = false;
-  function watch(by) {
+  function watch(by, button) {
     if (watching || !adId()) return;
     watching = true;
+    const press = sendName(button);
     const before = new Set(sentTexts()), start = Date.now();
     const timer = setInterval(() => {
       const complaints = [...document.querySelectorAll("[role=alert], [aria-invalid=true]")]
@@ -287,7 +317,7 @@
         if (by === "homefind") setTimeout(() => window.close(), 5000);
       } else {
         const note = complaints ? "ImmoScout didn't take the form: see what it says there."
-                                : "Pressed Abschicken, but ImmoScout didn't say it was sent: check the ad in Firefox.";
+                                : `Pressed ${press}, but ImmoScout didn't say it was sent: check the ad in Firefox.`;
         say(note, "wait");
         tell("ready", note);
       }
@@ -296,9 +326,11 @@
   const isSend = (b) => SUBMIT.test(textOf(b) || b.value || "") && !!b.closest("form, [role=dialog], dialog")?.querySelector("textarea");
   document.addEventListener("click", (e) => {
     const b = e.target.closest?.("button, input[type=submit]");
-    if (b && isSend(b)) watch(pressing ? "homefind" : "you");
+    if (b && isSend(b)) watch(pressing ? "homefind" : "you", b);
   }, true);
-  document.addEventListener("submit", (e) => { if (e.target.querySelector?.("textarea")) watch(pressing ? "homefind" : "you"); }, true);
+  document.addEventListener("submit", (e) => {
+    if (e.target.querySelector?.("textarea")) watch(pressing ? "homefind" : "you", e.submitter);
+  }, true);
 
   // ---- on an ad: what homefind opened it for (read now, before the page's own scripts can change
   // the address; kept for this tab until it's done), then the corner box once the page is up.
@@ -310,7 +342,6 @@
       if (adId() === shownFor) return;
       shownFor = adId();
       panel().host.hidden = !shownFor;
-      panel().go.title = english() ? "Fills it in on the ad's German page, whose form apply.toml goes by" : "";
       say("");
       if (shownFor) call("GET", `/api/apply-hello?version=${VERSION}`).catch(() => {});
     };

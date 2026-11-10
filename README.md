@@ -222,21 +222,22 @@ auto-apply leaves their new matches alone: apply to those on the site itself
 (and Mark applied).
 
 - **✉ Apply** on an ImmoScout24 card opens the ad in a new tab, fills in the form
-  and stops at Abschicken: check it (change anything you like) and press it. The
-  card says what it's up to, and moves to Applied once ImmoScout says it's sent.
+  and stops at its send button: check it (change anything you like) and press
+  it. The card says what it's up to, and moves to Applied once ImmoScout says
+  it's sent.
 - On any ImmoScout24 ad, **✉ Fill in** in the corner does the same. And whenever
-  you press Abschicken on an ad (filled in by hand or not), the helper tells
+  you send the form on an ad (filled in by hand or not), the helper tells
   homefind, which moves it to Applied: no Mark applied needed.
 - homefind's links to ImmoScout24 ads (Open ↗, notifications) go to its English
-  pages, but applying opens the German one: `apply.toml` goes by the German
-  form's wording. On an English ad page the helper still notices when you send
-  a message, and ✉ Fill in switches to the German page to fill it in.
+  pages, and the helper fills those in as they are. `apply.toml` names the
+  fields the way the German form does; the helper knows what they're called in
+  English (`SAME` in `homefind/apply.user.js`).
 - **Auto-apply** in the header (with `--loop`) opens new matches in Firefox by
   itself: ImmoScout24 ones scoring at least `min_score` (75), without ⚠
   warnings, and not reposts (a flat that was on another site first counts as
   new once it's on ImmoScout24: see below).
-  - **Fill in, I send**: their form gets filled in, for you to press Abschicken.
-  - **Send by itself**: the helper presses it too, at most `max_per_day` (10) a
+  - **Fill in, I send**: their form gets filled in, for you to send.
+  - **Send by itself**: the helper sends it too, at most `max_per_day` (10) a
     day, closes the tab and your phone gets "✓ Applied". Their badge says
     "Auto-applied".
 
@@ -366,7 +367,7 @@ ImmoScout24 ad turns up.
 - The ImmoScout24 app API is unofficial. If it stops working, set up a saved search with e-mail alerts on immobilienscout24.de.
 - Automated access is against most portals' terms; the request rate above is kept low, keep it to personal use.
 - Auto-apply sends messages from your ImmoScout24 account under your name. ImmoScout may not like automated contact requests: keep `max_per_day` low.
-- The contact form is filled in by its labels, as they are on screen; if ImmoScout renames one, update `apply.toml`. If the helper stops filling in or noticing sends altogether, ImmoScout changed the page: `homefind/apply.user.js` needs a look.
+- The contact form is filled in by its labels, as they are on screen; if ImmoScout renames one, update `apply.toml` (or `SAME` in `homefind/apply.user.js`, for an English name). If the helper stops filling in or noticing sends altogether, ImmoScout changed the page: `homefind/apply.user.js` needs a look.
 - Many good ImmoScout listings are "Plus members only" for their first days; the push says so.
 
 ## Tips for the search itself
