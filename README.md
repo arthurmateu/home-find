@@ -167,8 +167,8 @@ Only one instance runs at a time; after a reboot, start it again.
   **Pros**, what the score gives points for besides price and size (balcony,
   kitchen, lift, garden, the floor, the quiet side, a park nearby, a verified or
   municipal landlord, and work, a supermarket or a station close enough for
-  its points) and ImmoScout Plus-only for now (fewer can apply); **Cons**, the
-  scam signs in orange (see Filtering), then what to know before going for it
+  its points) and ImmoScout Plus-only for now (fewer can apply); **Cons**, in red, the
+  scam signs marked ⚠ (see Filtering), then what to know before going for it
   (fewer rooms than wanted, Nachmieter, Ablöse, an estimated warm rent,
   furnished, semi-basement, too residential, Altbau, ...); **Info**, how far
   work is on foot and by public transport (each `[bonus] daily` place) and the

@@ -139,13 +139,11 @@ main { padding-top: 18px; padding-bottom: 80px; }
 .applying.bad { background: var(--bad-bg); color: var(--bad); }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--chip); color: var(--muted); }
-.chip.warn { background: var(--warn-bg); color: var(--warn); }
-.chip.con { color: var(--ink); }
+.chip.con { background: var(--bad-bg); color: var(--bad); }
 .chip.pro { background: var(--pro-bg); color: var(--accent); }
 /* The notes, summed up: a row per group, its name beside its chips. */
 .notes { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 8px; align-items: baseline; }
 .notes .group { font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
-.notes .group.warn { color: var(--warn); }
 .desc-toggle { align-self: flex-start; appearance: none; border: 0; background: none; color: var(--accent); font: inherit;
                font-size: 14px; font-weight: 600; padding: 2px 0; cursor: pointer; }
 .desc { white-space: pre-line; font-size: 14px; max-height: 360px; overflow: auto; border-left: 3px solid var(--line); padding-left: 10px; }
@@ -497,13 +495,13 @@ function shortNote(t) {
 }
 // The notes on a card, in three rows. Pros: what the score gives points for besides price and size
 // (the work, supermarket and stations close enough for it, see rating.info; the score's chips, see
-// rating.Part). Cons: the scam signs (in orange), then what to know before going for it. Info: how far
-// work, the supermarket and the stations are otherwise, then the rest.
-// [name, chip class, [[short, full, its own class], ...]], each row that has something.
+// rating.Part). Cons, in red: the scam signs (marked ⚠), then what to know before going for it. Info: how
+// far work, the supermarket and the stations are otherwise, then the rest.
+// [name, chip class, [[short, full], ...]], each row that has something.
 const CON = /^(heads-up|Nachmieter|asks for Ablöse|warm rent estimated|furnished|partly furnished|WBS|co-op)/;
 const PRO = /^(ImmoScout Plus|identity-verified)/;  // Plus members only: fewer can apply, and you're one
 function noteGroups(l) {
-  const pros = [], cons = l.flags.map((f) => [tidy(f), f, "warn"]), info = [];
+  const pros = [], cons = l.flags.map((f) => [`⚠ ${tidy(f)}`, f]), info = [];
   for (const [short, full, pro] of l.info) (pro ? pros : info).push([short, full]);
   for (const [p, t, c, inInfo] of l.why) if (c && !inInfo) (p > 0 ? pros : cons).push([c, t]);
   for (const t of l.notes) {  // same as an ad that's on this card: no news
@@ -601,8 +599,8 @@ function card(l) {
                  (gone ? `<span class="badge gone" title="Ad ${esc(gone.toLowerCase())}, noticed ${esc(when(l.gone_at))}. ` +
                          `Moves back by itself if it comes online again.">${esc(gone)} ${esc(day(l.gone_at))}</span>` : "");
   const notes = noteGroups(l).map(([name, cls, items]) =>
-    `<span class="group${items.some(([, , own]) => own === "warn") ? " warn" : ""}">${name}</span>` +
-    `<div class="chips">${items.map(([short, full, own]) => chip(` ${own || cls}`.trimEnd(), short, full)).join("")}</div>`).join("");
+    `<span class="group">${name}</span>` +
+    `<div class="chips">${items.map(([short, full]) => chip(cls && " " + cls, short, full)).join("")}</div>`).join("");
   const sites = l.ads.length ? `\nThe same flat on ${l.ads.map((a) => sourceName(a.source)).join(" and ")} ` +
                                `(same rent, size and postcode): ▾ next to Open has each one` : "";
   const open = state.expandAll || openDesc.has(l.key);
