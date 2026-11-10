@@ -51,7 +51,7 @@ QUIET = 2        # the quiet side: back buildings, rooms facing the courtyard
 DAILY, DAILY_KM = 6, (2, 8)  # [bonus] daily: all points up to 2 km away (straight line), none from 8 km
 DAILY_WALK, DAILY_WALK_MINUTES = 3, 15  # ... these on top, and a chip on the card, when it's at most this many minutes on foot
 INFO_MINUTES = 30  # how far on foot the card looks for a supermarket or a station (see info)
-WALKABLE = 30      # ... and up to how many minutes on foot it mentions the walk to work next to public transport
+WALKABLE = 30      # ... and the walk to work it gives before public transport is looked up: up to this, else the km
 RESIDENTIAL_PER_KM2, RESIDENTIAL_M = 18, 300  # too residential: fewer places to eat or drink than this, in this radius (5 or fewer)
 BANDS = [(95, "great"), (75, "good"), (55, "ok"), (0, "weak")]  # each as rare as 75 / 60 / 45 were before the bonuses
 
@@ -328,34 +328,34 @@ def _far(metres: float) -> str:
 
 def info(cfg: dict, listing: Listing, place: dict | None,
          trips: dict | None = None) -> list[tuple[str, str, bool]]:
-    """How far each [bonus] daily place (work) is on foot and by public transport (`trips`:
-    Store.trips), and the nearest supermarket, U-Bahn, S-Bahn and bus stop on foot, whatever the
-    score makes of it; as (chip, full text, pro). `pro`: close enough for the score's points, so
-    the card has it under Pros, else under Info. The walks need the house (see spot): with only
-    the street or postcode known, work is "~" kilometres and minutes by public transport from there."""
+    """How long each [bonus] daily place (work) takes, on foot or by public transport (`trips`:
+    Store.trips), whichever is quicker; and the nearest supermarket, U-Bahn, S-Bahn and bus stop
+    on foot, whatever the score makes of it. As (chip, full text, pro): `pro`, close enough for
+    the score's points, so the card has it under Pros, else under Info. The supermarket and
+    stations need the house (see spot); with only
+    the street or postcode known, work is measured from there, marked "~"."""
     at = spot(listing, place)
     rough = None if at or not place else (place["lat"], place["lon"])
     out = []
     for daily in (cfg.get("bonus") or {}).get("daily", []) if at or rough else []:
-        there, about = (daily["lat"], daily["lon"]), "about " * bool(rough)
-        name, metres = daily["name"], nearby.distance(at or rough, there)
-        walk = nearby.on_foot(metres) if at else None  # from a street or postcode, only kilometres
+        there, about, near = (daily["lat"], daily["lon"]), "about " * bool(rough), "~" * bool(rough)
+        metres = nearby.distance(at or rough, there)
+        walk, km = nearby.on_foot(metres), f"{near}{_far(metres)}"
         trip = (trips or {}).get(transit.key(at or rough, there), False)  # False: not asked yet
+        if trip and trip["minutes"] < walk:  # the planner's way can be a walk too, on paths it knows
+            chip = f"{near}{_duration(trip['minutes'])} by {'foot' if trip['how'] == 'on foot' else 'transport'} ({km})"
+        elif trip is False and walk > WALKABLE:  # a long walk, and public transport not looked up yet
+            chip = km
+        else:
+            chip = f"{near}{_duration(walk)} by foot ({km})"
         by = (f"{about}{_duration(trip['minutes'])} by public transport "
               f"({trip['how']}, leaving {transit.LEAVE:%H:%M} on a weekday)" if trip
               else "BVG's journey planner found no connection" if trip is None else "by public transport: not looked up yet")
-        far = f"{about}{_far(metres)} in a straight line" + (f", about {_duration(walk)} on foot" if walk else "")
-        pro = walk is not None and walk <= DAILY_WALK_MINUTES
-        if pro:  # close enough to walk: the minutes on foot
-            chip, full = f"{name} {_duration(walk)} walk", f"{name}: {far}; {by}"
-        else:  # further: by public transport, and on foot while it's still a walk; or else how far
-            ways = [f"{'~' * bool(rough)}{_duration(trip['minutes'])} by transit"] if trip else []
-            ways += [f"{_duration(walk)} walk"] if walk and walk <= WALKABLE else []
-            chip = f"{name} {' · '.join(ways) or '~' * bool(rough) + _far(metres)}"
-            full = f"{name}: {by}; {far}"
+        full = f"{daily['name']}: {about}{_far(metres)} in a straight line, about {_duration(walk)} on foot; {by}"
         if rough:
             full += (" (only the street is known, so from somewhere along it)" if place["precision"] == "street"
                      else " (only the area is known, so from its middle)")
+        pro = bool(at) and walk <= DAILY_WALK_MINUTES
         out.append((chip, full, pro))
     for kinds, what, close in ((("supermarket",), "supermarket", SHOP_MINUTES), (("U",), "U-Bahn", RAIL_MINUTES),
                                (("S",), "S-Bahn", RAIL_MINUTES), (("bus",), "bus stop", STOP_MINUTES)):
