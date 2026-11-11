@@ -133,12 +133,6 @@ def new_link(cfg: dict, store: Store) -> None:
         (site / old).rename(site / _token(store))
 
 
-def _applied(r: Row) -> bool:
-    """Marked applied, whether it's still on your Applied tab or not (ones that went offline
-    before dates were kept only have status_if_back to say so)."""
-    return r.status == "applied" or r.applied_at is not None or r.status_if_back == "applied"
-
-
 def _phone_sized(url: str) -> str:
     """ImmoScout24's photo addresses say the size; the others' are fine as they are."""
     return re.sub(r"/resize/\d+x\d+>?/", "/resize/800x600/", url)
@@ -240,11 +234,29 @@ def _entry(flat: list[Row], cfg: dict, places: dict, folder: Path, known: dict) 
 def snapshot(cfg: dict, store: Store, folder: Path, known: dict) -> dict:
     """What the page shows: active applications first, then the latest."""
     places = store.places()
-    flats = [f for f in web.flats(cfg, store) if any(_applied(r) for r in f)]
+    flats = [f for f in web.flats(cfg, store) if any(r.applied for r in f)]
     entries = [_entry(f, cfg, places, folder, known) for f in flats]
     entries.sort(key=lambda e: e["applied"] or "", reverse=True)
     entries.sort(key=lambda e: STAGE_ORDER.get(e["stage"], len(STAGE_ORDER)))
     return {"built": int(time.time() * 1000), "flats": entries}
+
+
+def copies(cfg: dict, store: Store):
+    """The page's copy of an ad's photo, as copy(url) -> (body, file extension) or None. It has
+    the first max_photos of each flat on it, phone-sized; keep.py takes them for a deleted ad."""
+    token = store.meta_get("casa_token")
+    try:
+        known = json.loads((_root(cfg) / "photos.json").read_text()) if token else {}
+    except (OSError, ValueError):  # none yet, or being written just now
+        known = {}
+
+    def copy(url: str) -> tuple[bytes, str] | None:
+        name = known.get(_phone_sized(url))
+        try:
+            return name and ((_root(cfg) / "site" / token / "photos" / name).read_bytes(), Path(name).suffix)
+        except OSError:  # came off the page
+            return None
+    return copy
 
 
 def build(cfg: dict, store: Store) -> Path:

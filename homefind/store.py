@@ -60,6 +60,12 @@ class Row(NamedTuple):
         return self.status_if_back if self.gone else self.status
 
     @property
+    def applied(self) -> bool:
+        """Marked applied, whether it's still on your Applied tab or not (ones that went offline
+        before dates were kept only have status_if_back to say so)."""
+        return self.status == "applied" or self.applied_at is not None or self.status_if_back == "applied"
+
+    @property
     def priority(self) -> int:
         """How soon you'd look at it, lowest first: applied, matches, rejected ones in the
         area, ones you hid, the rest."""

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from . import config
 from .app import Loop, check_offline, recheck, run_once, seconds_until_due
-from . import casa, geo, nearby, transit, update, web
+from . import casa, geo, keep, nearby, transit, update, web
 from .apply import Applier
 from .net import Fetcher
 from .notify import Notifier, print_reject
@@ -117,9 +117,10 @@ def main(argv=None) -> int:
     applier = Applier(cfg, notifier)
     publisher = casa.start(cfg)
     updater = update.Updater(cfg, applier, publisher, wake=loop.wake)
+    keeper = keep.start(cfg)
     server = None
     try:
-        server = web.serve(cfg, loop, applier, publisher, updater)
+        server = web.serve(cfg, loop, applier, publisher, updater, keeper)
         if server:
             log.info("web UI: %s", web.url(cfg))
             geo.start(cfg)
@@ -155,8 +156,9 @@ def publish_casa(cfg: dict, store: Store, new_link: bool) -> int:
 def serve_only(cfg: dict, open_it: bool, applier: Applier) -> int:
     publisher = casa.start(cfg)
     updater = update.Updater(cfg, applier, publisher)
+    keeper = keep.start(cfg)
     try:
-        server = web.serve(cfg, applier=applier, casa=publisher, updater=updater)
+        server = web.serve(cfg, applier=applier, casa=publisher, updater=updater, keeper=keeper)
     except OSError:
         print(f"port {cfg['run']['web_port']} is in use; if homefind --loop is running, the UI is already at {web.url(cfg)}")
         return 1

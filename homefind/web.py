@@ -22,7 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from . import app, apply, geo, update
+from . import app, apply, geo, keep, net, update
 from .notify import headline
 from .rating import band, info, rate
 from .rules import REASONS, dropped, street_budget, street_key, street_stretch
@@ -35,6 +35,7 @@ CSP = ("default-src 'self'; img-src * data:; style-src 'unsafe-inline'; script-s
        "connect-src 'self'; base-uri 'none'; form-action 'none'")
 STATUSES = (None, "applied", "hidden")
 STAGES = (None, "replied", "viewing", "turned_down", "got_it")  # how far an application got
+PHOTO_EXTENSIONS = {extension: kind for kind, extension in net.PHOTO_TYPES.items()}
 FIRST_CHOICE = "immoscout"  # a flat on several sites: its card shows and opens this site's ad, while it's online
 
 
@@ -157,7 +158,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "landlord": listing.landlord,
             "first_seen": first_seen,  # this ad's: one on ImmoScout24 after another site had the flat is news
             "last_seen": row.last_seen,
-            "images": listing.photo_urls(),
+            "images": keep.urls(cfg, listing),  # the kept copies, once fetched
             "description": listing.description,
             "ok": verdict.ok,
             **_state(flat),  # status, gone, gone_at, status_if_back, hide_at, applied_at, applied_by, stage
@@ -204,6 +205,7 @@ class Handler(BaseHTTPRequestHandler):
     loop: app.Loop | None = None  # the --loop run this UI belongs to; None with --serve
     applier: apply.Applier | None = None
     casa = None                   # casa.Publisher: told when something the family page shows changes
+    keeper = None                 # keep.Keeper: told when you may have applied to a flat
     updater: update.Updater | None = None
 
     def log_message(self, fmt, *args):
@@ -242,6 +244,13 @@ class Handler(BaseHTTPRequestHandler):
             data = json.dumps(self._read(), ensure_ascii=False).replace("</", "<\\/")
             page = PAGE.read_text(encoding="utf-8").replace("__DATA__", data)
             return self._send(200, page.encode(), "text/html; charset=utf-8", {"Content-Security-Policy": CSP})
+        photo = re.fullmatch(r"/photos/(\w[\w.-]*)/(\d+(\.\w+))", path)  # one kept by keep.py
+        if photo and photo[3] in PHOTO_EXTENSIONS:
+            try:
+                body = (keep.root(self.cfg) / photo[1] / photo[2]).read_bytes()
+            except OSError:
+                return self._send(404, b"not found")
+            return self._send(200, body, PHOTO_EXTENSIONS[photo[3]])
         if path in ("/api/listings", "/api/checks"):  # /api/checks: polled every few seconds while a check runs
             data = self._read(listings=path == "/api/listings")
             return self._send(200, json.dumps(data, ensure_ascii=False).encode(), "application/json; charset=utf-8")
@@ -284,8 +293,9 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, b"not found")
 
     def _changed(self) -> None:
-        if self.casa:
-            self.casa.poke()
+        for listener in (self.casa, self.keeper):
+            if listener:
+                listener.poke()
 
     def _ads(self, store: Store, key: str) -> list[str]:
         """The flat's ad on every site it's on."""
@@ -348,11 +358,12 @@ def url(cfg: dict) -> str:
 
 
 def serve(cfg: dict, loop: app.Loop | None = None, applier: apply.Applier | None = None,
-          casa=None, updater: update.Updater | None = None) -> ThreadingHTTPServer | None:
+          casa=None, updater: update.Updater | None = None, keeper=None) -> ThreadingHTTPServer | None:
     """Start the UI in a background thread. Raises OSError if the port is taken."""
     if not cfg["run"].get("web_port"):
         return None
     Handler.cfg, Handler.loop, Handler.applier, Handler.casa, Handler.updater = cfg, loop, applier, casa, updater
+    Handler.keeper = keeper
     server = ThreadingHTTPServer(("127.0.0.1", int(cfg["run"]["web_port"])), Handler)
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, name="web", daemon=True).start()

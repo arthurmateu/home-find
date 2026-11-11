@@ -90,6 +90,12 @@ start (saved halfway through an edit, say) tries again every half minute.
 - **Matches / Applied / Rejected / Hidden** tabs (bookmarkable: `/#applied`).
 - **Photos:** arrows on each card flip through all photos; click a photo for
   the full-screen viewer (arrow keys, swipe, thumbnail strip, Esc to close).
+  Every photo of a flat you've applied to is kept in `data/photos/` (a folder
+  per ad), fetched right after you mark it applied or the Firefox helper sends
+  your application, so they're still there when the ad is deleted, as ads
+  often are within hours. Its card shows those copies. A photo the site no
+  longer had gets the family page's smaller copy, if it has one
+  (`homefind/keep.py`).
 - **Mini-map**: hover the 📍 neighbourhood line on a card (tap it on a phone)
   and a map pops up, with a pin at the address, or a dashed circle when only
   the postcode is known; click the map for Google Maps. Addresses are looked up
@@ -333,7 +339,7 @@ python3 -m homefind --casa-new-link  # replace that link (the old one stops work
 ```
 
 State (listings, verdicts, applied/hidden) lives in `data/homefind.db`; delete
-it to start over.
+it to start over. The photos of flats you've applied to are in `data/photos/`.
 
 ## Filtering
 
