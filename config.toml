@@ -28,8 +28,8 @@ scam_threshold = 3           # scam points at which a listing is dropped (see ho
 # Drawn on the district map, 11 Nov 2026, by neighbourhood (Ortsteil) in red and orange, and
 # taken by postcode: one at least half in the red is in zip_codes, else one at least half in
 # the red and orange together is in edge_zip_codes. In the red, flats with wanted_rooms (2) or
-# more are Matches and ones with fewer are Good; in the orange, they're Good and Sufficient
-# (see tier in homefind/rules.py). Every other postcode is outside the area: those never
+# more are Matches and ones with fewer are Good; in the orange, they're Good and Sufficient,
+# or a tier up near a [bonus] daily place with boost = true (see tier in homefind/rules.py). Every other postcode is outside the area: those never
 # show. Postcodes don't follow neighbourhood borders exactly.
 zip_codes = [  # red
   "10585", "10587", "10589", "10623", "10625", "10627", "10629", "14057", "14059",  # Charlottenburg
@@ -86,7 +86,8 @@ streets = [
 # [bonus] daily = [{ name = "work", lat = 52.5219, lon = 13.4132 }]
 # (right-click the place in Google Maps; the first line is lat, lon). Each can also have points = 12, the
 # most it's worth (9 if not set), so one counts for more than another; pill = "blue" or "light-blue",
-# its chip's colour on the cards; and score = false: on the cards only, no points.
+# its chip's colour on the cards; score = false: on the cards only, no points; and boost = true:
+# a flat in the orange 20 minutes or less from it goes a tier up, like one in the red.
 
 [run]
 request_delay_seconds = 2.0  # minimum gap between two requests to the same site

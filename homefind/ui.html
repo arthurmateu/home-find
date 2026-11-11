@@ -521,7 +521,7 @@ function shortNote(t) {
 // [name, chip class, [[short, full, its own class, quick], ...]], each row that has something; quick: work 20 minutes
 // or less away (rating.QUICK_MINUTES), its time in bold.
 const CON = /^(heads-up|Nachmieter|asks for Ablöse|warm rent estimated|furnished|partly furnished|WBS|co-op)/;
-const PRO = /^(ImmoScout Plus|identity-verified)/;  // Plus members only: fewer can apply, and you're one
+const PRO = /^(ImmoScout Plus|identity-verified|tier up)/;  // Plus members only: fewer can apply, and you're one
 const PILLS = new Set(["blue", "light-blue"]);  // [bonus] daily places' colours (pill in the config)
 function noteGroups(l) {
   const pros = [], cons = l.flags.map((f) => [`⚠ ${tidy(f)}`, f]), info = [];

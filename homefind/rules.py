@@ -322,15 +322,20 @@ def street_budget(listing: Listing, cfg: dict) -> tuple[float, str | None]:
 ORANGE_NOTE = "heads-up: in the orange area"  # edge_zip_codes / edge_names
 
 
-def tier(listing: Listing, verdict: Verdict, cfg: dict) -> str | None:
+def tier(listing: Listing, verdict: Verdict, cfg: dict, near_work: bool = False) -> str | None:
     """Which tab a flat that passes the rules goes on: "match" in the red area (zip_codes) with
     wanted_rooms or more, "good" in the red with fewer (or an unknown number) or in the orange
-    (edge_zip_codes) with enough, "sufficient" in the orange with fewer. None if it doesn't pass."""
+    (edge_zip_codes) with enough, "sufficient" in the orange with fewer. None if it doesn't pass.
+    `near_work`: it's close to a [bonus] daily place with boost = true (rating.boost), so in the
+    orange it goes a tier up, like one in the red."""
     if not verdict.ok:
         return None
     roomy = (listing.rooms or 0) >= cfg["search"].get("wanted_rooms", 0)
+    kind = placement(listing, cfg)[0]
+    if kind == "edge" and near_work:
+        kind = "in"
     return {("in", True): "match", ("in", False): "good",
-            ("edge", True): "good", ("edge", False): "sufficient"}.get((placement(listing, cfg)[0], roomy))
+            ("edge", True): "good", ("edge", False): "sufficient"}.get((kind, roomy))
 
 
 def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:

@@ -8,18 +8,19 @@ import time
 import urllib.error
 from datetime import datetime, timedelta
 
-from . import geo
+from . import geo, transit
 from .apply import SOURCES
-from .net import Blocked
-from .rating import rate
+from .net import Blocked, Fetcher
+from .rating import boost, rate, spot
 from .notify import Notifier, print_match, print_reject
-from .rules import evaluate, tier
+from .rules import evaluate, placement, tier
 from .sources import enabled_sources
 from .store import APPLIED_OFFLINE_DAYS, SAME_FLAT_DAYS, Store
 from .util import stamp, text
 
 log = logging.getLogger("homefind")
 MAX_BACKOFF_MINUTES = 6 * 60
+_planner = Fetcher(delay=1)  # transport.rest, for a new flat in the orange (see _trips)
 PUSHED_TIERS = ("match", "good")  # new flats in these tiers (rules.tier) are pushed to your phone; Sufficient ones aren't
 CHECK_AFTER_HOURS = 6  # an ad seen online more recently than this isn't looked up to see if it's gone
 
@@ -209,14 +210,18 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False, applier=None) -
                     earlier = None
                 if earlier:
                     verdict.notes.append(f"same rent/size/postcode as {earlier}")
-                score, parts = rate(listing, verdict, stamp(), cfg, place=geo.locate(listing, store.places()),
-                                    trips=store.trips())
+                place = geo.locate(listing, store.places())
+                trips = _trips(cfg, store, listing, place)
+                score, parts = rate(listing, verdict, stamp(), cfg, place=place, trips=trips)
                 print_match(listing, verdict, score)
-                level = tier(listing, verdict, cfg)
+                near = boost(cfg, listing, place, trips)
+                level = tier(listing, verdict, cfg, bool(near))
                 fresh = not first_run and not earlier
                 if fresh and level in PUSHED_TIERS:
-                    pushed = notifier.listing(listing, verdict, score, [p.label for p in parts if p.chip and not p.points],
-                                              level)
+                    notes = [p.label for p in parts if p.chip and not p.points]
+                    if near and placement(listing, cfg)[0] == "edge":
+                        notes.append(tier_up_note(*near))
+                    pushed = notifier.listing(listing, verdict, score, notes, level)
             store.add(listing, verdict, notified=pushed)
             if fresh and applier:
                 applier.auto(listing, verdict, level, store)
@@ -366,6 +371,25 @@ def recheck(cfg: dict, store: Store) -> tuple[int, int, int]:
 def fingerprint(listing, verdict) -> str:
     """Same flat reposted, or listed on two portals: same rent, size and postcode."""
     return f"{round(verdict.warm or 0)}|{round(listing.size_sqm or 0)}|{listing.zip_code or listing.district}"
+
+
+def tier_up_note(name: str, minutes: int) -> str:
+    """Said on the card and in the push of a flat in the orange that rating.boost takes a tier up."""
+    return f"tier up: {name} in {minutes} min"
+
+
+def _trips(cfg: dict, store: Store, listing, place: dict | None) -> dict:
+    """Store.trips, having asked BVG's planner first how long work takes from a new flat in the orange,
+    when a [bonus] daily place with boost = true could take it a tier up (rating.boost): its push and
+    Full auto go by its tier, and the map thread would only ask in a few minutes. From where the score
+    measures (the house, else the street or postcode's middle); if that isn't known yet, no tier up."""
+    frm = spot(listing, place) or (place and (place["lat"], place["lon"]))
+    if frm and placement(listing, cfg)[0] == "edge" and any(d.get("boost") for d in (cfg.get("bonus") or {}).get("daily", [])):
+        try:
+            transit.fill(cfg, store, [frm], _planner)
+        except Exception as e:  # noqa: BLE001 - the flat still gets its tier, without the boost
+            log.warning("couldn't ask how long work takes from %s (%s)", listing.key, e)
+    return store.trips()
 
 
 def _first_here(store: Store, listing, verdict) -> bool:

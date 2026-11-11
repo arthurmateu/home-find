@@ -93,7 +93,12 @@ start (saved halfway through an edit, say) tries again every half minute.
   rooms (`wanted_rooms`) in the red area (`zip_codes`); **Good** have fewer
   there (1 or 1.5, or the ad doesn't say), or 2+ in the orange area round it
   (`edge_zip_codes`, "in the orange area" under Cons); **Sufficient** have
-  fewer in the orange. New Matches and Good flats are pushed to your phone
+  fewer in the orange. A flat in the orange 20 minutes or less from a
+  `[bonus] daily` place with `boost = true` (door to door, as on its card) goes
+  a tier up, like one in the red ("tier up" under Pros, and in the push): for a
+  new flat, homefind asks BVG's planner right away rather than leave it to the
+  map thread, so the push and Full auto get the tier up too; when even its
+  postcode isn't placed yet, it gets it later, on the page only. New Matches and Good flats are pushed to your phone
   (`PUSHED_TIERS` in `homefind/app.py`); Sufficient ones aren't. A flat that
   fails a rule (over budget, outside the area, furnished, no rent stated, …,
   see [Filtering](#filtering)) isn't shown at all, except one you applied to:

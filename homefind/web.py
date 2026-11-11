@@ -24,8 +24,8 @@ from urllib.parse import parse_qs, urlsplit
 
 from . import app, apply, geo, keep, net, update
 from .notify import headline
-from .rating import band, info, rate
-from .rules import street_key, tier
+from .rating import band, boost, info, rate
+from .rules import placement, street_key, tier
 from .util import parse_published, stamp, street_of
 from .store import SAME_FLAT_DAYS, Row, Store
 
@@ -139,6 +139,8 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
         listing, verdict, first_seen = row.listing, row.verdict, row.first_seen
         place = geo.locate(listing, places)
         score, parts = rate(listing, verdict, first_seen, cfg, now, place, trips)
+        near = boost(cfg, listing, place, trips)
+        tier_up = [app.tier_up_note(*near)] if near and placement(listing, cfg)[0] == "edge" else []
         posted = parse_published(listing.published, first_seen)
         listings.append({
             "key": listing.key,
@@ -153,7 +155,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "documents": keep.documents(cfg, listing),  # [{label, url}]: PDFs (floor plans, ...), kept likewise
             "description": listing.description,
             "ok": verdict.ok,  # False: you applied to it, but it wouldn't pass any more (see Row.shown)
-            "tier": tier(listing, verdict, cfg),  # its tab, if it passed: match, good or sufficient
+            "tier": tier(listing, verdict, cfg, bool(near)),  # its tab, if it passed: match, good or sufficient
             **_state(flat),  # status, gone, gone_at, status_if_back, hide_at, applied_at, applied_by, stage
             # On several sites: each one's ad, this card's first. Empty when it's only on one.
             "ads": [{"key": r.listing.key, "source": r.listing.source, "url": r.listing.url, "gone": r.gone,
@@ -163,7 +165,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "reasons": verdict.reasons,
             "codes": verdict.codes,
             "flags": verdict.flags,
-            "notes": verdict.notes,
+            "notes": verdict.notes + tier_up,
             "score": score,
             "band": band(score),
             "why": [list(p) for p in parts],  # [points, label, chip, in_info]

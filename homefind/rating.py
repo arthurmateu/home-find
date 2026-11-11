@@ -15,7 +15,8 @@ Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over; stre
          supermarket within 5 min 10 · park or water within 5 min 3 (nearby.py) ·
          near a place you go daily: its `points` (9 if not set) up to 15 min door to door, on foot or by
          public transport, whichever is quicker, down to none from 40 min ([bonus] daily, in config.local.toml;
-         none for one with score = false),
+         none for one with score = false; one with boost = true also takes a flat in the orange
+         a tier up within 20 min, see boost),
          minus: scam signs (8 per point), Ablöse, estimated rent, semi-basement.
 IS24 Plus-only listings aren't marked down: you're a Plus member.
 Notes, worth no points: too residential (see residential), Altbau.
@@ -212,6 +213,20 @@ def commute(frm: tuple[float, float], daily: dict, trips: dict | None) -> Commut
     if trip and trip["minutes"] < walk:  # the planner's way can be a walk too, on paths it knows
         return Commute(trip["minutes"], trip["how"] != "on foot", walk, metres, trip)
     return Commute(walk, False, walk, metres, trip)
+
+
+def boost(cfg: dict, listing: Listing, place: dict | None, trips: dict | None) -> tuple[str, int] | None:
+    """(name, minutes) of the [bonus] daily place with boost = true that the flat is QUICK_MINUTES or
+    less from, door to door as on the card, if any: in the orange, that takes it a tier up (rules.tier).
+    From the house, else the street or postcode's middle; a longer walk counts for nothing until
+    public transport is looked up."""
+    frm = spot(listing, place) or (place and (place["lat"], place["lon"]))
+    for daily in (cfg.get("bonus") or {}).get("daily", []) if frm else []:
+        if daily.get("boost"):
+            c = commute(frm, daily, trips)
+            if c.minutes <= QUICK_MINUTES:
+                return daily["name"], c.minutes
+    return None
 
 
 def daily_points(daily: dict) -> int:
