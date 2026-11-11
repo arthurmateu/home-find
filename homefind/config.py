@@ -15,7 +15,7 @@ DEFAULTS: dict = {
         "near_miss_cold_rent": 1000,
         "min_size_sqm": 25,
         "min_rooms": 1,
-        "wanted_rooms": 0,  # fewer rooms still match, with a heads-up note
+        "wanted_rooms": 0,  # fewer rooms: a tier down (see rules.tier), with a heads-up note
         "have_wbs": False,
         "coop_member": False,
         "reject_furnished": True,
@@ -27,9 +27,9 @@ DEFAULTS: dict = {
     },
     # Where to look is yours to say, in config.toml: there's no area by default, so nothing matches.
     "area": {
-        "zip_codes": [],       # flats here are matches
-        # Shown under Rejected, as "Edge of the area"; every other postcode is outside the area
-        # (reason "avoid": never shown, while it's in drop_reasons).
+        "zip_codes": [],       # the red area: Matches (with fewer than wanted_rooms: Good), see rules.tier
+        # The orange area: Good (Sufficient with fewer rooms). Every other postcode is outside the
+        # area (reason "avoid": never shown, while it's in drop_reasons).
         "edge_zip_codes": [],
         # Only used when a listing has no postcode: the portal's neighbourhood label.
         "names": [],

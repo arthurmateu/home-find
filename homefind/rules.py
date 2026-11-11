@@ -1,4 +1,5 @@
-"""Decides whether a listing is a match, and if not, why.
+"""Decides whether a listing passes, and if not, why; and which tier one that passes is
+(see tier): a Match, Good or Sufficient, by where it is and how many rooms it has.
 
 Hard rules reject outright (price, area, swaps, sublets, WG rooms, ...). Scam
 heuristics add points: at `scam_threshold` the listing is rejected, below it the
@@ -43,7 +44,6 @@ REASONS = {
     "near_miss": "Near miss (cold rent in range)",
     "stretch": "On a street worth stretching for",
     "budget": "Over budget",
-    "edge": "Edge of the area",
     "over_cap": "More than the search covers",
     "no_rent": "No rent stated",
     "size": "Too small",
@@ -334,6 +334,20 @@ def street_stretch(listing: Listing, cfg: dict) -> tuple[float, str | None]:
     return (stretch[street], street) if street else (0, None)
 
 
+ORANGE_NOTE = "heads-up: in the orange area"  # edge_zip_codes / edge_names
+
+
+def tier(listing: Listing, verdict: Verdict, cfg: dict) -> str | None:
+    """Which tab a flat that passes the rules goes on: "match" in the red area (zip_codes) with
+    wanted_rooms or more, "good" in the red with fewer (or an unknown number) or in the orange
+    (edge_zip_codes) with enough, "sufficient" in the orange with fewer. None if it doesn't pass."""
+    if not verdict.ok:
+        return None
+    roomy = (listing.rooms or 0) >= cfg["search"].get("wanted_rooms", 0)
+    return {("in", True): "match", ("in", False): "good",
+            ("edge", True): "good", ("edge", False): "sufficient"}.get((placement(listing, cfg)[0], roomy))
+
+
 def evaluate(listing: Listing, cfg: dict, final: bool = True) -> Verdict:
     """`final=False` is the cheap pre-check on search-result data, before
     fetching the detail page; unknown fields pass. A listing it rejects never
@@ -359,8 +373,8 @@ def _evaluate(listing: Listing, cfg: dict, final: bool) -> Verdict:
     where = f"{place} {listing.district or ''}".strip() if listing.zip_code else place
     if kind == "out":
         v.reject(f"outside the area ({where})", "avoid")
-    elif kind == "edge" and final:  # fine, just not a match: loaded in full, to judge under Rejected
-        v.reject(f"on the edge of the area ({where})", "edge")
+    elif kind == "edge":  # see tier
+        v.notes.append(ORANGE_NOTE)
     elif kind == "unknown":
         v.reject(f"location unclear ({listing.district or 'none given'})", "area")
 
@@ -413,7 +427,7 @@ def _evaluate(listing: Listing, cfg: dict, final: bool) -> Verdict:
         v.reject(f"{listing.size_sqm:g} m² < {s['min_size_sqm']} m²", "size")
     if listing.rooms and listing.rooms < s["min_rooms"]:
         v.reject(f"{listing.rooms:g} rooms < {s['min_rooms']}", "rooms")
-    elif listing.rooms and listing.rooms < s.get("wanted_rooms", 0):
+    elif listing.rooms and listing.rooms < s.get("wanted_rooms", 0):  # see tier
         v.notes.append(f"heads-up: only {listing.rooms:g} room{'s' * (listing.rooms != 1)}")
 
     # --- not a normal long-term rental

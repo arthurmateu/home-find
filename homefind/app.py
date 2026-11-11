@@ -13,13 +13,14 @@ from .apply import SOURCES
 from .net import Blocked
 from .rating import rate
 from .notify import Notifier, print_match, print_reject
-from .rules import dropped, evaluate
+from .rules import dropped, evaluate, tier
 from .sources import enabled_sources
 from .store import APPLIED_OFFLINE_DAYS, SAME_FLAT_DAYS, Store
 from .util import stamp, text
 
 log = logging.getLogger("homefind")
 MAX_BACKOFF_MINUTES = 6 * 60
+PUSHED_TIERS = ("match", "good")  # new flats in these tiers (rules.tier) are pushed to your phone; Sufficient ones aren't
 CHECK_AFTER_HOURS = 6  # an ad seen online more recently than this isn't looked up to see if it's gone
 
 
@@ -199,6 +200,7 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False, applier=None) -
                 (print_match if verdict.ok else print_reject)(listing, verdict)
                 continue
             pushed = fresh = False
+            level = None
             if verdict.ok:
                 matches.add(listing.key)
                 earlier = store.repost_of(listing, fingerprint(listing, verdict))
@@ -209,11 +211,13 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False, applier=None) -
                     verdict.notes.append(f"same rent/size/postcode as {earlier}")
                 score, parts = rate(listing, verdict, stamp(), cfg, place=geo.locate(listing, store.places()))
                 print_match(listing, verdict, score)
+                level = tier(listing, verdict, cfg)
                 fresh = not first_run and not earlier
-                if fresh:
-                    pushed = notifier.listing(listing, verdict, score, [p.label for p in parts if p.chip and not p.points])
+                if fresh and level in PUSHED_TIERS:
+                    pushed = notifier.listing(listing, verdict, score, [p.label for p in parts if p.chip and not p.points],
+                                              level)
             store.add(listing, verdict, notified=pushed)
-            if fresh and applier:
+            if fresh and applier and level == "match":
                 applier.auto(listing, verdict, score, store)
     except Blocked as e:
         if not dry_run:

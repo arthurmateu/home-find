@@ -22,7 +22,7 @@ near_miss_cold_rent = 0      # with stretch_warm_rent = 0: also load flats with 
                              # warm is over budget they show under Rejected → "Near miss", whatever it is
 min_size_sqm = 25            # drops micro-apartments / co-living rooms
 min_rooms = 1                # fewer show under Rejected → "Too few rooms"
-wanted_rooms = 2             # fewer (1, 1.5) still match, with a heads-up note on the card and in the push
+wanted_rooms = 2             # fewer (1, 1.5): a tier down (Good, not Match), with a heads-up note
 have_wbs = false             # true = keep listings that need a Wohnberechtigungsschein
                              # (with it false, also take "wbs" out of drop_reasons to see them under Rejected)
 coop_member = false          # true = keep co-op offers marked "members only"
@@ -41,10 +41,11 @@ scam_threshold = 3           # scam points at which a listing is dropped (see ho
 [area]
 # Drawn on the district map, 11 Nov 2026, by neighbourhood (Ortsteil) in red and orange, and
 # taken by postcode: one at least half in the red is in zip_codes, else one at least half in
-# the red and orange together is in edge_zip_codes. Red flats are matches; orange ones are
-# fine but shown under Rejected → "Edge of the area". Every other postcode is outside the
-# area: reason "avoid", which is in drop_reasons, so those never show. Postcodes don't follow
-# neighbourhood borders exactly.
+# the red and orange together is in edge_zip_codes. In the red, flats with wanted_rooms (2) or
+# more are Matches and ones with fewer are Good; in the orange, they're Good and Sufficient
+# (see tier in homefind/rules.py). Every other postcode is outside the area: reason "avoid",
+# which is in drop_reasons, so those never show. Postcodes don't follow neighbourhood borders
+# exactly.
 zip_codes = [  # red
   "10585", "10587", "10589", "10623", "10625", "10627", "10629", "14057", "14059",  # Charlottenburg
   "14050", "14052", "14053", "14055",                                               # Westend

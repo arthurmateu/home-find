@@ -31,8 +31,8 @@ its interval, up to 6 hours) while the others carry on.
 
 1. Install the **ntfy** app ([Android](https://play.google.com/store/apps/details?id=io.heckel.ntfy) / [iOS](https://apps.apple.com/app/ntfy/id1625396347), or <https://ntfy.sh/app> in a browser) and subscribe to a topic with a name nobody could guess: whoever knows it can read your pushes and send you their own. Set it as `ntfy_topic` under `[notify]` in `config.local.toml` (see 3), not in `config.toml`.
 2. Send a test notification (see below). Listings that were already online when
-   a source was first added were stored without a push; from then on only new
-   matches are pushed.
+   a source was first added were stored without a push; from then on new
+   Matches and Good flats are pushed (see the tabs, below).
 3. Settings you'd rather keep off GitHub (the ntfy topic, the places in
    `[bonus] daily`) go in `config.local.toml`, next to `config.toml`: it's in
    `.gitignore`, and what it sets goes over `config.toml`'s.
@@ -50,9 +50,9 @@ Ctrl+C stops it. After that, just open **<http://localhost:8765>** whenever
 you like (bookmark it). The page is always current when opened, and while it
 stays open it keeps itself current: new listings, ads taken offline, and an
 Applied or Hide made in another tab (straight away) all show up without the page
-jumping under you; if new matches arrive while you're scrolled down or on
-another tab of the page, a "new match" banner offers them. If a new match comes in while you're in
-another tab or window, the page's tab shows it: "(1) New match · Flat hunt"
+jumping under you; if new Matches or Good flats arrive while you're scrolled down or on
+another tab of the page, a "new match" banner offers them. If one comes in while you're in
+another tab or window, the page's tab shows it: "(1) New flat · Flat hunt"
 and a red dot on its icon, until you switch back. No sound, no pop-up.
 
 Test notification: `python3 -m homefind --test-notify`
@@ -77,7 +77,7 @@ of sight (another tab, a minimized window, the phone's browser in the
 background), else once you haven't touched it for 5 minutes (`AWAY_MS` in
 `ui.html`). Until then, a banner offers a Reload. It comes back as you left it:
 the same tab, search, filters, cards on screen, open descriptions, photos, the
-photo viewer, and the new-match count in the tab's title. A page that doesn't
+photo viewer, and the new-flat count in the tab's title. A page that doesn't
 start (saved halfway through an edit, say) tries again every half minute.
 
 ## The web page
@@ -87,7 +87,14 @@ start (saved halfway through an edit, say) tries again every half minute.
   blocked us shows up there as paused until when. **↻ Check now** checks
   every site straight away (except paused ones, to let the block wear off)
   and says what it found; only with `--loop`.
-- **Matches / Applied / Rejected / Hidden** tabs (bookmarkable: `/#applied`).
+- **Matches / Good / Sufficient / Applied / Rejected / Hidden** tabs (bookmarkable: `/#applied`).
+  A flat that passes the rules goes on one of the first three, by where it is
+  and how many rooms it has (`tier` in `homefind/rules.py`): **Matches** have 2+
+  rooms (`wanted_rooms`) in the red area (`zip_codes`); **Good** have fewer
+  there (1 or 1.5, or the ad doesn't say), or 2+ in the orange area round it
+  (`edge_zip_codes`, "in the orange area" under Cons); **Sufficient** have
+  fewer in the orange. New Matches and Good flats are pushed to your phone
+  (`PUSHED_TIERS` in `homefind/app.py`); Sufficient ones aren't.
 - **Photos:** arrows on each card flip through all photos; click a photo for
   the full-screen viewer (arrow keys, swipe, thumbnail strip, Esc to close).
   Every photo of a flat you've applied to is kept in `data/photos/` (a folder
@@ -145,12 +152,12 @@ start (saved halfway through an edit, say) tries again every half minute.
   poster, may come back; mostly WG-Gesucht) or **Deleted**, with a grey photo
   and when it was noticed, and filed away by themselves: ones you applied for
   stay on Applied for 2 days (`APPLIED_OFFLINE_DAYS` in `homefind/store.py`),
-  then move to Hidden; matches move to Hidden right away; ones you hid stay
+  then move to Hidden; Matches, Good and Sufficient ones move to Hidden right away; ones you hid stay
   there; rejected ones are deleted for good. The Hidden tab gets a chip per
   tag. If one comes back online, it moves back to where it was (a deleted one
   shows up as new).
   How it's found: each hourly check also looks up a few older ads
-  (`check_per_run`: 5, WG-Gesucht 2; applied first, then matches, rejected ones
+  (`check_per_run`: 5, WG-Gesucht 2; applied first, then the three tiers, rejected ones
   in the area, ones you hid, the rest; skipping any seen in the last 6 hours).
   inberlinwohnen goes through all its ~50 pages every 12 hours
   (`sweep_every_hours`) and charlotte1907's one page lists every offer, so
@@ -193,7 +200,7 @@ start (saved halfway through an edit, say) tries again every half minute.
   municipal landlord, and work, a supermarket or a station close enough for
   its points) and ImmoScout Plus-only for now (fewer can apply); **Cons**, in red, the
   scam signs marked ⚠ (see Filtering), then what to know before going for it
-  (fewer rooms than wanted, Nachmieter, Ablöse, an estimated warm rent,
+  (fewer rooms than wanted, in the orange area, Nachmieter, Ablöse, an estimated warm rent,
   furnished, semi-basement, too residential, Altbau, ...); **Info**, how long
   each `[bonus] daily` place (work) takes, on foot or by public transport,
   whichever is quicker, and how far ("20 min by transport (5.4 km)"; in the
@@ -225,12 +232,11 @@ start (saved halfway through an edit, say) tries again every half minute.
 - **Kurfürstendamm (warm ≤ 1500 €)** (a reason under Rejected) = the same for
   a street worth stretching for (`street_stretch_warm_rent`): over its budget,
   but within the stretch.
-- **Edge of the area** (a reason under Rejected) = in the band round the area
-  (`edge_zip_codes`): fine, but not a match. Loaded in full, like a match.
 - **Too few rooms** = under `min_rooms` (1). The searches don't filter on
   rooms, so these do show up. Flats with fewer than `wanted_rooms` (2), so 1
-  or 1.5 rooms, are matches, with "only 1 room" under Cons on the card
-  ("heads-up: only 1 room" in the push); the score gives them no points for rooms (2+ get 10).
+  or 1.5 rooms, go a tier down (Good in the red area, Sufficient in the
+  orange), with "only 1 room" under Cons on the card ("heads-up: only 1 room"
+  in the push); the score gives them no points for rooms (2+ get 10).
 - WG rooms, senior housing, swap offers, WBS-only flats and anything outside
   the area and its edge don't show up at all (`drop_reasons` in
   `config.toml`).
@@ -345,7 +351,7 @@ it to start over. The photos of flats you've applied to are in `data/photos/`.
 
 All in `homefind/rules.py`. **Hard rejects:** over budget (warm rent; estimated
 from cold rent at `extra_costs_per_sqm` if that's all there is), outside the
-area (by postcode: `zip_codes` match, `edge_zip_codes` show under Rejected,
+area (by postcode: `zip_codes` is the red area, `edge_zip_codes` the orange one round it,
 every other postcode is dropped outright; the portal's neighbourhood label,
 `names` / `edge_names`, only when there is no postcode), a title naming
 another district ("… Berlin Neukölln"), under

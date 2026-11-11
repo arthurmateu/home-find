@@ -287,8 +287,12 @@ const PAGE = 48;
 const BROKEN = "data:image/svg+xml," + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="100%" height="100%" fill="#8883"/>' +
   '<text x="50%" y="50%" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#888">Photo unavailable</text></svg>');
+// Flats that pass the rules go on Matches, Good or Sufficient, by their tier (see tier in rules.py):
+// where they are (the red area or the orange one) and how many rooms they have.
 const TABS = [
-  ["matches", "Matches", (l) => l.ok && !l.status],
+  ["matches", "Matches", (l) => l.tier === "match" && !l.status],
+  ["good", "Good", (l) => l.tier === "good" && !l.status],
+  ["sufficient", "Sufficient", (l) => l.tier === "sufficient" && !l.status],
   ["applied", "Applied", (l) => l.status === "applied"],
   ["rejected", "Rejected", (l) => !l.ok && !l.status],
   ["hidden", "Hidden", (l) => l.status === "hidden"],
@@ -298,7 +302,9 @@ const SOURCES = { immoscout: "ImmoScout24", wggesucht: "WG-Gesucht", kleinanzeig
 // Ads taken offline get one of these tags (rejected ones are deleted instead; see Store.mark_gone in store.py).
 const GONE = { deactivated: "Deactivated", deleted: "Deleted" };
 const EMPTY = {
-  matches: "No matches right now. New ones show up here and on your phone.",
+  matches: "No matches right now: 2+ rooms in the red area. New ones show up here and on your phone.",
+  good: "Nothing good right now: 1 room in the red area, or 2+ rooms in the orange one. New ones show up here and on your phone.",
+  sufficient: "Nothing sufficient right now: 1 room in the orange area.",
   applied: "Nothing here yet. Flats you apply to with ✉ Apply, or mark applied after applying elsewhere, show up here.",
   rejected: "Nothing rejected in the area.",
   hidden: "Nothing hidden.",
@@ -315,7 +321,7 @@ function normalize(d) {
     l.images ??= []; l.codes ??= []; l.flags ??= []; l.notes ??= []; l.reasons ??= [];
     l.gone ??= null; l.gone_at ??= null; l.status_if_back ??= null; l.hide_at ??= null; l.applied_at ??= null;
     l.geo ??= null; l.locality ??= null; l.street ??= null; l.applied_by ??= null; l.applying ??= null; l.ads ??= [];
-    l.stage ??= null;
+    l.stage ??= null; l.tier ??= l.ok ? "match" : null;
     if (l.status === "saved") l.status = "applied";  // Applied was called Saved
     if (l.status_if_back === "saved") l.status_if_back = "applied";
   }
@@ -821,21 +827,23 @@ async function setStage(key, stage) {
   }
 }
 
-// ---- tab alert: new matches that arrive while you're elsewhere put a count in the
+// ---- tab alert: new Matches and Good flats that arrive while you're elsewhere put a count in the
 // tab title and a dot on its icon, until you come back to the tab. Nothing else.
 const TITLE = document.title;
-const unseen = new Set();  // keys of new matches since you last looked
+const unseen = new Set();  // keys of new flats since you last looked
 const icon = (dot) => "data:image/svg+xml," + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1f6f5c"/>' +
   '<path d="M16 6 4 16h3.5v10h6.5v-7h4v7h6.5V16H28z" fill="#fff"/>' +
   (dot ? '<circle cx="25" cy="7" r="6.5" fill="#e5484d" stroke="#fff" stroke-width="2"/>' : "") + "</svg>");
 const looking = () => !document.hidden && document.hasFocus();
-// Same as what gets pushed to your phone: a match that isn't a repost of one you've seen (a flat's first
-// ImmoScout24 ad after another site's isn't: "new on immoscout, same rent/size/postcode as ...").
-const alertWorthy = (l) => l.ok && !l.notes.some((t) => t.startsWith("same rent/size/postcode"));
+// Same as what gets pushed to your phone: a Match or Good flat (PUSHED_TIERS in app.py) that isn't a
+// repost of one you've seen (a flat's first ImmoScout24 ad after another site's isn't: "new on
+// immoscout, same rent/size/postcode as ...").
+const ALERTED = { match: "matches", good: "good" };  // tier -> its tab
+const alertWorthy = (l) => !!ALERTED[l.tier] && !l.notes.some((t) => t.startsWith("same rent/size/postcode"));
 function markTab() {
   const n = unseen.size;
-  document.title = n ? `(${n}) New match${n > 1 ? "es" : ""} · ${TITLE}` : TITLE;
+  document.title = n ? `(${n}) New flat${n > 1 ? "s" : ""} · ${TITLE}` : TITLE;
   $("favicon").href = icon(n > 0);
 }
 function clearTab() { if (unseen.size && looking()) { unseen.clear(); markTab(); } }
@@ -958,7 +966,7 @@ async function watchCheck() {
 function report(r) {
   if (!r?.forced) return;
   if (!r.checked.length) return toast("Nothing checked: every site is paused after blocking us.");
-  let text = r.matches ? `Check done: ${r.matches} new match${r.matches > 1 ? "es" : ""}.` : "Check done: no new matches.";
+  let text = r.matches ? `Check done: ${r.matches} new flat${r.matches > 1 ? "s" : ""}.` : "Check done: no new flats.";
   if (r.failed?.length) text += ` Couldn't check ${r.failed.map(sourceName).join(", ")}.`;
   toast(text);
 }
@@ -1007,14 +1015,15 @@ function banner(text, label, act) {  // without a label: a notice, no button
   bannerAct = act;
   $("banner").hidden = false;
 }
-function showMatches() {
-  Object.assign(state, { tab: "matches", shown: PAGE });
-  history.replaceState(null, "", "#matches");
+let newsTab = "matches";  // the tab the new-flats banner shows
+function showNews() {
+  Object.assign(state, { tab: newsTab, shown: PAGE });
+  history.replaceState(null, "", "#" + newsTab);
   render();
   scrollTo(0, 0);
 }
-// The new-matches banner goes away once they're on screen.
-function bannerSeen() { if (!stale && !update?.problem && state.tab === "matches" && scrollY < 50) $("banner").hidden = true; }
+// The new-flats banner goes away once they're on screen.
+function bannerSeen() { if (!stale && !update?.problem && state.tab === newsTab && scrollY < 50) $("banner").hidden = true; }
 // Worth a redraw: any change but when an ad was last seen online, and the score with the points
 // under it, which move on by themselves ("posted 5 h ago"); those come along with the next change.
 const shape = (l) => JSON.stringify({ ...l, last_seen: 0, score: 0, band: 0, why: 0 });
@@ -1045,7 +1054,8 @@ async function poll() {
       for (const l of fresh.filter(alertWorthy)) unseen.add(l.key);
       markTab();
     }
-    const matches = fresh.filter((l) => l.ok && !l.status).length;
+    const news = fresh.filter((l) => ALERTED[l.tier] && !l.status);
+    const matches = news.filter((l) => l.tier === "match").length, good = news.length - matches;
     const before = update;
     update = next.update;
     if (update?.problem) {
@@ -1053,8 +1063,11 @@ async function poll() {
     } else if (!update && (stale || (next.build && next.build !== BUILD))) {  // once it has restarted into the update
       stale = true;
       banner("homefind was updated.", "Reload", () => location.reload());
-    } else if (matches && (state.tab !== "matches" || scrollY >= 50)) {
-      banner(`${matches} new match${matches > 1 ? "es" : ""}`, "Show", showMatches);
+    } else if (news.length && (state.tab !== (matches ? "matches" : "good") || scrollY >= 50)) {
+      newsTab = matches ? "matches" : "good";  // Show goes to the new matches first
+      banner([matches && `${matches} new match${matches > 1 ? "es" : ""}`,
+              good && (matches ? `${good} good` : `${good} new good flat${good > 1 ? "s" : ""}`)].filter(Boolean).join(", "),
+             "Show", showNews);
     } else if (before?.problem) {
       $("banner").hidden = true;
     }

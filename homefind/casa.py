@@ -71,6 +71,7 @@ SAID = [
     (r"too residential", "Região bem residencial"),
     # the notes
     (r"heads-up: only ([\d.]+) room", r"Só \1 Zimmer"),
+    (r"heads-up: in the orange area", "Na região de segunda escolha"),
     (r"Nachmieter", "Nachmieter: o dono ainda precisa aceitar"),
     (r"asks for Ablöse", "Pede Ablöse"),
     (r"warm rent estimated", "Warmmiete estimada"),

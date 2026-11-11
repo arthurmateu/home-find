@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, urlsplit
 from . import app, apply, geo, keep, net, update
 from .notify import headline
 from .rating import band, info, rate
-from .rules import REASONS, dropped, street_budget, street_key, street_stretch
+from .rules import REASONS, dropped, street_budget, street_key, street_stretch, tier
 from .util import parse_published, stamp, street_of
 from .store import SAME_FLAT_DAYS, Row, Store
 
@@ -161,6 +161,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "images": keep.urls(cfg, listing),  # the kept copies, once fetched
             "description": listing.description,
             "ok": verdict.ok,
+            "tier": tier(listing, verdict, cfg),  # its tab, if it passed: match, good or sufficient
             **_state(flat),  # status, gone, gone_at, status_if_back, hide_at, applied_at, applied_by, stage
             # On several sites: each one's ad, this card's first. Empty when it's only on one.
             "ads": [{"key": r.listing.key, "source": r.listing.source, "url": r.listing.url, "gone": r.gone,

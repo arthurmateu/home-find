@@ -9,6 +9,7 @@ from .models import Listing
 from .rules import Verdict
 
 log = logging.getLogger("homefind")
+TIER_NAMES = {"match": "Match", "good": "Good", "sufficient": "Sufficient"}  # rules.tier's, as the web UI's tabs say them
 
 
 def headline(listing: Listing, verdict: Verdict | None = None) -> str:
@@ -55,13 +56,15 @@ class Notifier:
     def configured(self) -> bool:
         return bool(self.ntfy_topic or (self.tg_token and self.tg_chat))
 
-    def listing(self, listing: Listing, verdict: Verdict, score: int | None = None, notes=()) -> bool:
-        """`notes`: the score's notes (rating.residential), besides the verdict's own."""
+    def listing(self, listing: Listing, verdict: Verdict, score: int | None = None, notes=(), tier: str | None = None) -> bool:
+        """`notes`: the score's notes (rating.residential), besides the verdict's own. `tier`: rules.tier's."""
         body = [listing.title]
         body += [f"⚠ {f}" for f in verdict.flags]
         body += [f"· {n}" for n in (*verdict.notes, *notes)]
         body.append(f"via {listing.source}")
         title = headline(listing, verdict) if score is None else f"{score} pts · {headline(listing, verdict)}"
+        if tier:
+            title = f"{TIER_NAMES.get(tier, tier)} · {title}"
         return self.push(title, "\n".join(body), listing.url,
                          image=listing.image_url, warn=bool(verdict.flags))
 
