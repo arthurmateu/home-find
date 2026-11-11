@@ -49,10 +49,10 @@ SAID = [
     (r"detailed description", "Descrição detalhada"),
     (r"in the old area", "Na região preferida"),
     (r"on [^:]+$", "Numa rua de que gosto"),
-    (r"(~?[\d.]+) km from work", r"\1 km do trabalho"),
-    (r"(~?[\d.]+) km from ", r"\1 km de um lugar frequente"),
-    (r"work (\d+) min walk", r"Trabalho a \1 min a pé"),
-    (r".+ (\d+) min walk", r"Lugar frequente a \1 min a pé"),
+    (r"work:? ~?(\d+) min (walk|on foot)", r"Trabalho a \1 min a pé"),
+    (r"work:? ~?(\d+) min by (public )?transport", r"Trabalho a \1 min de transporte público"),
+    (r".+ ~?(\d+) min (walk|on foot)", r"Lugar frequente a \1 min a pé"),
+    (r".+ ~?(\d+) min by (public )?transport", r"Lugar frequente a \1 min de transporte público"),
     (r"scam warning signs", "Sinais de alerta"),
     (r"warm rent is an estimate", "Warmmiete estimada"),
     # the chips that go with them
@@ -205,14 +205,14 @@ def _chips(verdict, parts: list[rating.Part]) -> dict[str, list[str]]:
     return {name: list(dict.fromkeys(filter(None, group))) for name, group in (("heads", heads), ("nice", nice), ("info", info))}
 
 
-def _entry(flat: list[Row], cfg: dict, places: dict, folder: Path, known: dict) -> dict:
+def _entry(flat: list[Row], cfg: dict, places: dict, trips: dict, folder: Path, known: dict) -> dict:
     """Everything the page gets to know about a flat. No address, title, landlord, link or text from the
     ad, and nothing about your application but its date: the page is public to whoever has the link."""
     row, listing = flat[0], flat[0].listing
     place = geo.locate(listing, places)
     dates = [r.applied_at for r in flat if r.applied_at]
     rent = row.verdict.warm or listing.warm_rent
-    score, parts = rating.rate(listing, row.verdict, row.first_seen, cfg, place=place)
+    score, parts = rating.rate(listing, row.verdict, row.first_seen, cfg, place=place, trips=trips)
     return {
         "score": score,
         "band": rating.band(score),
@@ -236,7 +236,8 @@ def snapshot(cfg: dict, store: Store, folder: Path, known: dict) -> dict:
     """What the page shows: active applications first, then the latest."""
     places = store.places()
     flats = [f for f in web.flats(cfg, store) if any(r.applied for r in f)]
-    entries = [_entry(f, cfg, places, folder, known) for f in flats]
+    trips = store.trips()
+    entries = [_entry(f, cfg, places, trips, folder, known) for f in flats]
     entries.sort(key=lambda e: e["applied"] or "", reverse=True)
     entries.sort(key=lambda e: STAGE_ORDER.get(e["stage"], len(STAGE_ORDER)))
     return {"built": int(time.time() * 1000), "flats": entries}

@@ -209,7 +209,8 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False, applier=None) -
                     earlier = None
                 if earlier:
                     verdict.notes.append(f"same rent/size/postcode as {earlier}")
-                score, parts = rate(listing, verdict, stamp(), cfg, place=geo.locate(listing, store.places()))
+                score, parts = rate(listing, verdict, stamp(), cfg, place=geo.locate(listing, store.places()),
+                                    trips=store.trips())
                 print_match(listing, verdict, score)
                 level = tier(listing, verdict, cfg)
                 fresh = not first_run and not earlier

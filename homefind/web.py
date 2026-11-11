@@ -138,7 +138,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
         row = flat[0]
         listing, verdict, first_seen = row.listing, row.verdict, row.first_seen
         place = geo.locate(listing, places)
-        score, parts = rate(listing, verdict, first_seen, cfg, now, place)
+        score, parts = rate(listing, verdict, first_seen, cfg, now, place, trips)
         posted = parse_published(listing.published, first_seen)
         listings.append({
             "key": listing.key,

@@ -190,8 +190,10 @@ start (saved halfway through an edit, say) tries again every half minute.
   station (or its entrance) within 5 minutes on foot 4, a bus or tram stop
   within 2 minutes 2 · a supermarket within 5 minutes 10 · a park, woods, a
   lake, the Spree or the Landwehrkanal within 5 minutes 3 · near a place you
-  go every day (`[bonus] daily`, in `config.local.toml`; not one with `score = false`) up to 6: all of it
-  up to 2 km away in a straight line, none from 8 km, and 3 more with a chip on the card within 15 minutes on foot; minus scam signs, Ablöse, an estimated warm rent, semi-basement. ImmoScout Plus-only listings aren't
+  go every day (`[bonus] daily`, in `config.local.toml`) its own `points` (9 if it doesn't set them, none with
+  `score = false`): all of them up to 15 minutes door to door, on foot or by public transport, whichever is
+  quicker (as on the card), sliding to none from 40 minutes, so one place can count for more than another;
+  until BVG's planner has answered for a flat, its walk counts; minus scam signs, Ablöse, an estimated warm rent, semi-basement. ImmoScout Plus-only listings aren't
   marked down (you're a member). Tune it in `homefind/rating.py`. Push
   notifications start with the score.
   What's within walking distance needs the flat's house: ImmoScout24's pin
@@ -211,7 +213,7 @@ start (saved halfway through an edit, say) tries again every half minute.
   furnished, semi-basement, too residential, Altbau, ...); **Info**, how long
   each `[bonus] daily` place (work) takes, on foot or by public transport,
   whichever is quicker, and how far ("20 min by transport (5.4 km)"; in the
-  place's own colour, its `pill`, and under Pros within a 15-minute walk), and the
+  place's own colour, its `pill`, and under Pros within 20 minutes when it's worth points), and the
   nearest supermarket, U-Bahn, S-Bahn and bus stop (up to 30 minutes on foot;
   hover for the name and metres), unless they're under Pros, then the rest
   (private landlord, a street's own budget, on another site first, ...).
