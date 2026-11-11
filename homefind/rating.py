@@ -357,12 +357,13 @@ def _far(metres: float) -> str:
 
 
 def info(cfg: dict, listing: Listing, place: dict | None,
-         trips: dict | None = None) -> list[tuple[str, str, bool, str]]:
+         trips: dict | None = None) -> list[tuple[str, str, bool, str, bool]]:
     """How long each [bonus] daily place (work) takes, on foot or by public transport (`trips`:
     Store.trips), whichever is quicker; and the nearest supermarket, U-Bahn, S-Bahn and bus stop
-    on foot, whatever the score makes of it. As (chip, full text, pro, pill): `pro`, close enough
+    on foot, whatever the score makes of it. As (chip, full text, pro, pill, quick): `pro`, close enough
     to be a plus (work: QUICK_MINUTES or less, and worth points), so the card has it under Pros,
-    else under Info; `pill`, the daily place's colour on the card. The supermarket and stations need the house (see spot); with only
+    else under Info; `pill`, the daily place's colour on the card; `quick`, work QUICK_MINUTES or
+    less away, which the card puts in bold. The supermarket and stations need the house (see spot); with only
     the street or postcode known, work is measured from there, marked "~"."""
     at = spot(listing, place)
     rough = None if at or not place else (place["lat"], place["lon"])
@@ -380,21 +381,21 @@ def info(cfg: dict, listing: Listing, place: dict | None,
         if rough:
             full += (" (only the street is known, so from somewhere along it)" if place["precision"] == "street"
                      else " (only the area is known, so from its middle)")
-        pro = known and c.minutes <= QUICK_MINUTES and daily_points(daily) > 0
-        out.append((chip, full, pro, daily.get("pill", "")))
+        quick = known and c.minutes <= QUICK_MINUTES
+        out.append((chip, full, quick and daily_points(daily) > 0, daily.get("pill", ""), quick))
     for kinds, what, close in ((("supermarket",), "supermarket", SHOP_MINUTES), (("U",), "U-Bahn", RAIL_MINUTES),
                                (("S",), "S-Bahn", RAIL_MINUTES), (("bus",), "bus stop", STOP_MINUTES)):
         if not at or not nearby.known(cfg, kinds):
             continue
         found = nearby.walk(cfg, *at, kinds, INFO_MINUTES)
         if not found:
-            out.append((f"no {what} within {INFO_MINUTES} min", f"no {what} within {INFO_MINUTES} min on foot", False, ""))
+            out.append((f"no {what} within {INFO_MINUTES} min", f"no {what} within {INFO_MINUTES} min on foot", False, "", False))
             continue
         minutes, name, _, metres = found
         chip = name if what in ("U-Bahn", "S-Bahn") else what.split()[0]  # "U Wilmersdorfer Straße", "bus"
         full = f"{what} {name}" if what in ("supermarket", "bus stop") and name else name or f"a {what}"
         out.append((f"{chip} {minutes} min", f"{full}: about {minutes} min on foot ({_far(metres)} in a straight line)",
-                    minutes <= close, ""))
+                    minutes <= close, "", False))
     return out
 
 

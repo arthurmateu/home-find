@@ -213,7 +213,7 @@ start (saved halfway through an edit, say) tries again every half minute.
   furnished, semi-basement, too residential, Altbau, ...); **Info**, how long
   each `[bonus] daily` place (work) takes, on foot or by public transport,
   whichever is quicker, and how far ("20 min by transport (5.4 km)"; in the
-  place's own colour, its `pill`, and under Pros within 20 minutes when it's worth points), and the
+  place's own colour, its `pill`; within 20 minutes the time is in bold, and under Pros when it's worth points), and the
   nearest supermarket, U-Bahn, S-Bahn and bus stop (up to 30 minutes on foot;
   hover for the name and metres), unless they're under Pros, then the rest
   (private landlord, a street's own budget, on another site first, ...).
