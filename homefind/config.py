@@ -86,9 +86,8 @@ DEFAULTS: dict = {
     # a file of its own so it stays off GitHub (it's in .gitignore).
     "apply": {
         "profile": "apply.toml",
-        "min_score": 75,    # auto-apply: new matches scoring at least this
-        "max_per_day": 10,  # auto-apply "send": at most this many sent a day
-        "firefox": "",      # Firefox to open ads in (auto-apply); empty = Windows' one under WSL, else any
+        "max_per_day": 10,  # Full auto sends at most this many a day (counting ✉ Apply's sends)
+        "firefox": "",      # Firefox to open ads in (Full auto); empty = Windows' one under WSL, else any
     },
     # The read-only family page (see casa.py); off until host, remote_dir and url are all set.
     "casa": {

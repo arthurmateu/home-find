@@ -50,7 +50,7 @@ class Row(NamedTuple):
     status_if_back: str | None  # where it goes if it comes back online
     hide_at: str | None   # applied and offline: when it moves to Hidden
     applied_at: str | None  # when you marked it applied (None if before that was kept)
-    applied_by: str | None  # 'homefind': it sent the application by itself (auto-apply, see apply.py)
+    applied_by: str | None  # 'homefind': it sent the application by itself (Full auto or ✉ Apply + send, see apply.py)
     stage: str | None     # how far the application got: 'replied', 'viewing', 'turned_down' or 'got_it'
     stage_at: str | None  # when that was set
 

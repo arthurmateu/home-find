@@ -98,6 +98,8 @@ main { padding-top: 18px; padding-bottom: 80px; }
 .score.great { background: #1b7a4c; } .score.good { background: #2a67a8; } .score.ok { background: #8a6a14; }
 .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .sort { font-size: 14px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+.switches { display: inline-flex; gap: 4px; align-items: center; font-size: 14px; color: var(--muted); flex-wrap: wrap; }
+.switches .btn { padding: 4px 10px; font-size: 13px; }
 .sort select { font: inherit; font-size: 14px; color: var(--ink); background: var(--card); border: 1px solid var(--line);
                border-radius: 8px; padding: 5px 8px; }
 .toggles { display: flex; gap: 16px; flex-wrap: wrap; }
@@ -214,7 +216,11 @@ main { padding-top: 18px; padding-bottom: 80px; }
     </div>
     <div class="controls">
       <button class="btn" id="check" hidden>↻ Check now</button>
-      <label class="sort" id="auto-box" hidden>Auto-apply <select id="auto"></select></label>
+      <div class="switches" id="switches" role="group" aria-label="Applying" hidden>Apply
+        <button class="btn" data-switch="auto" aria-pressed="false" hidden>Full auto</button>
+        <button class="btn" data-switch="fill" aria-pressed="false">Autofill</button>
+        <button class="btn" data-switch="send" aria-pressed="false">Autofill + send</button>
+      </div>
       <a class="btn" id="helper" href="/homefind.user.js" hidden>Install Firefox helper</a>
       <label class="sort">Sort
         <select id="sort">
@@ -314,6 +320,7 @@ function normalize(d) {
   d.checks ??= { sources: [], loop: null };
   d.update ??= null;  // a homefind from before it restarted itself into updates doesn't say
   d.apply ??= null;
+  if (d.apply) d.apply.switches ??= { auto: (d.apply.mode ?? "off") !== "off", fill: true, send: false };  // a homefind from before them
   for (const l of d.listings) {
     l.why ??= []; l.score ??= 0; l.band ??= "weak"; l.posted ??= l.first_seen;
     l.images ??= []; l.codes ??= []; l.flags ??= []; l.notes ??= []; l.reasons ??= [];
@@ -544,13 +551,19 @@ function applyNote(l) {
   if (!a || a.step === "sent" || !data.apply) return "";
   return `<p class="applying${waitsForYou(l) ? " wait" : a.step === "failed" ? " bad" : ""}">${esc(a.note)}</p>`;
 }
-// ✉ Apply opens the ad in a new tab, where the helper fills in the form (#homefind=fill).
+// ✉ Apply opens the ad in a new tab, where the helper fills in the form (#homefind=fill), and sends it too with
+// Autofill + send on (#homefind=send). With both off, it only opens the ad.
+const applyHow = () => data.apply.switches.send ? "send" : data.apply.switches.fill ? "fill" : "";
 function applyButton(l) {
   if (!canApply(l) || l.status === "applied") return "";
   if (BUSY[l.applying?.step]) return `<button class="btn" disabled>${BUSY[l.applying.step]}</button>`;
-  const tip = data.apply.problem ? `Can't apply: ${data.apply.problem}`
-    : `Opens the ad in a new tab and fills in ${sourceName(l.source)}'s contact form there, for you to check and send`;
-  return `<a class="btn" data-act="fill" href="${esc(l.url)}#homefind=fill" target="_blank" rel="noopener" title="${esc(tip)}">✉ Apply</a>`;
+  const how = applyHow(), site = sourceName(l.source);
+  const tip = how && data.apply.problem ? `Can't apply: ${data.apply.problem}`
+    : { send: `Opens the ad in a new tab, fills in ${site}'s contact form there and sends it`,
+        fill: `Opens the ad in a new tab and fills in ${site}'s contact form there, for you to check and send`,
+        "": `Opens the ad in a new tab (Autofill is off: ✉ Fill in is in its corner there)` }[how];
+  return `<a class="btn" data-act="fill" data-how="${how}" href="${esc(l.url)}${how && `#homefind=${how}`}" target="_blank" ` +
+         `rel="noopener" title="${esc(tip)}">${how === "send" ? "✉ Apply + send" : "✉ Apply"}</a>`;
 }
 // Open ↗ goes to the card's ad (ImmoScout24's, while it's online there); on a flat that's on several sites,
 // ▾ beside it lists each one's ad. openSites: the card whose list is open (it stays open when the page redraws).
@@ -880,26 +893,32 @@ function renderStatus() {
   btn.textContent = btn.disabled && reachable ? "Checking…" : "↻ Check now";
 }
 
-// Auto-apply's mode, in the header (with --loop: it acts on new matches as they're found), and the
-// Firefox helper's install link, until it's installed (or when there's a newer one).
+// The applying switches in the header (see apply.py), and the Firefox helper's install link, until it's
+// installed (or when there's a newer one). Full auto only with --loop: it acts on new flats as they're found.
+const SWITCH_TIPS = {
+  auto: (a) => `New ImmoScout24 flats get opened in Firefox by themselves: a Match gets your message sent (at most ` +
+               `${a.max_per_day} a day; one with ⚠ warning signs only gets filled in), a Good one gets the form filled in, ` +
+               `for you to send. Sufficient ones are left alone.`,
+  fill: (a) => a.switches.send ? "On with Autofill + send." :
+               "✉ Apply opens the ad and fills in the form, for you to check and send. Off: it only opens the ad.",
+  send: () => "✉ Apply fills in the form and sends it too (unless it asks for something apply.toml doesn't say).",
+};
 function renderApply() {
   const a = data.apply;
   $("helper").hidden = !a || a.helper === "current";
-  $("auto-box").hidden = !a || !data.checks.loop;
+  $("switches").hidden = !a;
   if (!a) return;
   $("helper").textContent = a.helper === "outdated" ? "Update Firefox helper" : "Install Firefox helper";
   $("helper").title = "The Tampermonkey script that fills in ImmoScout24's and Immowelt's contact forms, and tells homefind once you've " +
                       "sent it. Click, then Install (Tampermonkey shows the script first).";
-  const sel = $("auto");
-  if (sel.options.length !== Object.keys(a.modes).length) {
-    sel.innerHTML = Object.entries(a.modes).map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join("");
+  for (const b of $("switches").querySelectorAll("[data-switch]")) {
+    const name = b.dataset.switch, on = a.switches[name] || (name === "fill" && a.switches.send);
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", String(on));
+    b.hidden = name === "auto" && !data.checks.loop;
+    b.disabled = !!a.problem || (name === "fill" && a.switches.send);
+    b.title = a.problem ? `Can't apply: ${a.problem}` : SWITCH_TIPS[name](a);
   }
-  if (document.activeElement !== sel) sel.value = a.mode;
-  sel.disabled = !!a.problem;
-  $("auto-box").title = a.problem ? `Can't apply: ${a.problem}` :
-    `For new ImmoScout24 matches scoring ${a.min_score} or more, without ⚠ warnings: homefind opens them in Firefox.\n` +
-    `Fill in, I send: their form gets filled in, for you to send.\n` +
-    `Send by itself: it sends them too (at most ${a.max_per_day} a day), and tells your phone.`;
 }
 async function post(path, body) {  // the error says what went wrong, in words
   let r;
@@ -911,11 +930,11 @@ async function post(path, body) {  // the error says what went wrong, in words
   if (!r.ok) throw new Error(r.status === 409 ? await r.text() : r.status === 404 && update ? updating() : `HTTP ${r.status}`);
 }
 // ✉ Apply: the link opens the ad; homefind hears of it, so the card can follow along.
-async function applying(key) {
+async function applying(key, how) {
   put(key, { applying: { step: "opening", note: "Opening the ad…", at: Date.now() / 1000 } });
   refresh();
   try {
-    await post("/api/apply", { key });
+    await post("/api/apply", { key, how });
   } catch (e) {
     toast(`homefind didn't hear of it: ${e.message}`);
   }
@@ -1164,22 +1183,27 @@ $("check").addEventListener("click", async () => {
   peers?.postMessage({ type: "check" });
   watchCheck();
 });
-$("auto").addEventListener("change", async () => {
-  const a = data.apply, mode = $("auto").value, before = a.mode;
-  if (mode === "send" && !confirm(`homefind will send your message from apply.toml to new ImmoScout24 matches scoring ` +
-                                  `${a.min_score} or more by itself, up to ${a.max_per_day} a day. Turn that on?`)) {
-    $("auto").value = before;
-    return;
-  }
-  a.mode = mode;
+$("switches").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-switch]");
+  if (!b || b.disabled) return;
+  const a = data.apply, name = b.dataset.switch, on = !a.switches[name], before = { ...a.switches };
+  if (on && name === "auto" && !confirm(`homefind will send your message from apply.toml to every new ImmoScout24 Match ` +
+      `by itself (up to ${a.max_per_day} a day), and fill in the form of every new Good one for you to send. Turn Full auto on?`)) return;
+  if (on && name === "send" && !confirm("✉ Apply will send your message from apply.toml as soon as the form is filled in, " +
+                                        "without you checking it first. Turn that on?")) return;
+  a.switches[name] = on;
+  renderApply();
+  refresh();  // the ✉ Apply buttons
   try {
-    await post("/api/apply-mode", { mode });
-    toast(mode === "off" ? "Auto-apply is off." : mode === "confirm"
-      ? `New matches scoring ${a.min_score}+ get their form filled in, for you to send.`
-      : `New matches scoring ${a.min_score}+ get your message sent by homefind.`);
+    await post("/api/apply-switches", { [name]: on });
+    const how = applyHow();
+    toast(name === "auto" ? (on ? "Full auto is on: new Matches get sent, Good ones filled in." : "Full auto is off.")
+      : how === "send" ? "✉ Apply sends your application too." : how === "fill" ? "✉ Apply fills in the form, for you to send."
+      : "✉ Apply only opens the ad.");
   } catch (e) {
-    a.mode = before;
+    a.switches = before;
     renderApply();
+    refresh();
     toast(`Couldn't change that: ${e.message}`);
   }
 });
@@ -1196,8 +1220,8 @@ $("grid").addEventListener("click", (e) => {
   if (act === "prev" || act === "next") step(l, act === "next" ? 1 : -1, cardEl);
   else if (act === "zoom") openViewer(l, photoAt.get(l.key) || 0);
   else if (act === "apply") setStatus(l.key, l.status === "applied" ? null : "applied", l.applied_at || undefined);  // from Hidden: keeps its date
-  else if (act === "fill") {
-    if (data.apply.problem) { e.preventDefault(); toast(`Can't apply: ${data.apply.problem}.`); } else applying(l.key);
+  else if (act === "fill" && el.dataset.how) {  // without: it only opens the ad
+    if (data.apply.problem) { e.preventDefault(); toast(`Can't apply: ${data.apply.problem}.`); } else applying(l.key, el.dataset.how);
   }
   else if (act === "hide") setStatus(l.key, l.status !== "hidden" ? "hidden" : wasApplied(l) ? "applied" : null, l.applied_at);
   else if (act === "sites") showSites(openSites === l.key ? null : l.key);

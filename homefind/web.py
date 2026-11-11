@@ -175,9 +175,9 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
         })
     return {"listings": listings, "highlight": cfg["run"].get("highlight_sources") or [],
             "checks": app.status(cfg, store, loop), "build": build(),
-            "apply": applier and {"mode": apply.mode(store), "modes": apply.MODES, "problem": applier.problem(),
-                                  "forms": list(apply.FORMS), "min_score": cfg["apply"]["min_score"],
-                                  "max_per_day": cfg["apply"]["max_per_day"], "helper": helper(store)},
+            "apply": applier and {"switches": apply.switches(store), "problem": applier.problem(),
+                                  "forms": list(apply.FORMS), "max_per_day": cfg["apply"]["max_per_day"],
+                                  "helper": helper(store)},
             "update": updater and updater.status()}  # homefind's code or config changed: see update.py
 
 
@@ -272,7 +272,7 @@ class Handler(BaseHTTPRequestHandler):
             body = None
         if not isinstance(body, dict):
             return self._send(400, b"bad request")
-        if path in ("/api/apply", "/api/apply-mode", "/api/apply-report"):
+        if path in ("/api/apply", "/api/apply-switches", "/api/apply-report"):
             return self._apply(path, body)
         if path == "/api/stage":
             return self._stage(body)
@@ -317,27 +317,32 @@ class Handler(BaseHTTPRequestHandler):
         self._for_flat(key, lambda store, k: store.set_stage(k, stage))
 
     def _apply(self, path: str, body: dict):
-        """✉ Apply on a card ({key}: it opened the ad for the Firefox helper), auto-apply's
-        mode ({mode}), and what the helper reports ({site, ad, step, ...}, see Applier.report)."""
+        """✉ Apply on a card ({key, how}: it opened the ad for the Firefox helper to fill in, or send),
+        the header's switches ({auto, fill, send}, any of them, see apply.SWITCHES), and what the
+        helper reports ({site, ad, step, ...}, see Applier.report)."""
         if not self.applier:
             return self._send(409, b"applying is off")
-        if path == "/api/apply-mode" and body.get("mode") not in apply.MODES:
-            return self._send(400, b"bad mode")
+        if path == "/api/apply-switches" and not (body and all(k in apply.SWITCHES and isinstance(v, bool)
+                                                               for k, v in body.items())):
+            return self._send(400, b"bad switches")
+        if path == "/api/apply" and body.get("how", "fill") not in ("fill", "send"):
+            return self._send(400, b"bad how")
         names = {"/api/apply": ("key",), "/api/apply-report": ("site", "ad")}.get(path, ())
         if not all(isinstance(body.get(n), str) for n in names):
             return self._send(400, b"bad request")
         if path == "/api/apply-report" and body.get("step") not in (*apply.STEPS, "form"):
             return self._send(400, b"bad step")
         with self._store() as store:
-            if path == "/api/apply-mode":
-                store.meta_set("apply_mode", body["mode"])
-                log.info("auto-apply: %s", apply.MODES[body["mode"]].lower())
+            if path == "/api/apply-switches":
+                now = apply.set_switches(store, body)
+                log.info("applying: Full auto %s, Autofill %s, Autofill + send %s",
+                         *("on" if now[k] else "off" for k in ("auto", "fill", "send")))
             elif path == "/api/apply-report":
                 found = self.applier.report(body["site"], body["ad"], body, store)
                 self._changed()  # it may have just been sent
                 return self._send(204 if found else 404)
             else:
-                self.applier.opened(body["key"])
+                self.applier.opened(body["key"], send=body.get("how") == "send")
         self._send(204)
 
 

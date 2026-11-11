@@ -138,8 +138,9 @@ start (saved halfway through an edit, say) tries again every half minute.
   all keep their own cards. `FIRST_CHOICE` in `homefind/web.py` is the site
   that's opened first.
 - **Descriptions:** per card, or "Expand descriptions" for all.
-- **✉ Apply** on ImmoScout24 and Immowelt cards, and **Auto-apply** in the
-  header: see [Applying](#applying) below.
+- **✉ Apply** on ImmoScout24 and Immowelt cards, and the **Full auto**,
+  **Autofill** and **Autofill + send** switches in the header: see
+  [Applying](#applying) below.
 - **How far it got:** a dropdown next to ✓ Applied, on the Applied tab and on
   ones hidden after applying: no answer yet, Replied, Viewing, Turned down or
   Got it. It goes for the flat on every site it's on.
@@ -243,7 +244,12 @@ Cards from the other sites have no ✉ Apply: apply to those on the site itself
 - **✉ Apply** on an ImmoScout24 or Immowelt card opens the ad in a new tab,
   fills in the form and stops at its send button: check it (change anything you
   like) and press it. The card says what it's up to, and moves to Applied once
-  the site says it's sent.
+  the site says it's sent. Two switches in the header say how far it goes:
+  - **Autofill** (on to start with): it fills in the form. Off, ✉ Apply only
+    opens the ad.
+  - **Autofill + send**: it presses the send button too (once ImmoScout24's
+    "Send in … s" has run down) and closes the tab; the button says
+    "✉ Apply + send". Not on an ad the site says you've been in touch about.
 - On any ImmoScout24 or Immowelt ad, **✉ Fill in** in the corner does the same.
   And whenever you send the form on an ad (filled in by hand or not), the helper
   tells homefind, which moves it to Applied: no Mark applied needed.
@@ -251,19 +257,22 @@ Cards from the other sites have no ✉ Apply: apply to those on the site itself
   pages, and the helper fills those in as they are. `apply.toml` names the
   fields the way ImmoScout24's German form does; the helper knows what they're
   called in English and on Immowelt (`SAME` in `homefind/apply.user.js`).
-- **Auto-apply** in the header (with `--loop`) opens new matches in Firefox by
-  itself: ImmoScout24 ones only (where you apply, see below), scoring at least
-  `min_score` (75), without ⚠ warnings, and not reposts (a flat that was on
-  another site first counts as new once it's on ImmoScout24).
-  - **Fill in, I send**: their form gets filled in, for you to send.
-  - **Send by itself**: the helper sends it too (once ImmoScout24's "Send in
-    … s" has run down), at most `max_per_day` (10) a day, closes the tab and
-    your phone gets "✓ Applied". Their badge says "Auto-applied".
+- **Full auto** in the header (with `--loop`) opens new flats in Firefox by
+  itself: ImmoScout24 ones only (where you apply, see below), and not reposts
+  (a flat that was on another site first counts as new once it's on
+  ImmoScout24). By tier:
+  - a **Match** gets your message sent: the helper sends it (once "Send in …
+    s" has run down), closes the tab and your phone gets "✓ Applied"; its
+    badge says "Auto-applied". At most `max_per_day` (10) a day, counting
+    ✉ Apply + send's; one with ⚠ warning signs, or past that, only gets
+    filled in.
+  - a **Good** one gets its form filled in, for you to send.
+  - **Sufficient** ones are left alone.
 
   A form that asks for something `apply.toml` doesn't cover, or finds you logged
   out, isn't sent: it's left open in Firefox, with the field named on the page,
-  on the card and (with Send by itself) on your phone. `min_score` and
-  `max_per_day` are under `[apply]` in `config.toml`.
+  on the card and (with Full auto) on your phone. `max_per_day` is under
+  `[apply]` in `config.toml`.
 
 Setting it up, once:
 
@@ -277,7 +286,7 @@ Setting it up, once:
    also updates it by itself, once a day).
 3. Be logged in to ImmoScout24 and Immowelt in Firefox.
 
-Auto-apply opens ads with Windows' Firefox (`firefox` under `[apply]` names
+Full auto opens ads with Windows' Firefox (`firefox` under `[apply]` names
 another). If a field doesn't get filled in, `data/apply-last.json` lists every
 field the last form had, with its label as the helper read it: that's the label
 to use in `apply.toml`.
@@ -372,8 +381,8 @@ Municipal and co-op listings skip the scam checks.
 
 Reposts, or the same flat on two portals (same warm rent, size and postcode
 within 30 days), are recorded but not pushed a second time. Except on
-ImmoScout24, where you apply: a flat's first ad there is pushed (and
-auto-applied to) even when another site had it first, saying so, unless you
+ImmoScout24, where you apply: a flat's first ad there is pushed (and taken
+by Full auto) even when another site had it first, saying so, unless you
 applied to it or hid it on that site. On the web page, the same flat on two
 portals shares one card (see above), which is flagged as new when its
 ImmoScout24 ad turns up.
@@ -383,7 +392,7 @@ ImmoScout24 ad turns up.
 - Sites change their markup; a source that breaks logs an error and the others keep running. Most parsers are ~50 lines in `homefind/sources/`.
 - The ImmoScout24 app API is unofficial. If it stops working, set up a saved search with e-mail alerts on immobilienscout24.de.
 - Automated access is against most portals' terms; the request rate above is kept low, keep it to personal use.
-- Auto-apply sends messages from your ImmoScout24 account under your name. ImmoScout may not like automated contact requests: keep `max_per_day` low.
+- Full auto and Autofill + send send messages from your ImmoScout24 account under your name. ImmoScout may not like automated contact requests: keep `max_per_day` low.
 - The contact form is filled in by its labels, as they are on screen; if a site renames one, update `apply.toml` (or `SAME` in `homefind/apply.user.js`, for an English or Immowelt name). If the helper stops filling in or noticing sends altogether, the site changed the page: `homefind/apply.user.js` needs a look.
 - Many good ImmoScout listings are "Plus members only" for their first days; the push says so.
 

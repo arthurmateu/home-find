@@ -114,7 +114,7 @@ def run_once(cfg: dict, store: Store, http, notifier: Notifier, only: set[str] |
              loop: Loop | None = None, applier=None) -> dict:
     """One pass. `scheduled` (the --loop mode) only runs sources that are due; `forced`
     (Check now) runs every one that isn't paused after the site blocked us. Tells `loop`
-    which source it's on, and `applier` (apply.Applier) of new matches, for auto-apply.
+    which source it's on, and `applier` (apply.Applier) of new flats, for Full auto.
     Returns the names checked, the ones that failed, and the counts."""
     now = time.time()
     if not dry_run and store.hide_due():
@@ -217,8 +217,8 @@ def _run_source(src, cfg, store, notifier, dry_run, quiet=False, applier=None) -
                     pushed = notifier.listing(listing, verdict, score, [p.label for p in parts if p.chip and not p.points],
                                               level)
             store.add(listing, verdict, notified=pushed)
-            if fresh and applier and level == "match":
-                applier.auto(listing, verdict, score, store)
+            if fresh and applier:
+                applier.auto(listing, verdict, level, store)
     except Blocked as e:
         if not dry_run:
             _blocked(store, src.name, _every(cfg, src.name), e)

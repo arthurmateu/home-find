@@ -4,14 +4,18 @@ page with what's in apply.toml, on the sites in FORMS (ImmoScout24, its German
 and English pages, and Immowelt), and tells homefind whenever a form is sent
 there, so the ad moves to Applied (also when you apply without it).
 
-✉ Apply on a card opens the ad in a new tab with #homefind=fill: the form gets
-filled in, for you to check and send. Auto-apply (Off / Fill in, I send / Send
-by itself, in the header) opens new matches in Firefox by itself: ImmoScout24
-ones (SOURCES) scoring at least apply.min_score, without ⚠ warnings and not
-reposts (a flat's first ad on ImmoScout24 isn't one, see app._first_here).
-"Send by itself" (#homefind=send) presses the send button too, at most
-apply.max_per_day a day; a form that asks for something apply.toml doesn't
-cover is left waiting for you instead.
+Three switches in the header (SWITCHES) say what it does by itself:
+- Autofill: ✉ Apply on a card opens the ad in a new tab with #homefind=fill: the
+  form gets filled in, for you to check and send. Off, it only opens the ad.
+- Autofill + send: ✉ Apply opens it with #homefind=send, which presses the send
+  button too.
+- Full auto: new flats that aren't reposts (a flat's first ad on ImmoScout24 isn't
+  one, see app._first_here) are opened in Firefox by themselves, ImmoScout24's
+  (SOURCES) only: a Match (rules.tier) gets sent (#homefind=send), at most
+  apply.max_per_day a day and only without ⚠ warnings; a Good one, or a Match
+  that can't be sent, gets the form filled in for you (#homefind=auto).
+A form that asks for something apply.toml doesn't cover is never sent: it's left
+waiting for you.
 
 The userscript reports each step (POST /api/apply-report), which the cards show.
 """
@@ -38,8 +42,9 @@ log = logging.getLogger("homefind")
 # has the ad: the userscript reports it that way (Immowelt's isn't homefind's id for the ad).
 FORMS = {"immoscout": re.compile(r"immobilienscout24\.de/(?:en/)?expose/(\d+)"),
          "immowelt": re.compile(r"immowelt\.de/expose/([\w-]+)")}
-SOURCES = ["immoscout"]  # where you apply: auto-apply opens new matches there, and a flat turning up there is news
-MODES = {"off": "Off", "confirm": "Fill in, I send", "send": "Send by itself"}
+SOURCES = ["immoscout"]  # where you apply: Full auto opens new flats there, and a flat turning up there is news
+SWITCHES = {"auto": False, "fill": True, "send": False}  # the header's switches (see above), and how they start
+AUTO_TIERS = ("match", "good")  # what Full auto opens: Matches to send, Good ones to fill in
 STEPS = ("opening", "filling", "ready", "sending", "sent", "failed")
 USERSCRIPT = Path(__file__).with_name("apply.user.js")
 FIREFOX = "/mnt/c/Program Files/Mozilla Firefox/firefox.exe"  # Windows' Firefox, from WSL
@@ -65,9 +70,19 @@ def load_profile(path: str) -> tuple[dict | None, str | None]:
     return {"message": message, "fields": data.get("form") or {}}, None
 
 
-def mode(store: Store) -> str:
-    m = store.meta_get("apply_mode")
-    return m if m in MODES else "off"
+def switches(store: Store) -> dict[str, bool]:
+    """The header's switches, as you last left them (see SWITCHES)."""
+    try:
+        saved = json.loads(store.meta_get("apply_switches") or "{}")
+    except ValueError:
+        saved = {}
+    return {name: bool(saved.get(name, on)) for name, on in SWITCHES.items()}
+
+
+def set_switches(store: Store, changes: dict[str, bool]) -> dict[str, bool]:
+    now = {**switches(store), **{k: bool(v) for k, v in changes.items() if k in SWITCHES}}
+    store.meta_set("apply_switches", json.dumps(now))
+    return now
 
 
 def version() -> str:
@@ -106,7 +121,7 @@ def open_in_firefox(url: str, configured: str = "") -> None:
 
 
 class Applier:
-    """Where each application is at (for the cards), auto-apply, and what the userscript reports."""
+    """Where each application is at (for the cards), Full auto, and what the userscript reports."""
 
     def __init__(self, cfg: dict, notifier: Notifier):
         self.cfg, self.opts, self.notifier = cfg, cfg["apply"], notifier
@@ -134,23 +149,27 @@ class Applier:
 
     def opened(self, key: str, auto: bool = False, send: bool = False) -> None:
         """The ad is opening in a new tab, for the userscript to fill in: ✉ Apply on a card
-        did that, or auto-apply (`auto`), which may be going to send it too (`send`)."""
+        did that, or Full auto (`auto`); either may be going to send it too (`send`)."""
         self.steps[key] = {"step": "opening", "note": "Opening the ad in Firefox…", "at": time.time(),
                            "auto": auto, "send": send}
 
-    def auto(self, listing, verdict, score: int, store: Store) -> None:
-        """A new match that isn't a repost: auto-apply opens it in Firefox if it's on and the match qualifies."""
-        how = mode(store)
-        if how == "off" or listing.source not in SOURCES or verdict.flags or score < self.opts["min_score"]:
+    def auto(self, listing, verdict, tier: str | None, store: Store) -> None:
+        """A new flat that isn't a repost, in `tier` (rules.tier): with Full auto on, it opens an ImmoScout24
+        Match in Firefox to send, a Good one to fill in."""
+        if not switches(store)["auto"] or listing.source not in SOURCES or tier not in AUTO_TIERS:
             return
         problem = self.problem()
         if problem:
-            log.warning("auto-apply is on, but %s", problem)
+            log.warning("Full auto is on, but %s", problem)
             return
-        send = how == "send" and self._sent_today(store) < self.opts["max_per_day"]
-        if how == "send" and not send:
-            log.info("auto-apply: %d sent today already (apply.max_per_day), only filling it in", self.opts["max_per_day"])
-        log.info("auto-apply (%s): %s, score %d", "send" if send else "fill in", listing.url, score)
+        send = tier == "match"
+        if send and verdict.flags:
+            log.info("Full auto: ⚠ %s, only filling it in", "; ".join(verdict.flags))
+            send = False
+        elif send and self._sent_today(store) >= self.opts["max_per_day"]:
+            log.info("Full auto: %d sent today already (apply.max_per_day), only filling it in", self.opts["max_per_day"])
+            send = False
+        log.info("Full auto (%s, %s): %s", tier, "send" if send else "fill in", listing.url)
         self.opened(listing.key, auto=True, send=send)
         open_in_firefox(f"{listing.url}#homefind={'send' if send else 'auto'}", self.opts.get("firefox") or "")
 
@@ -179,7 +198,7 @@ class Applier:
                 store.meta_set("apply_sent", f"{date.today().isoformat()} {self._sent_today(store) + 1}")
                 self.notifier.push(f"✓ Applied · {headline(listing)}", f"homefind sent your message: {listing.title}",
                                    listing.url)
-        elif s["step"] == "ready" and s["send"]:
+        elif s["step"] == "ready" and s["send"] and s["auto"]:
             self.notifier.push("Couldn't apply by itself", f"{headline(listing)}: {s['note']}", listing.url, warn=True)
         elif s["step"] == "failed" and s["auto"]:
             self.notifier.push("Couldn't apply", f"{headline(listing)}: {s['note']}", listing.url, warn=True)
