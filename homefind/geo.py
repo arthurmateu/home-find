@@ -19,7 +19,6 @@ from urllib.parse import urlencode
 
 from . import nearby, rating, transit
 from .net import OSM_UA, Blocked, Fetcher
-from .rules import dropped
 from .store import Store
 from .util import street_of
 
@@ -94,9 +93,9 @@ class Geocoder:
 
 
 def _shown(cfg: dict, store: Store) -> list:
-    """Listings the web UI shows, the ones you're likeliest to look at first
-    (Row.priority): applied, matches, rejected ones in the area, hidden, the rest."""
-    return sorted((r for r in store.all_rows() if not dropped(r.verdict, cfg)), key=lambda r: r.priority)
+    """Listings the web UI shows (Row.shown), the ones you're likeliest to look at first
+    (Row.priority): applied, the ones that pass, hidden, the rest."""
+    return sorted((r for r in store.all_rows() if r.shown), key=lambda r: r.priority)
 
 
 def fill(cfg: dict, store: Store, geocoder: Geocoder) -> int:

@@ -294,25 +294,23 @@ const TABS = [
   ["good", "Good", (l) => l.tier === "good" && !l.status],
   ["sufficient", "Sufficient", (l) => l.tier === "sufficient" && !l.status],
   ["applied", "Applied", (l) => l.status === "applied"],
-  ["rejected", "Rejected", (l) => !l.ok && !l.status],
   ["hidden", "Hidden", (l) => l.status === "hidden"],
 ];
 const SOURCES = { immoscout: "ImmoScout24", wggesucht: "WG-Gesucht", kleinanzeigen: "Kleinanzeigen", immowelt: "Immowelt",
                   inberlinwohnen: "inberlinwohnen", charlotte1907: "Charlotte 1907", watch: "the co-op pages" };
-// Ads taken offline get one of these tags (rejected ones are deleted instead; see Store.mark_gone in store.py).
+// Ads taken offline get one of these tags (see Store.mark_gone in store.py).
 const GONE = { deactivated: "Deactivated", deleted: "Deleted" };
 const EMPTY = {
   matches: "No matches right now: 2+ rooms in the red area. New ones show up here and on your phone.",
   good: "Nothing good right now: 1 room in the red area, or 2+ rooms in the orange one. New ones show up here and on your phone.",
   sufficient: "Nothing sufficient right now: 1 room in the orange area.",
   applied: "Nothing here yet. Flats you apply to with ✉ Apply, or mark applied after applying elsewhere, show up here.",
-  rejected: "Nothing rejected in the area.",
   hidden: "Nothing hidden.",
 };
 
 // Tolerate data from an older homefind process (fields added later default sensibly).
 function normalize(d) {
-  d.highlight ??= []; d.streets ??= [];
+  d.highlight ??= [];
   d.checks ??= { sources: [], loop: null };
   d.update ??= null;  // a homefind from before it restarted itself into updates doesn't say
   d.apply ??= null;
@@ -320,7 +318,7 @@ function normalize(d) {
     l.why ??= []; l.score ??= 0; l.band ??= "weak"; l.posted ??= l.first_seen;
     l.images ??= []; l.codes ??= []; l.flags ??= []; l.notes ??= []; l.reasons ??= [];
     l.gone ??= null; l.gone_at ??= null; l.status_if_back ??= null; l.hide_at ??= null; l.applied_at ??= null;
-    l.geo ??= null; l.locality ??= null; l.street ??= null; l.applied_by ??= null; l.applying ??= null; l.ads ??= [];
+    l.geo ??= null; l.locality ??= null; l.applied_by ??= null; l.applying ??= null; l.ads ??= [];
     l.stage ??= null; l.tier ??= l.ok ? "match" : null;
     if (l.status === "saved") l.status = "applied";  // Applied was called Saved
     if (l.status_if_back === "saved") l.status_if_back = "applied";
@@ -344,7 +342,6 @@ const state = { tab: "matches", picked: {}, menu: null, shown: PAGE, q: "", expa
                 sort: SORTS[prefs.get("sort", "score")] ? prefs.get("sort", "score") : "score" };
 const prevSeen = resume?.prevSeen ?? prefs.get("lastSeen", "");  // newest listing at the previous visit
 
-const inArea = (l) => !l.codes.includes("area") && !l.codes.includes("avoid");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const when = (iso) => iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
 
@@ -358,16 +355,6 @@ const cardOf = (key) => document.querySelector(`.card[data-key="${CSS.escape(key
 // something is picked, then whatever matches any of the picks. Different filters all have to match.
 function filtersFor(tab, list) {
   const out = [];
-  if (tab === "rejected") {
-    out.push(["where", "Where", false, [["in", "In area", inArea],
-                                        ...data.streets.map((s) => [`street:${s}`, s, (l) => l.street === s]),
-                                        ["out", "Outside area", (l) => !inArea(l)], ["any", "Anywhere", () => true]]]);
-    out.push(["reason", "Reason", true, Object.entries(data.reasons).filter(([c]) => c !== "area" && c !== "avoid")
-      .map(([c, label]) => [c, label, (l) => l.codes.includes(c)])]);
-    const sources = new Set([...list.flatMap((l) => adsOf(l).map((a) => a.source)), ...(picks(tab).source || [])]);
-    out.push(["source", "Provider", true, [...sources].sort((a, b) => sourceName(a).localeCompare(sourceName(b), "de"))
-      .map((s) => [s, sourceName(s), (l) => adsOf(l).some((a) => a.source === s)])]);
-  }
   if (tab === "hidden" && list.some((l) => l.gone)) {
     out.push(["show", "Show", false, [["all", "All", () => true], ["mine", "Hidden by you", (l) => !l.gone],
                                       ...Object.entries(GONE).map(([c, label]) => [c, label, (l) => l.gone === c])]]);
@@ -395,7 +382,7 @@ const fold = (s) => s.toLowerCase().replace(/ß/g, "ss").normalize("NFD").replac
 const texts = new WeakMap();  // listing -> its text, folded
 function text(l) {
   if (!texts.has(l)) {
-    texts.set(l, fold([l.headline, l.title, l.locality, l.street, l.landlord, ...adsOf(l).flatMap((a) => [sourceName(a.source), a.url]),
+    texts.set(l, fold([l.headline, l.title, l.locality, l.landlord, ...adsOf(l).flatMap((a) => [sourceName(a.source), a.url]),
                        l.description, ...l.reasons, ...l.flags, ...l.notes].filter(Boolean).join("\n")));
   }
   return texts.get(l);
@@ -1035,8 +1022,8 @@ async function poll() {
     if (!r.ok) throw new Error("HTTP " + r.status);
     const next = normalize(await r.json());
     reachable = true;
-    // The server's word counts (ads taken offline or back, applied ones moving to Hidden, rejected
-    // ones deleted), except for an Applied/Hide made here that hadn't reached it when it answered.
+    // The server's word counts (ads taken offline or back, applied ones moving to Hidden, ones gone for good),
+    // except for an Applied/Hide made here that hadn't reached it when it answered.
     for (const l of next.listings) {
       const cur = byKey.get(l.key);
       if (cur && (editedAt.get(l.key) ?? 0) >= sent) Object.assign(l, { status: cur.status, hide_at: cur.hide_at, applied_at: cur.applied_at, stage: cur.stage });
@@ -1283,7 +1270,8 @@ $("lb").addEventListener("touchend", (e) => {
 const fromHash = location.hash.slice(1).replace(/^saved$/, "applied");  // bookmarks from before the rename
 if (TABS.some((t) => t[0] === fromHash)) state.tab = fromHash;
 if (resume) {  // it reloaded itself into an update: as you left it
-  Object.assign(state, { tab: resume.tab, picked: resume.picked, q: resume.q, shown: resume.shown });
+  Object.assign(state, { picked: resume.picked, q: resume.q, shown: resume.shown });
+  if (TABS.some((t) => t[0] === resume.tab)) state.tab = resume.tab;  // not a tab that's gone since (Rejected)
   $("q").value = state.q;
   for (const key of resume.openDesc) openDesc.add(key);
   for (const [key, i] of resume.photoAt) photoAt.set(key, i);

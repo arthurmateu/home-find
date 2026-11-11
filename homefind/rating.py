@@ -1,10 +1,9 @@
 """A score for which listing to look at first: 0-100 for the basics, and the
 bonuses (floor, quiet side, [bonus] places, what's nearby) can take it past 100.
 
-Computed whenever it's shown (freshness changes by the hour), for rejected
-listings too: a flat that's great apart from being 5 % over budget still
-scores well, so it stands out on the Rejected tab. Hard rejections (swap, WBS,
-...) don't lower the score; they're shown separately.
+Computed whenever it's shown (freshness changes by the hour). Hard rejections
+(swap, WBS, ...) don't lower the score: those flats aren't shown, except ones
+you applied to before they'd be rejected.
 
 Points:  value (warm €/m²) 35 · fits the budget 15 (negative when over; streets in
          street_max_warm_rent have their own budget, and their €/m² count for less to match) · size 20 + rooms 10 (2+; 1.5 gets 4) ·

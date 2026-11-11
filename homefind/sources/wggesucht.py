@@ -30,8 +30,8 @@ class WgGesucht(Source):
         params = [("offer_filter", "1"), ("city_id", "8"), ("sort_order", "0"), ("noDeact", "1"),
                   ("categories[]", "1"), ("categories[]", "2"),
                   ("rent_types[]", "2"),  # 2 = unbefristet (1 = befristet, 3 = overnight stays)
-                  # WG-Gesucht filters on total rent; leave room for near misses (cold rent in range).
-                  ("rMax", str(int(self.fetch_cap * 1.3 if self.near_miss else self.fetch_cap)))]
+                  # WG-Gesucht filters on total rent.
+                  ("rMax", str(int(self.fetch_cap)))]
         params += [("ot[]", str(d)) for d in self.opts.get("districts", [126])]
         yield from self._parse_list(self.http.get(f"{BASE}/{LIST_PAGE}?{urlencode(params)}"))
 

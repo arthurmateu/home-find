@@ -4,36 +4,22 @@
 # to re-apply the rules to everything already stored.
 
 [search]
-max_warm_rent = 982          # € per month incl. Nebenkosten + Heizung: a match up to this
-# Over budget, a flat still shows under Rejected → "Over budget" up to this warm rent,
-# the most you'd pay; pricier ones are dropped unseen ("over_cap" in drop_reasons).
-stretch_warm_rent = 1200
+# A flat that fails any of these rules is stored, so it isn't loaded again, but never shown;
+# `python3 -m homefind --rejected 50` lists the latest, with why. One you applied to stays on
+# Applied, and on the family page, even if it would fail now.
+max_warm_rent = 982          # € per month incl. Nebenkosten + Heizung: anything over it is dropped
 # Streets worth paying more for: their own budget, and the score goes as much easier
-# on their price (1200 € there scores like 982 € elsewhere). Matched on the address,
+# on their price (1200 € there would score like 982 € elsewhere). Matched on the address,
 # or the title when there's none ("Wohnung am Ku'damm", not "nahe Ku'damm"); spellings
-# like Kantstr. / Kudamm are fine.
-street_max_warm_rent = { "Kurfürstendamm" = 1200, "Kantstraße" = 1200 }
-# Streets worth stretching for: flats there over their budget, up to this warm rent,
-# show under Rejected → "Kurfürstendamm (warm ≤ 1500 €)". Searches cover the whole
-# area, so they go up to the highest rent named here; elsewhere, flats over
-# stretch_warm_rent are dropped unseen ("over_cap" in drop_reasons).
-street_stretch_warm_rent = { "Kurfürstendamm" = 1500 }
-near_miss_cold_rent = 0      # with stretch_warm_rent = 0: also load flats with cold rent up to this; if
-                             # warm is over budget they show under Rejected → "Near miss", whatever it is
+# like Kantstr. / Kudamm are fine. The searches go up to the highest budget named here.
+street_max_warm_rent = {}    # e.g. { "Kurfürstendamm" = 1200 }
 min_size_sqm = 25            # drops micro-apartments / co-living rooms
-min_rooms = 1                # fewer show under Rejected → "Too few rooms"
+min_rooms = 1                # fewer are dropped
 wanted_rooms = 2             # fewer (1, 1.5): a tier down (Good, not Match), with a heads-up note
 have_wbs = false             # true = keep listings that need a Wohnberechtigungsschein
-                             # (with it false, also take "wbs" out of drop_reasons to see them under Rejected)
 coop_member = false          # true = keep co-op offers marked "members only"
 reject_furnished = true      # furnished in Berlin ≈ temporary + overpriced
 include_senior_housing = false  # "Wohnen ab 50/60", Seniorenwohnungen
-# Rejected for one of these reasons = not shown anywhere (not even under Rejected).
-# Codes: near_miss stretch budget edge over_cap no_rent size rooms swap wanted not_flat wg
-#        temporary furnished wbs members senior scam photos district area avoid
-# over_cap: over stretch_warm_rent (or the street's own stretch). avoid: outside the
-# area and its edge (see [area]). area: no idea where it is.
-drop_reasons = ["wg", "senior", "swap", "avoid", "wbs", "over_cap"]
 extra_costs_per_sqm = 2.5    # to estimate warm rent when only cold rent is given
 suspicious_below_eur_sqm = 10.0  # warm €/m²; new leases here are ~15–25 €/m²
 scam_threshold = 3           # scam points at which a listing is dropped (see homefind/rules.py)
@@ -43,9 +29,8 @@ scam_threshold = 3           # scam points at which a listing is dropped (see ho
 # taken by postcode: one at least half in the red is in zip_codes, else one at least half in
 # the red and orange together is in edge_zip_codes. In the red, flats with wanted_rooms (2) or
 # more are Matches and ones with fewer are Good; in the orange, they're Good and Sufficient
-# (see tier in homefind/rules.py). Every other postcode is outside the area: reason "avoid",
-# which is in drop_reasons, so those never show. Postcodes don't follow neighbourhood borders
-# exactly.
+# (see tier in homefind/rules.py). Every other postcode is outside the area: those never
+# show. Postcodes don't follow neighbourhood borders exactly.
 zip_codes = [  # red
   "10585", "10587", "10589", "10623", "10625", "10627", "10629", "14057", "14059",  # Charlottenburg
   "14050", "14052", "14053", "14055",                                               # Westend
@@ -145,7 +130,7 @@ every_minutes = 60
 [sources.immoscout]          # ImmoScout24 via its app API
 every_minutes = 15           # most matches come from here; one request per check when nothing's new
 check_per_run = 2            # offline lookups per check (4 checks an hour, so up to 8 an hour)
-geocodes = ["1276003001"]   # all of Berlin (~40 new ads a day under 1200 €); [area] sorts them
+geocodes = ["1276003001"]   # all of Berlin; [area] sorts them
 [sources.kleinanzeigen]
 every_minutes = 60
 locations = [{ slug = "berlin", id = 3331 }]  # all of Berlin; [area] sorts them

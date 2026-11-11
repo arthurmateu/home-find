@@ -13,7 +13,7 @@ from .apply import SOURCES
 from .net import Blocked
 from .rating import rate
 from .notify import Notifier, print_match, print_reject
-from .rules import dropped, evaluate, tier
+from .rules import evaluate, tier
 from .sources import enabled_sources
 from .store import APPLIED_OFFLINE_DAYS, SAME_FLAT_DAYS, Store
 from .util import stamp, text
@@ -271,12 +271,12 @@ def _find_offline(src, cfg: dict, store: Store, online: set[str]) -> list[str]:
 
 
 def _to_check(src, cfg: dict, store: Store) -> list:
-    """Ads to look up, most useful first (Row.priority: applied, matches, rejected
-    ones in the area, ones you hid, the rest); least recently seen first. Leaves out
-    ads seen online in the last CHECK_AFTER_HOURS and ones never shown (drop_reasons)."""
+    """Ads to look up, most useful first (Row.priority: applied, the ones that pass,
+    ones you hid); least recently seen first. Leaves out ads seen online in the last
+    CHECK_AFTER_HOURS and ones never shown (Row.shown)."""
     cutoff = stamp(datetime.now() - timedelta(hours=CHECK_AFTER_HOURS))
     due = [r for r in store.all_rows(src.name)
-           if not r.gone and r.last_seen < cutoff and not dropped(r.verdict, cfg) and src.can_look_up(r.listing)]
+           if not r.gone and r.last_seen < cutoff and r.shown and src.can_look_up(r.listing)]
     return sorted(due, key=lambda r: (r.priority, r.last_seen))
 
 

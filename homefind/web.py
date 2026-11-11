@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, urlsplit
 from . import app, apply, geo, keep, net, update
 from .notify import headline
 from .rating import band, info, rate
-from .rules import REASONS, dropped, street_budget, street_key, street_stretch, tier
+from .rules import street_key, tier
 from .util import parse_published, stamp, street_of
 from .store import SAME_FLAT_DAYS, Row, Store
 
@@ -66,10 +66,10 @@ def _lead(r: Row) -> tuple:
 
 
 def flats(cfg: dict, store: Store) -> list[list[Row]]:
-    """The listings the web UI shows (all but drop_reasons), newest first, grouped by flat: the
+    """The listings the web UI shows (Row.shown), newest first, grouped by flat: the
     same flat on several sites (see _copies) is one group, its lead first (see _lead). Where one
     site has two ads that could be it (identical flats in one building), all of them stay apart."""
-    rows = [r for r in store.all_rows() if not dropped(r.verdict, cfg)]
+    rows = [r for r in store.all_rows() if r.shown]
     alike = defaultdict(list)
     for r in rows:
         if r.verdict.warm and r.listing.size_sqm and (r.listing.zip_code or r.listing.district):
@@ -131,15 +131,6 @@ def build() -> str:
 
 def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: apply.Applier | None = None,
             updater: update.Updater | None = None) -> dict:
-    s = cfg["search"]
-    reasons = dict(REASONS)
-    if s.get("stretch_warm_rent"):
-        reasons["budget"] = f"Over budget (warm ≤ {s['stretch_warm_rent']:g} €)"
-    if s.get("near_miss_cold_rent"):
-        reasons["near_miss"] = f"Near miss (cold ≤ {s['near_miss_cold_rent']} €)"
-    if s.get("street_stretch_warm_rent"):
-        reasons["stretch"] = " / ".join(f"{street} (warm ≤ {budget:g} €)"
-                                        for street, budget in s["street_stretch_warm_rent"].items())
     now = datetime.now()
     places, trips = store.places(), store.trips()
     listings = []
@@ -160,7 +151,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "last_seen": row.last_seen,
             "images": keep.urls(cfg, listing),  # the kept copies, once fetched
             "description": listing.description,
-            "ok": verdict.ok,
+            "ok": verdict.ok,  # False: you applied to it, but it wouldn't pass any more (see Row.shown)
             "tier": tier(listing, verdict, cfg),  # its tab, if it passed: match, good or sufficient
             **_state(flat),  # status, gone, gone_at, status_if_back, hide_at, applied_at, applied_by, stage
             # On several sites: each one's ad, this card's first. Empty when it's only on one.
@@ -181,12 +172,8 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "posted": stamp(posted) if posted else first_seen,
             "geo": place and {k: place[k] for k in ("lat", "lon", "precision", "radius")},  # None until looked up
             "locality": geo.locality(listing, place),
-            "street": street_stretch(listing, cfg)[1] or street_budget(listing, cfg)[1],
         })
-    # Streets with a budget or stretch of their own, for the Where filter.
-    streets = list(dict.fromkeys([*(s.get("street_stretch_warm_rent") or {}), *(s.get("street_max_warm_rent") or {})]))
-    return {"listings": listings, "reasons": reasons, "streets": streets,
-            "highlight": cfg["run"].get("highlight_sources") or [],
+    return {"listings": listings, "highlight": cfg["run"].get("highlight_sources") or [],
             "checks": app.status(cfg, store, loop), "build": build(),
             "apply": applier and {"mode": apply.mode(store), "modes": apply.MODES, "problem": applier.problem(),
                                   "forms": list(apply.FORMS), "min_score": cfg["apply"]["min_score"],

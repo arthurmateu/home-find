@@ -26,18 +26,10 @@ class Source:
     @property
     def fetch_cap(self) -> float:
         """Price cap for searching: the highest budget, streets with their own
-        included, and what the rules file under Rejected when over budget (up to
-        search.stretch_warm_rent, near misses with cold rent within
-        search.near_miss_cold_rent). Searches cover the whole area, so what this
-        brings in over a listing's own limit the rules drop ("over_cap")."""
+        included. Searches cover the whole area, so what this brings in over a
+        listing's own budget the rules reject ("budget")."""
         s = self.cfg["search"]
-        streets = [*(s.get("street_max_warm_rent") or {}).values(), *(s.get("street_stretch_warm_rent") or {}).values()]
-        return float(max(s["max_warm_rent"], s.get("stretch_warm_rent") or 0, s.get("near_miss_cold_rent") or 0,
-                         *streets))
-
-    @property
-    def near_miss(self) -> bool:
-        return bool(self.cfg["search"].get("near_miss_cold_rent"))
+        return float(max([s["max_warm_rent"], *(s.get("street_max_warm_rent") or {}).values()]))
 
     def search(self, seen: Callable[[str], bool]) -> Iterator[Listing]:
         """`seen(key)` lets paginating sources stop once they reach known listings."""

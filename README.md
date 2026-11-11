@@ -87,14 +87,17 @@ start (saved halfway through an edit, say) tries again every half minute.
   blocked us shows up there as paused until when. **↻ Check now** checks
   every site straight away (except paused ones, to let the block wear off)
   and says what it found; only with `--loop`.
-- **Matches / Good / Sufficient / Applied / Rejected / Hidden** tabs (bookmarkable: `/#applied`).
+- **Matches / Good / Sufficient / Applied / Hidden** tabs (bookmarkable: `/#applied`).
   A flat that passes the rules goes on one of the first three, by where it is
   and how many rooms it has (`tier` in `homefind/rules.py`): **Matches** have 2+
   rooms (`wanted_rooms`) in the red area (`zip_codes`); **Good** have fewer
   there (1 or 1.5, or the ad doesn't say), or 2+ in the orange area round it
   (`edge_zip_codes`, "in the orange area" under Cons); **Sufficient** have
   fewer in the orange. New Matches and Good flats are pushed to your phone
-  (`PUSHED_TIERS` in `homefind/app.py`); Sufficient ones aren't.
+  (`PUSHED_TIERS` in `homefind/app.py`); Sufficient ones aren't. A flat that
+  fails a rule (over budget, outside the area, furnished, no rent stated, …,
+  see [Filtering](#filtering)) isn't shown at all, except one you applied to:
+  it stays on Applied, greyed out, with the rule it fails now on the card.
 - **Photos:** arrows on each card flip through all photos; click a photo for
   the full-screen viewer (arrow keys, swipe, thumbnail strip, Esc to close).
   Every photo of a flat you've applied to is kept in `data/photos/` (a folder
@@ -117,9 +120,7 @@ start (saved halfway through an edit, say) tries again every half minute.
   tab counts show how many hits each tab has. Esc or "Clear" empties it.
 - **Filters**, a dropdown each under the tabs: **Locality** on every tab
   (Ortsteil, from the address, else the portal's label; pick one or several),
-  and on Rejected also **Where** (in the area or on its edge, on Kurfürstendamm
-  or another street with its own budget, outside, anywhere),
-  **Reason** and **Provider** (pick several to see any of them). Each count
+  and on Hidden also **Show** (hidden by you, or taken offline). Each count
   in a menu is what you'd get by picking it, given the other filters; "Clear"
   resets the tab.
 - **ImmoScout24 cards stand out** with a coloured outline and badge
@@ -128,7 +129,7 @@ start (saved halfway through an edit, say) tries again every half minute.
   (or, once that's offline, one that's still online): the title and
   **Open ↗** go there, and **▾** next to Open lists its ad on each site. The
   line under the title names them all ("immoscout + immowelt"), as do the
-  search and the Provider filter. Mark applied and Hide go for every one of
+  search. Mark applied and Hide go for every one of
   them, and the card only counts as offline once all of them are. Same flat
   = same warm rent, size and postcode, first seen within 30 days of each
   other (`SAME_FLAT_DAYS` in `homefind/store.py`), with no cold rent, street
@@ -153,12 +154,12 @@ start (saved halfway through an edit, say) tries again every half minute.
   and when it was noticed, and filed away by themselves: ones you applied for
   stay on Applied for 2 days (`APPLIED_OFFLINE_DAYS` in `homefind/store.py`),
   then move to Hidden; Matches, Good and Sufficient ones move to Hidden right away; ones you hid stay
-  there; rejected ones are deleted for good. The Hidden tab gets a chip per
+  there; ones that fail the rules are deleted for good. The Hidden tab gets a chip per
   tag. If one comes back online, it moves back to where it was (a deleted one
   shows up as new).
   How it's found: each hourly check also looks up a few older ads
-  (`check_per_run`: 5, WG-Gesucht 2; applied first, then the three tiers, rejected ones
-  in the area, ones you hid, the rest; skipping any seen in the last 6 hours).
+  (`check_per_run`: 5, WG-Gesucht 2; applied first, then the three tiers, then
+  ones you hid; skipping any seen in the last 6 hours).
   inberlinwohnen goes through all its ~50 pages every 12 hours
   (`sweep_every_hours`) and charlotte1907's one page lists every offer, so
   anything missing there is gone. In between, inberlinwohnen's ads are looked
@@ -166,7 +167,7 @@ start (saved halfway through an edit, say) tries again every half minute.
   when applications have closed, often within hours, and the lookup also
   brings in the photos and text of ads stored before those were loaded.
   `--check-offline` does all of it at once (inberlinwohnen by its sweep).
-- **Score** (0–100, and bonuses can take it past 100) on every listing, rejected ones included, sorted best
+- **Score** (0–100, and bonuses can take it past 100) on every card, sorted best
   first (or newest / date applied / cheapest / largest). Hover the score (tap
   it on a phone) for its points:
   value for money (warm €/m²) 35 · budget fit 15 (negative when over) ·
@@ -223,23 +224,11 @@ start (saved halfway through an edit, say) tries again every half minute.
   known it's **too residential?**, from how many there are per km² across the
   postcode (fewer than 18, the same as 5 within 300 m), which is a good guess
   but doesn't know your street. Pushes say so too, when it's known by then.
-- **Over budget (warm ≤ 1200 €)** (a reason under Rejected) = everything fine
-  except the warm rent is over `max_warm_rent` (982 €), but within
-  `stretch_warm_rent` (1200 €, the most you'd pay); that's why the sources
-  search up to 1200 €. Pricier flats are dropped unseen. Sorted by score, the
-  ones worth a look come first. (`near_miss_cold_rent`, off now, does the
-  same by cold rent: **Near miss**.)
-- **Kurfürstendamm (warm ≤ 1500 €)** (a reason under Rejected) = the same for
-  a street worth stretching for (`street_stretch_warm_rent`): over its budget,
-  but within the stretch.
-- **Too few rooms** = under `min_rooms` (1). The searches don't filter on
-  rooms, so these do show up. Flats with fewer than `wanted_rooms` (2), so 1
+- **Rooms:** fewer than `min_rooms` (1) are dropped (the searches don't
+  filter on rooms). Flats with fewer than `wanted_rooms` (2), so 1
   or 1.5 rooms, go a tier down (Good in the red area, Sufficient in the
   orange), with "only 1 room" under Cons on the card ("heads-up: only 1 room"
   in the push); the score gives them no points for rooms (2+ get 10).
-- WG rooms, senior housing, swap offers, WBS-only flats and anything outside
-  the area and its edge don't show up at all (`drop_reasons` in
-  `config.toml`).
 
 ## Applying
 
@@ -308,7 +297,7 @@ Zimmer and Warmmiete, and only explains what's particular to Berlin.
   that isn't in it stays off the page (and is logged once). It has every flat you've marked applied, also the ones no longer on
   your Applied tab; the ones from before dates were kept sit behind a button.
 - **Not on it:** addresses, street and station names, titles, ad text and links,
-  landlords, Rejected and Hidden flats you didn't apply to, or anything from
+  landlords, flats you didn't apply to, or anything from
   `apply.toml`. `_entry` in `homefind/casa.py`
   is the whole list of what it gets.
 - **How it stays up to date:** homefind builds it as plain files in `data/casa/`
@@ -349,8 +338,10 @@ it to start over. The photos of flats you've applied to are in `data/photos/`.
 
 ## Filtering
 
-All in `homefind/rules.py`. **Hard rejects:** over budget (warm rent; estimated
-from cold rent at `extra_costs_per_sqm` if that's all there is), outside the
+All in `homefind/rules.py`. A flat that fails one of these is stored, so it
+isn't loaded again, but never shown (`--rejected` lists them, with why).
+**Hard rejects:** over budget (over `max_warm_rent`, 982 € warm; the warm rent is
+estimated from the cold rent at `extra_costs_per_sqm` if that's all there is), outside the
 area (by postcode: `zip_codes` is the red area, `edge_zip_codes` the orange one round it,
 every other postcode is dropped outright; the portal's neighbourhood label,
 `names` / `edge_names`, only when there is no postcode), a title naming
@@ -365,15 +356,11 @@ an ad rejected there (say "voll möbliert" in the title) keeps the search's
 data. Its rent is still checked: ImmoScout shows only the cold rent, so the
 warm rent is estimated from it ("warm ≈ … (estimated)" on the card).
 
-**Streets worth paying more for** (`street_max_warm_rent`, now Kurfürstendamm
-and Kantstraße at 1200 €): their own budget, and the score goes as much easier
-on their price. The street comes from the address, or from the title when
-there's none ("Wohnung am Ku'damm" counts, "nahe Ku'damm" doesn't).
-**Streets worth stretching for** (`street_stretch_warm_rent`, now Kurfürstendamm
-at 1500 €): flats there over budget but within it show under Rejected, with
-their own reason. Searches cover the whole area, so they go up to the highest of
-these rents; flats elsewhere that only that brings in are dropped unseen
-(`over_cap`).
+**Streets worth paying more for** (`street_max_warm_rent`, none now): their own
+budget, and the score goes as much easier on their price. The street comes from
+the address, or from the title when there's none ("Wohnung am Ku'damm" counts,
+"nahe Ku'damm" doesn't). The searches go up to the highest budget, and the rules
+reject what that brings in elsewhere.
 
 **Scam points** (rejected at `scam_threshold`, default 3; below it the match is
 sent with ⚠ warnings): money before viewing, keys by post, "I'm abroad",

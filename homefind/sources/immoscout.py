@@ -33,11 +33,10 @@ class ImmoScout(Source):
                     "searchType": "region",
                     "geocodes": geocodes,
                     "realestatetype": "apartmentrent",
-                    # With near misses on, filter on cold rent (a superset of warm <= budget).
                     "price": f"-{self.fetch_cap:.1f}",
-                    "pricetype": "rentpermonth" if self.near_miss else "calculatedtotalrent",
+                    "pricetype": "calculatedtotalrent",  # warm
                     "livingspace": f"{float(s['min_size_sqm']):.1f}-",
-                    # No rooms filter: flats with fewer than min_rooms show under Rejected.
+                    # No rooms filter: rules.py sorts them by rooms (min_rooms, wanted_rooms).
                     "exclusioncriteria": "swapflat",
                     "sorting": "-firstactivation",
                     "pagenumber": page,

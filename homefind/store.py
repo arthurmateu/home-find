@@ -66,9 +66,15 @@ class Row(NamedTuple):
         return self.status == "applied" or self.applied_at is not None or self.status_if_back == "applied"
 
     @property
+    def shown(self) -> bool:
+        """On the web page: it passes the rules (see rules.tier), or you applied to it (it stays on
+        Applied, and on the family page, even when it wouldn't pass any more)."""
+        return self.verdict.ok or self.applied
+
+    @property
     def priority(self) -> int:
-        """How soon you'd look at it, lowest first: applied, matches, rejected ones in the
-        area, ones you hid, the rest."""
+        """How soon you'd look at it, lowest first: applied, the ones that pass, rejected ones in
+        the area, ones you hid, the rest."""
         if self.status == "applied":
             return 0
         if self.status == "hidden":
@@ -159,7 +165,7 @@ class Store:
     def set_status(self, key: str, status: str | None, applied_at: str | None = None,
                    applied_by: str | None = None) -> bool:
         """Marked applied: records `applied_at` (and `applied_by`, if given). Hidden:
-        keeps what it had; back to Matches or Rejected: drops it."""
+        keeps what it had; back to its tier's tab: drops it."""
         with self.db:
             return self.db.execute("UPDATE listings SET status = ?, status_if_back = ?, hide_at = NULL,"
                                    " applied_at = CASE ? WHEN 'applied' THEN ? WHEN 'hidden' THEN applied_at END,"
