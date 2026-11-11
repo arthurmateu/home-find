@@ -282,7 +282,7 @@ class Handler(BaseHTTPRequestHandler):
             body = None
         if not isinstance(body, dict):
             return self._send(400, b"bad request")
-        if path in ("/api/apply", "/api/apply-switches", "/api/apply-report"):
+        if path in ("/api/apply", "/api/apply-cancel", "/api/apply-switches", "/api/apply-report"):
             return self._apply(path, body)
         if path == "/api/stage":
             return self._stage(body)
@@ -327,9 +327,10 @@ class Handler(BaseHTTPRequestHandler):
         self._for_flat(key, lambda store, k: store.set_stage(k, stage))
 
     def _apply(self, path: str, body: dict):
-        """✉ Apply on a card ({key, how}: it opened the ad for the Firefox helper to fill in, or send),
-        the header's switches ({auto, fill, send}, any of them, see apply.SWITCHES), and what the
-        helper reports ({site, ad, step, ...}, see Applier.report)."""
+        """✉ Apply on a card ({key, how}: it opened the ad for the Firefox helper to fill in, or send), its
+        Cancel ({key}: stop following that application, on every site the flat is on), the header's
+        switches ({auto, fill, send}, any of them, see apply.SWITCHES), and what the helper reports
+        ({site, ad, step, ...}, see Applier.report)."""
         if not self.applier:
             return self._send(409, b"applying is off")
         if path == "/api/apply-switches" and not (body and all(k in apply.SWITCHES and isinstance(v, bool)
@@ -337,7 +338,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(400, b"bad switches")
         if path == "/api/apply" and body.get("how", "fill") not in ("fill", "send"):
             return self._send(400, b"bad how")
-        names = {"/api/apply": ("key",), "/api/apply-report": ("site", "ad")}.get(path, ())
+        names = {"/api/apply": ("key",), "/api/apply-cancel": ("key",), "/api/apply-report": ("site", "ad")}.get(path, ())
         if not all(isinstance(body.get(n), str) for n in names):
             return self._send(400, b"bad request")
         if path == "/api/apply-report" and body.get("step") not in (*apply.STEPS, "form"):
@@ -347,6 +348,10 @@ class Handler(BaseHTTPRequestHandler):
                 now = apply.set_switches(store, body)
                 log.info("applying: Full auto %s, Autofill %s, Autofill + send %s",
                          *("on" if now[k] else "off" for k in ("auto", "fill", "send")))
+            elif path == "/api/apply-cancel":
+                for key in self._ads(store, body["key"]):
+                    self.applier.cancel(key)
+                log.info("apply %s: cancelled", body["key"])
             elif path == "/api/apply-report":
                 found = self.applier.report(body["site"], body["ad"], body, store)
                 self._changed()  # it may have just been sent

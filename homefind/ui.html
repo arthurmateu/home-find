@@ -569,16 +569,20 @@ function applyNote(l) {
 // ✉ Apply opens the ad in a new tab, where the helper fills in the form (#homefind=fill), and sends it too with
 // Autofill + send on (#homefind=send). With both off, it only opens the ad.
 const applyHow = () => data.apply.switches.send ? "send" : data.apply.switches.fill ? "fill" : "";
+// Cancel, while an application is under way or waiting for you: homefind stops following it (a tab closed
+// in the meantime would otherwise leave the card on "Filling in…" for minutes).
+const CANCEL = `<button class="btn" data-act="cancel-apply" title="Stop following this application here. If its tab is ` +
+               `still open in Firefox, close it there: a form sent from it still moves the flat to Applied.">Cancel</button>`;
 function applyButton(l) {
   if (!canApply(l) || l.status === "applied") return "";
-  if (BUSY[l.applying?.step]) return `<button class="btn" disabled>${BUSY[l.applying.step]}</button>`;
+  if (BUSY[l.applying?.step]) return `<button class="btn" disabled>${BUSY[l.applying.step]}</button>${CANCEL}`;
   const how = applyHow(), site = sourceName(l.source);
   const tip = how && data.apply.problem ? `Can't apply: ${data.apply.problem}`
     : { send: `Opens the ad in a new tab, fills in ${site}'s contact form there and sends it`,
         fill: `Opens the ad in a new tab and fills in ${site}'s contact form there, for you to check and send`,
         "": `Opens the ad in a new tab (Autofill is off: ✉ Fill in is in its corner there)` }[how];
   return `<a class="btn" data-act="fill" data-how="${how}" href="${esc(l.url)}${how && `#homefind=${how}`}" target="_blank" ` +
-         `rel="noopener" title="${esc(tip)}">${how === "send" ? "✉ Apply + send" : "✉ Apply"}</a>`;
+         `rel="noopener" title="${esc(tip)}">${how === "send" ? "✉ Apply + send" : "✉ Apply"}</a>${waitsForYou(l) ? CANCEL : ""}`;
 }
 // Open ↗ goes to the card's ad (ImmoScout24's, while it's online there); on a flat that's on several sites,
 // ▾ beside it lists each one's ad. openSites: the card whose list is open (it stays open when the page redraws).
@@ -962,6 +966,21 @@ async function applying(key, how) {
   poll();
 }
 
+async function cancelApplying(key) {
+  const before = byKey.get(key)?.applying;
+  put(key, { applying: null });
+  refresh();
+  try {
+    await post("/api/apply-cancel", { key });
+    toast("Cancelled. If its tab is still open in Firefox, close it there.");
+  } catch (e) {
+    put(key, { applying: before });
+    refresh();
+    toast(`Couldn't cancel that: ${e.message}`);
+  }
+  poll();
+}
+
 // While a check runs, the line above says which site it's on, and what each site found shows up as it finishes.
 let watching = false;
 async function watchCheck() {
@@ -1241,6 +1260,7 @@ $("grid").addEventListener("click", (e) => {
   if (act === "prev" || act === "next") step(l, act === "next" ? 1 : -1, cardEl);
   else if (act === "zoom") openViewer(l, photoAt.get(l.key) || 0);
   else if (act === "apply") setStatus(l.key, l.status === "applied" ? null : "applied", l.applied_at || undefined);  // from Hidden: keeps its date
+  else if (act === "cancel-apply") cancelApplying(l.key);
   else if (act === "fill" && el.dataset.how) {  // without: it only opens the ad
     if (data.apply.problem) { e.preventDefault(); toast(`Can't apply: ${data.apply.problem}.`); } else applying(l.key, el.dataset.how);
   }

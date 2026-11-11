@@ -153,6 +153,11 @@ class Applier:
         return any(now - s["at"] < (GONE_QUIET[s["step"]][0] if s["step"] in GONE_QUIET else ACTIVE_SECONDS)
                    for s in list(self.steps.values()) if s["step"] in ("opening", "filling", "ready", "sending"))
 
+    def cancel(self, key: str) -> None:
+        """Cancel on the card: it stops following the application. A tab still open in Firefox carries on
+        (it's for you to close): a form sent from it still moves the flat to Applied (see report)."""
+        self.steps.pop(key, None)
+
     def opened(self, key: str, auto: bool = False, send: bool = False) -> None:
         """The ad is opening in a new tab, for the userscript to fill in: ✉ Apply on a card
         did that, or Full auto (`auto`); either may be going to send it too (`send`)."""

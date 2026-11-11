@@ -256,7 +256,9 @@ Cards from the other sites have no ✉ Apply: apply to those on the site itself
 - **✉ Apply** on an ImmoScout24 or Immowelt card opens the ad in a new tab,
   fills in the form and stops at its send button: check it (change anything you
   like) and press it. The card says what it's up to, and moves to Applied once
-  the site says it's sent. Two switches in the header say how far it goes:
+  the site says it's sent; **Cancel** next to it stops following that (closing
+  the ad's tab is up to you), and a card Firefox has had no word on for 3
+  minutes gives up by itself. Two switches in the header say how far it goes:
   - **Autofill** (on to start with): it fills in the form. Off, ✉ Apply only
     opens the ad.
   - **Autofill + send**: it presses the send button too (once ImmoScout24's
