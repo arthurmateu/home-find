@@ -65,22 +65,28 @@ def _write(path: Path, body: bytes) -> None:
 
 def keep(cfg: dict, listing: Listing, copy) -> int:
     """Fetches the ad's photos it doesn't have yet; how many it got. `copy(url)`: the family
-    page's copy of a photo the site doesn't have any more (see casa.copies)."""
+    page's copy of a photo the site doesn't have any more (see casa.copies). That's looked for
+    again for the lost ones every time: it's only a look on disk, and the family page may have
+    been writing its list just then."""
     have = kept(cfg, listing.key)
-    todo = [u for u in listing.photo_urls() if u not in have]
-    if not todo:
-        return 0
     folder = root(cfg) / folder_name(listing.key)
-    folder.mkdir(parents=True, exist_ok=True)
     got = 0
-    for url in todo:
-        try:
-            photo = net.photo(url)
-        except OSError:  # tried again at the next sweep
+    for url in listing.photo_urls():
+        if have.get(url):
             continue
-        finally:
-            time.sleep(PHOTO_GAP_SECONDS)
-        photo = photo or copy(url)
+        if url in have:  # lost
+            photo = copy(url)
+            if not photo:
+                continue
+        else:
+            try:
+                photo = net.photo(url)
+            except OSError:  # tried again at the next sweep
+                continue
+            finally:
+                time.sleep(PHOTO_GAP_SECONDS)
+            photo = photo or copy(url)
+        folder.mkdir(parents=True, exist_ok=True)
         if photo:
             body, extension = photo
             have[url] = f"{sum(1 for name in have.values() if name) + 1:02d}{extension}"
