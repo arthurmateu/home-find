@@ -454,8 +454,8 @@ def _evaluate(listing: Listing, cfg: dict, final: bool) -> Verdict:
         v.notes.append(f"ImmoScout Plus members only until {sig['is24_plus_until']}")
     if sig.get("verified_landlord"):
         v.notes.append("identity-verified landlord")
-    if listing.private:
-        v.notes.append("private landlord")
+    if listing.private:  # no company behind the ad: on the card's Cons, in bold unless verified (see ui.html)
+        v.notes.append("private landlord" + ("" if sig.get("verified_landlord") else ", identity not verified"))
 
     v.ok = not v.reasons
     return v
