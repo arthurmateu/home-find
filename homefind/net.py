@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import gzip
+import http.client
 import json
 import random
 import time
@@ -16,6 +17,7 @@ BROWSER_UA = (
     "Chrome/128.0 Safari/537.36"
 )
 OSM_UA = "homefind/1.0 (personal flat search in Berlin)"  # OpenStreetMap's services want the app named, not a browser
+PHOTO_TYPES = {"image/webp": ".webp", "image/jpeg": ".jpg", "image/png": ".png"}
 
 
 class Blocked(Exception):
@@ -79,3 +81,21 @@ class Fetcher:
 
     def json(self, url, **kw):
         return json.loads(self.request(url, **kw))
+
+
+def photo(url: str) -> tuple[bytes, str] | None:
+    """A photo from an ad, and the file extension for it; None if the site doesn't have it (any
+    more), or it isn't a photo. Raises OSError when that couldn't be told (worth another try later)."""
+    request = urllib.request.Request(url, headers={"User-Agent": BROWSER_UA, "Accept": "image/webp,image/*;q=0.8"})
+    try:
+        with urllib.request.urlopen(request, timeout=25) as r:
+            body, kind = r.read(), r.headers.get_content_type()
+    except urllib.error.HTTPError as e:
+        if e.code in (404, 410):
+            return None
+        raise
+    except http.client.HTTPException as e:
+        raise OSError(e) from e
+    if kind not in PHOTO_TYPES or not body:
+        return None
+    return body, PHOTO_TYPES[kind]

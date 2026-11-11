@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import fcntl
 import hashlib
-import http.client
 import json
 import logging
 import re
@@ -20,18 +19,14 @@ import shutil
 import subprocess
 import threading
 import time
-import urllib.error
-import urllib.request
 from datetime import date
 from pathlib import Path
 
-from . import geo, rating, web
-from .net import BROWSER_UA
+from . import geo, net, rating, web
 from .store import Row, Store
 
 log = logging.getLogger("homefind")
 HERE = Path(__file__).parent
-PHOTO_TYPES = {"image/webp": ".webp", "image/jpeg": ".jpg", "image/png": ".png"}
 PHOTO_GAP_SECONDS = 0.5   # between two photos fetched from the portals
 POKE_DELAY_SECONDS = 20   # after a change on your page, in case more follow
 PIN_GRID = (0.003, 0.005)  # map pins are rounded to this, in degrees of latitude and longitude: about 330 m
@@ -154,22 +149,17 @@ def _photo(url: str, folder: Path, known: dict) -> str | None:
     the ad. `known` remembers them by address (None: the site doesn't have it any more)."""
     if url in known and (known[url] is None or (folder / known[url]).exists()):
         return known[url]
-    request = urllib.request.Request(url, headers={"User-Agent": BROWSER_UA, "Accept": "image/webp,image/*;q=0.8"})
     try:
-        with urllib.request.urlopen(request, timeout=25) as r:
-            body, kind = r.read(), r.headers.get_content_type()
-    except urllib.error.HTTPError as e:
-        if e.code in (404, 410):
-            known[url] = None
-        return None
-    except (OSError, http.client.HTTPException):  # tried again at the next build
+        got = net.photo(url)
+    except OSError:  # tried again at the next build
         return None
     finally:
         time.sleep(PHOTO_GAP_SECONDS)
-    if kind not in PHOTO_TYPES or not body:
+    if not got:
         known[url] = None
         return None
-    known[url] = hashlib.sha1(body).hexdigest()[:16] + PHOTO_TYPES[kind]
+    body, extension = got
+    known[url] = hashlib.sha1(body).hexdigest()[:16] + extension
     (folder / known[url]).write_bytes(body)
     return known[url]
 
