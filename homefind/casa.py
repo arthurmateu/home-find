@@ -29,6 +29,7 @@ log = logging.getLogger("homefind")
 HERE = Path(__file__).parent
 PHOTO_GAP_SECONDS = 0.5   # between two photos fetched from the portals
 POKE_DELAY_SECONDS = 20   # after a change on your page, in case more follow
+MAP_PICTURE = "map.webp"  # in data/casa/: a picture of the area, under Como ler (see build)
 PIN_GRID = (0.003, 0.005)  # map pins are rounded to this, in degrees of latitude and longitude: about 330 m
 STAGE_ORDER = {"got_it": 0, "viewing": 1, "replied": 2}  # these come first on the page
 
@@ -277,6 +278,12 @@ def build(cfg: dict, store: Store) -> Path:
     for p in (folder / "photos").iterdir():
         if p.name not in used:  # a flat that came off the page
             p.unlink()
+    picture = root / MAP_PICTURE  # yours, kept out of git: it may show where you work
+    if picture.exists():
+        shutil.copyfile(picture, folder / MAP_PICTURE)
+        data["map"] = f"{MAP_PICTURE}?v={int(picture.stat().st_mtime)}"  # a new picture isn't served from the phone's cache
+    else:
+        (folder / MAP_PICTURE).unlink(missing_ok=True)
     page = (HERE / "casa.html").read_text(encoding="utf-8")
     (folder / "index.html").write_text(page.replace("__DATA__", json.dumps(data, ensure_ascii=False).replace("</", "<\\/")),
                                        encoding="utf-8")

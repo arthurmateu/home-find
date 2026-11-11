@@ -311,7 +311,8 @@ It's written for someone who knows how German flats work, so it keeps terms like
 Zimmer and Warmmiete, and only explains what's particular to Berlin.
 
 - **On it:** how many applications, per week; a map of roughly where the flats
-  are; and a card per flat with photos, neighbourhood, rooms, size, warm rent, the
+  are; under "Como ler", a picture of your area if you put one at
+  `data/casa/map.webp` (it stays out of git, so it can show where you work); and a card per flat with photos, neighbourhood, rooms, size, warm rent, the
   day you applied, how far it got (the dropdown next to ✓ Applied), whether the ad
   is still up, its score with the points behind it, and its notes (heads-ups and
   extras). Those are translated by the table `SAID` in `homefind/casa.py`: a note

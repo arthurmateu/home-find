@@ -106,6 +106,7 @@ h2 { font-size: 20px; margin: 32px 0 10px; }
 .help ul { list-style: none; margin: 0; padding: 0; }
 .help li { margin-top: 4px; }
 .help li b { color: var(--ink); font-weight: 600; }
+.help dd img { display: block; width: 100%; height: auto; margin-top: 8px; border-radius: 12px; border: 1px solid var(--line); }
 .empty { color: var(--muted); margin-top: 16px; }
 .more { display: block; width: 100%; margin-top: 16px; padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
 button:focus-visible, a:focus-visible, .photos:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
@@ -142,6 +143,10 @@ button:focus-visible, a:focus-visible, .photos:focus-visible { outline: 2px soli
       <div id="areas" hidden>
         <dt>Os bairros</dt>
         <dd><ul id="area-list"></ul></dd>
+      </div>
+      <div id="area-map" hidden>
+        <dt>Os bairros no mapa</dt>
+        <dd>Toque no mapa para ampliar.<a id="area-map-link" target="_blank"><img id="area-map-img" alt="Mapa dos bairros onde procuro apê" loading="lazy"></a></dd>
       </div>
       <dt>Mapa</dt>
       <dd>Os pontos mostram só a região de cada apartamento, não o endereço.</dd>
@@ -318,6 +323,10 @@ const flatsIn = (area) => flats.filter((f) => f.area === area).length;
 const areas = Object.keys(AREAS).filter(flatsIn).sort((a, b) => flatsIn(b) - flatsIn(a));
 $("areas").hidden = !areas.length;
 $("area-list").innerHTML = areas.map((a) => `<li><b>${a}:</b> ${AREAS[a]}</li>`).join("");
+if (data.map) {  // a picture of the area (casa.MAP_PICTURE), when there is one
+  $("area-map-img").src = $("area-map-link").href = data.map;
+  $("area-map").hidden = false;
+}
 map();
 addEventListener("resize", map);
 
