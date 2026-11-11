@@ -37,6 +37,10 @@
   const adId = () => location.pathname.match(SITE.ad)?.[1];
   // A bot check in place of the ad (Immowelt's DataDome slider, ImmoScout24's own): the ad comes after it.
   const botCheck = () => !!document.querySelector('iframe[src*="captcha"], script[src*="captcha"], img[src*="captcha"], [id*="captcha" i]');
+  // ImmoScout24's security check, which can take the form's place once you press send: characters from a
+  // picture to type in ("Sicherheitsabfrage" / "Security check", then "Bestätigen"). The message isn't sent until then.
+  const securityCheck = () => [...document.querySelectorAll('img[src*="captcha"]')].some(shown) ||
+    [...document.querySelectorAll("h1, h2, h3, h4, h5")].some((h) => shown(h) && /^(sicherheitsabfrage|security check)$/i.test(textOf(h)));
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
   const norm = (s) => String(s ?? "").replace(/[*\s]+/g, " ").trim().toLowerCase();
   const digits = (s) => String(s ?? "").replace(/\D/g, "");
@@ -369,24 +373,41 @@
   }
 
   // ---- the form was sent (by you, or by `run`): it went through once the site says so, or the form
-  // closes without complaining. Ads homefind sent by itself close their tab after a few seconds.
+  // closes without complaining (and stays closed). A security check in its place (securityCheck) waits for you, for as long
+  // as it's up. Ads homefind sent by itself close their tab a few seconds after the site said it's sent,
+  // unless you had to pass a security check there.
   let watching = false;
   function watch(by, button) {
     if (watching || !adId()) return;
     watching = true;
     const press = sendName(button);
-    const before = new Set(sentTexts()), start = Date.now();
+    const before = new Set(sentTexts());
+    let start = Date.now(), checked = false, goneSince = null;
     const timer = setInterval(() => {
+      const confirmed = sentTexts().some((t) => !before.has(t));
+      if (!confirmed && securityCheck()) {
+        if (!checked) {
+          checked = true;
+          const note = `${SITE.name} wants a security check before it sends this: type in the characters from the picture ` +
+                       `in Firefox and confirm. homefind notices once it's sent.`;
+          say(note, "wait");
+          tell("ready", note);
+        }
+        start = Date.now();  // the time to say it's sent counts from when the check is gone
+        return;
+      }
       const complaints = [...document.querySelectorAll("[role=alert], [aria-invalid=true]")]
         .some((el) => shown(el) && (el.matches("[aria-invalid=true]") || textOf(el)));
-      const sent = sentTexts().some((t) => !before.has(t)) || (!messageBox() && !complaints);
+      // Gone without a word for a few seconds, not just between the form and a security check coming up.
+      goneSince = !messageBox() && !complaints ? goneSince ?? Date.now() : null;
+      const sent = confirmed || (goneSince !== null && Date.now() - goneSince >= 3000);
       if (!sent && Date.now() - start < (complaints ? 3000 : 20000)) return;
       clearInterval(timer);
       watching = false;
       if (sent) {
         say(by === "homefind" ? "✓ Sent by homefind." : "✓ Sent. homefind has it on Applied now.", "ok");
         tell("sent", by === "homefind" ? "Sent by homefind." : "Sent.", by);
-        if (by === "homefind") setTimeout(() => window.close(), 5000);
+        if (by === "homefind" && confirmed && !checked) setTimeout(() => window.close(), 5000);
       } else {
         const note = complaints ? `${SITE.name} didn't take the form: see what it says there.`
                                 : `Pressed ${press}, but ${SITE.name} didn't say it was sent: check the ad in Firefox.`;

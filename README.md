@@ -286,6 +286,12 @@ Cards from the other sites have no ✉ Apply: apply to those on the site itself
   on the card and (with Full auto) on your phone. `max_per_day` is under
   `[apply]` in `config.toml`.
 
+  When ImmoScout24 asks for a **security check** after Send (characters from a
+  picture to type in, then Bestätigen), the message isn't sent yet: the tab
+  stays open for you, the card (and, with Full auto, your phone) says so, and
+  it moves to Applied once ImmoScout24 says it's sent. The tab only closes by
+  itself when ImmoScout24 said it was sent straight away.
+
 Setting it up, once:
 
 1. Copy `apply.example.toml` to `apply.toml` and fill it in: the message, and
