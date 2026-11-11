@@ -49,9 +49,16 @@ STEPS = ("opening", "filling", "ready", "sending", "sent", "failed")
 USERSCRIPT = Path(__file__).with_name("apply.user.js")
 FIREFOX = "/mnt/c/Program Files/Mozilla Firefox/firefox.exe"  # Windows' Firefox, from WSL
 REPORT_SECONDS = 120  # an ad opened for the userscript that hasn't reported back by then: it isn't there
+QUIET_SECONDS = 180   # filling in or sending, with no word from the userscript since: its tab was closed
 ACTIVE_SECONDS = 1800  # an application that hasn't moved on since then isn't under way any more (see busy)
 NO_HELPER = ("Firefox didn't fill it in: is the homefind helper installed in Tampermonkey? "
              "(Install Firefox helper, in the header)")
+# A step the userscript has gone quiet on: how long that takes, and what the card says then (it failed).
+GONE_QUIET = {
+    "opening": (REPORT_SECONDS, NO_HELPER),
+    "filling": (QUIET_SECONDS, "Firefox stopped saying how filling in the form went: was its tab closed? ✉ Apply tries again."),
+    "sending": (QUIET_SECONDS, "Firefox stopped saying whether it was sent: check the ad in Firefox before applying again."),
+}
 
 
 def load_profile(path: str) -> tuple[dict | None, str | None]:
@@ -135,17 +142,16 @@ class Applier:
     def step(self, key: str) -> dict | None:
         """Where `key`'s application is at: {step, note, at}, or None."""
         s = self.steps.get(key)
-        if s and s["step"] == "opening" and time.time() - s["at"] > REPORT_SECONDS:
-            s.update(step="failed", note=NO_HELPER)
+        if s and s["step"] in GONE_QUIET and time.time() - s["at"] > GONE_QUIET[s["step"]][0]:
+            s.update(step="failed", note=GONE_QUIET[s["step"]][1])
         return s and {k: s[k] for k in ("step", "note", "at")}
 
     def busy(self) -> bool:
-        """An application is under way: on its way (opening, filling in, sending) or waiting for you to
-        send it, since less than ACTIVE_SECONDS. Restarting homefind now would lose track of it."""
+        """An application is under way: on its way (opening, filling in, sending; see GONE_QUIET) or waiting
+        for you to send it, since less than ACTIVE_SECONDS. Restarting homefind now would lose track of it."""
         now = time.time()
-        return any(s["step"] in ("opening", "filling", "ready", "sending")
-                   and now - s["at"] < (REPORT_SECONDS if s["step"] == "opening" else ACTIVE_SECONDS)
-                   for s in list(self.steps.values()))
+        return any(now - s["at"] < (GONE_QUIET[s["step"]][0] if s["step"] in GONE_QUIET else ACTIVE_SECONDS)
+                   for s in list(self.steps.values()) if s["step"] in ("opening", "filling", "ready", "sending"))
 
     def opened(self, key: str, auto: bool = False, send: bool = False) -> None:
         """The ad is opening in a new tab, for the userscript to fill in: ✉ Apply on a card
