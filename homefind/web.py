@@ -150,6 +150,7 @@ def payload(cfg: dict, store: Store, loop: app.Loop | None = None, applier: appl
             "first_seen": first_seen,  # this ad's: one on ImmoScout24 after another site had the flat is news
             "last_seen": row.last_seen,
             "images": keep.urls(cfg, listing),  # the kept copies, once fetched
+            "documents": keep.documents(cfg, listing),  # [{label, url}]: PDFs (floor plans, ...), kept likewise
             "description": listing.description,
             "ok": verdict.ok,  # False: you applied to it, but it wouldn't pass any more (see Row.shown)
             "tier": tier(listing, verdict, cfg),  # its tab, if it passed: match, good or sufficient
@@ -239,6 +240,13 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:
                 return self._send(404, b"not found")
             return self._send(200, body, PHOTO_EXTENSIONS[photo[3]])
+        document = re.fullmatch(r"/photos/(\w[\w.-]*)/([A-Za-z0-9][\w.-]*\.pdf)", path)  # a PDF kept by keep.py
+        if document:
+            try:
+                body = (keep.root(self.cfg) / document[1] / document[2]).read_bytes()
+            except OSError:
+                return self._send(404, b"not found")
+            return self._send(200, body, "application/pdf")
         if path in ("/api/listings", "/api/checks"):  # /api/checks: polled every few seconds while a check runs
             data = self._read(listings=path == "/api/listings")
             return self._send(200, json.dumps(data, ensure_ascii=False).encode(), "application/json; charset=utf-8")

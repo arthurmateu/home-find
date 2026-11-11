@@ -136,6 +136,8 @@ main { padding-top: 18px; padding-bottom: 80px; }
 .minimap .credit { position: absolute; right: 0; bottom: 0; z-index: 2; font-size: 10px; line-height: 1.5; padding: 0 5px;
                    border-top-left-radius: 4px; background: rgba(255, 255, 255, .75); color: #333; text-decoration: none; }
 @media (prefers-color-scheme: dark) { .minimap .credit { background: rgba(0, 0, 0, .6); color: #bbb; } }
+.docs { margin: 0; font-size: 13px; color: var(--muted); }
+.docs a { color: inherit; }
 .reasons { margin: 0; color: var(--bad); background: var(--bad-bg); padding: 6px 8px; border-radius: 8px; font-size: 13px; }
 .offline { margin: 0; color: var(--muted); font-size: 13px; font-weight: 600; }
 .applying { margin: 0; font-size: 13px; padding: 6px 8px; border-radius: 8px; background: var(--chip); color: var(--ink); }
@@ -326,7 +328,7 @@ function normalize(d) {
     l.images ??= []; l.codes ??= []; l.flags ??= []; l.notes ??= []; l.reasons ??= [];
     l.gone ??= null; l.gone_at ??= null; l.status_if_back ??= null; l.hide_at ??= null; l.applied_at ??= null;
     l.geo ??= null; l.locality ??= null; l.applied_by ??= null; l.applying ??= null; l.ads ??= [];
-    l.stage ??= null; l.tier ??= l.ok ? "match" : null;
+    l.stage ??= null; l.tier ??= l.ok ? "match" : null; l.documents ??= [];
     if (l.status === "saved") l.status = "applied";  // Applied was called Saved
     if (l.status_if_back === "saved") l.status_if_back = "applied";
   }
@@ -607,6 +609,9 @@ function stagePicker(l) {
          STAGES.map(([v, t]) => `<option value="${v}"${(l.stage ?? "") === v ? " selected" : ""}>${t}</option>`).join("") + `</select>`;
 }
 
+// The PDFs the ad links to (ImmoScout24's floor plans, ...): kept copies on ones you applied to (see keep.py).
+const docs = (l) => l.documents.length ? `<p class="docs">📄 ${l.documents.map((d) =>
+  `<a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.label.replace(/\.pdf$/i, "") || "PDF")}</a>`).join(" · ")}</p>` : "";
 function card(l) {
   const n = l.images.length;
   const i = Math.min(photoAt.get(l.key) || 0, Math.max(n - 1, 0));
@@ -648,6 +653,7 @@ function card(l) {
       ${gone && applied && l.hide_at ? `<p class="offline">⊘ Offline: moves to Hidden ${esc(when(l.hide_at))}</p>` : ""}
       ${l.ok ? "" : `<p class="reasons" title="${esc(l.reasons.join("; "))}">✗ ${esc(l.reasons.map(shortReason).join(" · "))}</p>`}
       ${notes ? `<div class="notes">${notes}</div>` : ""}
+      ${docs(l)}
       ${desc}
       ${applyNote(l)}
       <div class="actions">

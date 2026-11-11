@@ -105,7 +105,12 @@ start (saved halfway through an edit, say) tries again every half minute.
   your application, so they're still there when the ad is deleted, as ads
   often are within hours. Its card shows those copies. A photo the site no
   longer had gets the family page's smaller copy, if it has one
-  (`homefind/keep.py`).
+  (`homefind/keep.py`). Floor plans that ImmoScout24 shows as photos are among
+  them; the PDFs an ImmoScout24 ad links to ("Weitere Dokumente": often a floor
+  plan of the whole flat, the energy certificate) are kept in the same folder,
+  named after their label, and linked on every card under 📄 (the site's copy
+  until it's kept). Ads stored before PDFs were read get theirs when they're
+  next looked up to see if they're still online.
 - **Mini-map**: hover the 📍 neighbourhood line on a card (tap it on a phone)
   and a map pops up, with a pin at the address, or a dashed circle when only
   the postcode is known; click the map for Google Maps. Addresses are looked up
@@ -343,7 +348,7 @@ python3 -m homefind --casa-new-link  # replace that link (the old one stops work
 ```
 
 State (listings, verdicts, applied/hidden) lives in `data/homefind.db`; delete
-it to start over. The photos of flats you've applied to are in `data/photos/`.
+it to start over. The photos and PDFs of flats you've applied to are in `data/photos/`.
 
 ## Filtering
 

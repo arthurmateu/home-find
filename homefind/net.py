@@ -83,19 +83,37 @@ class Fetcher:
         return json.loads(self.request(url, **kw))
 
 
-def photo(url: str) -> tuple[bytes, str] | None:
-    """A photo from an ad, and the file extension for it; None if the site doesn't have it (any
-    more), or it isn't a photo. Raises OSError when that couldn't be told (worth another try later)."""
-    request = urllib.request.Request(url, headers={"User-Agent": BROWSER_UA, "Accept": "image/webp,image/*;q=0.8"})
+DOCUMENT_MAX_BYTES = 50_000_000
+
+
+def _download(url: str, accept: str, most: int = -1) -> tuple[bytes, str] | None:
+    """The file and its media type; None if the site doesn't have it (any more). Raises OSError when
+    that couldn't be told (worth another try later)."""
+    request = urllib.request.Request(url, headers={"User-Agent": BROWSER_UA, "Accept": accept})
     try:
         with urllib.request.urlopen(request, timeout=25) as r:
-            body, kind = r.read(), r.headers.get_content_type()
+            return r.read(most), r.headers.get_content_type()
     except urllib.error.HTTPError as e:
         if e.code in (404, 410):
             return None
         raise
     except http.client.HTTPException as e:
         raise OSError(e) from e
-    if kind not in PHOTO_TYPES or not body:
+
+
+def photo(url: str) -> tuple[bytes, str] | None:
+    """A photo from an ad, and the file extension for it; None if the site doesn't have it (any
+    more), or it isn't a photo. Raises OSError when that couldn't be told (worth another try later)."""
+    got = _download(url, "image/webp,image/*;q=0.8")
+    if not got or got[1] not in PHOTO_TYPES or not got[0]:
         return None
-    return body, PHOTO_TYPES[kind]
+    return got[0], PHOTO_TYPES[got[1]]
+
+
+def document(url: str) -> bytes | None:
+    """A PDF an ad links to (a floor plan, say); None if the site doesn't have it (any more), or it
+    isn't a PDF (or one over DOCUMENT_MAX_BYTES). Raises OSError like photo."""
+    got = _download(url, "application/pdf", DOCUMENT_MAX_BYTES + 1)
+    if not got or not got[0].startswith(b"%PDF") or len(got[0]) > DOCUMENT_MAX_BYTES:
+        return None
+    return got[0]

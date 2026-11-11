@@ -23,6 +23,7 @@ class Listing:
     landlord: str | None = None
     image_url: str | None = None     # first photo (thumbnail-sized is fine)
     images: list = field(default_factory=list)  # all photos, large versions
+    documents: list = field(default_factory=list)  # [{label, url}]: PDFs the ad links to (floor plans, ...)
     description: str = ""
     trusted: bool = False            # municipal / co-op landlord: skip scam heuristics
     signals: dict = field(default_factory=dict)  # source-specific facts rules.py understands

@@ -19,6 +19,13 @@ APP_UA = "ImmoScout_27.12_26.2_._"
 HEADERS = {"Accept": "application/json"}
 
 
+def documents(d: dict) -> list[dict]:
+    """The PDFs an ad links to, under "Weitere Dokumente": a floor plan of the whole flat, the energy certificate, ..."""
+    return [{"label": ref.get("label") or "", "url": ref["url"]}
+            for sec in d.get("sections", []) if sec.get("type") == "REFERENCE_LIST"
+            for ref in sec.get("references", []) if ref.get("type") == "PDF" and ref.get("url")]
+
+
 class ImmoScout(Source):
     name = "immoscout"
     needs_enrich = True
@@ -121,6 +128,7 @@ class ImmoScout(Source):
                 if pin.get("lat") and re.search(r"\d", street_of(addr) or ""):  # the house's, not the postcode's middle
                     listing.signals["geo"] = [pin["lat"], pin["lng"]]
         listing.description = "\n".join(texts)
+        listing.documents = documents(d)
         wbs = next((v for k, v in attrs.items() if "WBS" in k or "Wohnberechtigungsschein" in k), None)
         if wbs is not None:
             listing.wbs_required = wbs.strip().lower() in ("ja", "erforderlich")
@@ -130,4 +138,7 @@ class ImmoScout(Source):
         d = self.http.json(f"{API}/expose/{listing.id}", ua=APP_UA, headers=HEADERS)  # 404 once deleted
         # The report link says "publicationState=live" on ads that are up.
         state = re.search(r"publicationState=(\w+)", (d.get("header") or {}).get("fraudReportUrl") or "")
-        return "deactivated" if state and state.group(1).lower() != "live" else None
+        if state and state.group(1).lower() != "live":
+            return "deactivated"
+        listing.documents = documents(d) or listing.documents  # ads stored before these were kept get them now
+        return None

@@ -1,4 +1,5 @@
-"""Every photo of the flats you've applied to, kept in data/photos/, so they outlive the ad.
+"""Every photo of the flats you've applied to, and the PDFs their ad links to (ImmoScout24's
+floor plans, see Listing.documents), kept in data/photos/, so they outlive the ad.
 Landlords often take an ad down within hours, sometimes right after inviting you to a
 viewing, and the portals delete its photos with it.
 
@@ -7,8 +8,9 @@ a flat applied or the Firefox helper sends an application (see Keeper.poke), and
 SWEEP_MINUTES for any a site didn't answer for. That's for the flat's ad on every site it's
 on. Each ad gets a folder (immoscout-172530239) with its photos, 01.webp, 02.jpg, ..., in the
 ad's order, and kept.json: each photo's address and its file there, or None if the site
-didn't have it any more and neither did the family page (casa.copies). The web UI shows the
-kept ones (see urls).
+didn't have it any more and neither did the family page (casa.copies). Its PDFs are there too,
+named after their label on the ad (JG_12_GR_Vermietung.pdf), listed in documents.json the same
+way. The web UI shows the kept ones (see urls and documents).
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ import os
 import re
 import threading
 import time
+import unicodedata
 from pathlib import Path
 
 from . import casa, net, web
@@ -29,6 +32,7 @@ log = logging.getLogger("homefind")
 SWEEP_MINUTES = 15       # how often it looks again, besides right after you apply
 PHOTO_GAP_SECONDS = 0.5  # between two photos fetched from the portals
 INDEX = "kept.json"
+DOCUMENTS = "documents.json"
 
 
 def root(cfg: dict) -> Path:
@@ -40,10 +44,11 @@ def folder_name(key: str) -> str:
     return re.sub(r"[^\w.-]", "_", key.replace(":", "-", 1))
 
 
-def kept(cfg: dict, key: str) -> dict[str, str | None]:
-    """The ad's photos looked for so far: address -> file name, or None if the site didn't have it any more."""
+def kept(cfg: dict, key: str, index: str = INDEX) -> dict[str, str | None]:
+    """The ad's photos (or with DOCUMENTS, PDFs) looked for so far: address -> file name, or None if
+    the site didn't have it any more."""
     try:
-        return json.loads((root(cfg) / folder_name(key) / INDEX).read_text(encoding="utf-8"))
+        return json.loads((root(cfg) / folder_name(key) / index).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
@@ -56,6 +61,24 @@ def urls(cfg: dict, listing: Listing) -> list[str]:
             for u in listing.photo_urls() if u not in have or have[u]]
 
 
+def documents(cfg: dict, listing: Listing) -> list[dict]:
+    """The ad's PDFs for the web UI, [{label, url}]: the kept copy where there is one, else the site's."""
+    have, folder = kept(cfg, listing.key, DOCUMENTS), folder_name(listing.key)
+    return [{"label": d["label"], "url": f"/photos/{folder}/{have[d['url']]}" if have.get(d["url"]) else d["url"]}
+            for d in listing.documents]
+
+
+def document_name(label: str, taken) -> str:
+    """A file name for a PDF, from its label on the ad: "Grundriß 2. OG.pdf" -> "Grundri_2._OG.pdf"
+    ("Grundriss" in ASCII as far as it goes); not one of `taken`."""
+    ascii_label = unicodedata.normalize("NFKD", re.sub(r"\.pdf$", "", label, flags=re.I)).encode("ascii", "ignore").decode()
+    stem = re.sub(r"[^A-Za-z0-9.-]+", "_", ascii_label).strip("._-")[:80] or "document"
+    name, n = f"{stem}.pdf", 2
+    while name in taken:
+        name, n = f"{stem}-{n}.pdf", n + 1
+    return name
+
+
 def _write(path: Path, body: bytes) -> None:
     """All of it or nothing, should homefind restart halfway (see update.py)."""
     part = path.with_name(path.name + ".part")
@@ -64,7 +87,7 @@ def _write(path: Path, body: bytes) -> None:
 
 
 def keep(cfg: dict, listing: Listing, copy) -> int:
-    """Fetches the ad's photos it doesn't have yet; how many it got. `copy(url)`: the family
+    """Fetches the ad's photos and PDFs it doesn't have yet; how many it got. `copy(url)`: the family
     page's copy of a photo the site doesn't have any more (see casa.copies). That's looked for
     again for the lost ones every time: it's only a look on disk, and the family page may have
     been writing its list just then."""
@@ -95,6 +118,32 @@ def keep(cfg: dict, listing: Listing, copy) -> int:
         else:
             have[url] = None
         _write(folder / INDEX, json.dumps(have, indent=1).encode())
+    return got + _keep_documents(cfg, listing)
+
+
+def _keep_documents(cfg: dict, listing: Listing) -> int:
+    """Fetches the ad's PDFs it doesn't have yet (one the site didn't have is given up on); how many it got."""
+    have = kept(cfg, listing.key, DOCUMENTS)
+    folder = root(cfg) / folder_name(listing.key)
+    got = 0
+    for doc in listing.documents:
+        url = doc["url"]
+        if url in have:
+            continue
+        try:
+            body = net.document(url)
+        except OSError:  # tried again at the next sweep
+            continue
+        finally:
+            time.sleep(PHOTO_GAP_SECONDS)
+        folder.mkdir(parents=True, exist_ok=True)
+        if body:
+            have[url] = document_name(doc.get("label") or "", set(filter(None, have.values())))
+            _write(folder / have[url], body)
+            got += 1
+        else:
+            have[url] = None
+        _write(folder / DOCUMENTS, json.dumps(have, indent=1, ensure_ascii=False).encode())
     return got
 
 
@@ -130,7 +179,8 @@ class Keeper:
             try:
                 got = sweep(self.cfg, self._poke.is_set)
                 if got:
-                    log.info("kept %d photo%s of flats you applied to, in %s", got, "s"[got == 1:], root(self.cfg))
+                    log.info("kept %d photo%s or PDF%s of flats you applied to, in %s", got, "s"[got == 1:],
+                             "s"[got == 1:], root(self.cfg))
             except Exception:  # noqa: BLE001 - the flat hunt goes on without it
                 log.exception("couldn't keep the photos of the flats you applied to")
             self._poke.wait(SWEEP_MINUTES * 60)
