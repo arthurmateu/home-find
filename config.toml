@@ -39,40 +39,40 @@ suspicious_below_eur_sqm = 10.0  # warm €/m²; new leases here are ~15–25 �
 scam_threshold = 3           # scam points at which a listing is dropped (see homefind/rules.py)
 
 [area]
-# Drawn on the district map, 7 Nov 2026, and taken by postcode (at least half of it
-# under the colour): zip_codes is the bright red part, where flats are matches;
-# edge_zip_codes the dark red band round it, fine but shown under Rejected → "Edge of
-# the area". Every other postcode is outside the area: reason "avoid", which is in
-# drop_reasons, so those never show. Postcodes don't follow district borders exactly.
-zip_codes = [
-  "10585", "10587", "10589", "10623", "10625", "10627", "10629",  # Charlottenburg
-  "14050", "14052", "14055", "14057", "14059", "13627",           # Westend, Charlottenburg-Nord
-  "10707", "10709", "10711", "10713", "10715", "10717", "10719", "14197",  # Wilmersdorf, Halensee
-  "14193", "14199",                                                # Grunewald, Schmargendorf
+# Drawn on the district map, 11 Nov 2026, by neighbourhood (Ortsteil) in red and orange, and
+# taken by postcode: one at least half in the red is in zip_codes, else one at least half in
+# the red and orange together is in edge_zip_codes. Red flats are matches; orange ones are
+# fine but shown under Rejected → "Edge of the area". Every other postcode is outside the
+# area: reason "avoid", which is in drop_reasons, so those never show. Postcodes don't follow
+# neighbourhood borders exactly.
+zip_codes = [  # red
+  "10585", "10587", "10589", "10623", "10625", "10627", "10629", "14057", "14059",  # Charlottenburg
+  "14050", "14052", "14053", "14055",                                               # Westend
+  "10707", "10709", "10711", "10713", "10715", "10717", "10719", "10789", "14197",  # Wilmersdorf, Halensee
+  "14199",                                                                          # Schmargendorf
   "10551", "10553", "10555", "10557", "10559", "10785", "10787",  # Moabit, Hansaviertel, Tiergarten
-  "13347", "13351", "13353", "13357",                             # Wedding, Gesundbrunnen
-  "10115", "10117", "10178", "10179",                             # Mitte
-  "10777", "10779", "10781", "10783", "10789", "10823", "10825", "10827", "10829",  # Schöneberg
-  "12157", "12159", "12161", "12163", "12167", "12169",           # Friedenau, Steglitz
+  "13347", "13349", "13351", "13353",                             # Wedding
 ]
-edge_zip_codes = [
-  "14053", "13629", "13599", "13595", "13597",                    # Olympiapark, Siemensstadt, Haselhorst, Wilhelmstadt, Spandau
-  "13403", "13405", "13349", "13355", "13359",                    # Reinickendorf, Tegel, north Wedding, Gesundbrunnen
-  "13187", "13189", "10405", "10435", "10437", "10439", "10119",  # Pankow, Prenzlauer Berg, Mitte (north-east)
-  "10243", "10249",                                               # Friedrichshain (west)
-  "10961", "10963", "10965", "10969", "10997", "10999",           # Kreuzberg
-  "12099", "12101", "12103", "12105", "12107", "12109",           # Tempelhof, Mariendorf
-  "12165", "12203", "12205", "12247", "14195", "14169",           # Steglitz, Lichterfelde, Lankwitz, Dahlem, Zehlendorf
+edge_zip_codes = [  # orange
+  "13627", "13629",                                               # Charlottenburg-Nord, Siemensstadt
+  "13403", "13405", "13407", "13409", "13505", "13507", "13509",  # Reinickendorf, Tegel
+  "13355", "13357", "13359",                                      # Gesundbrunnen
+  "13187", "13189",                                               # Pankow
+  "10115", "10117", "10119", "10178", "10179",                    # Mitte
+  "10961", "10963", "10967", "10969", "10997", "10999",           # Kreuzberg
+  "10777", "10779", "10781", "10783", "10823", "10825", "10827", "10829", "12157",  # Schöneberg
+  "12159", "12161",                                               # Friedenau
+  "14193",                                                        # Grunewald
 ]
 # Only for listings without a postcode: the portal's neighbourhood label (or else a
 # Berlin neighbourhood named in the title, for "outside the area").
 names = [
-  "Charlottenburg", "Charlottenburg-Nord", "Westend", "Halensee", "Wilmersdorf", "Grunewald", "Schmargendorf",
-  "Moabit", "Hansaviertel", "Tiergarten", "Wedding", "Gesundbrunnen", "Mitte", "Schöneberg", "Friedenau", "Steglitz",
+  "Charlottenburg", "Westend", "Halensee", "Wilmersdorf", "Schmargendorf", "Moabit", "Hansaviertel", "Tiergarten",
+  "Wedding",
 ]
 edge_names = [
-  "Siemensstadt", "Haselhorst", "Wilhelmstadt", "Spandau", "Reinickendorf", "Pankow", "Prenzlauer Berg",
-  "Friedrichshain", "Kreuzberg", "Tempelhof", "Mariendorf", "Lankwitz", "Dahlem",
+  "Charlottenburg-Nord", "Siemensstadt", "Tegel", "Reinickendorf", "Gesundbrunnen", "Pankow", "Mitte", "Kreuzberg",
+  "Schöneberg", "Friedenau", "Grunewald",
 ]
 exclude_names = []           # names to ignore in a label, if they'd match one of the above by mistake
 

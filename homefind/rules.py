@@ -254,6 +254,23 @@ def _named(text: str, names: list[str]) -> str | None:
     return next((n for n in names if re.search(rf"\b{re.escape(n.lower())}\b", text)), None)
 
 
+def _all_named(text: str, names) -> list[str]:
+    """Each of `names` in `text` (lower case), as a word of its own and not only as part of a
+    longer one of them: "Charlottenburg-Nord" names that, not Charlottenburg too. Longest first."""
+    found = []
+    for name in sorted(names, key=len, reverse=True):
+        rx = rf"\b{re.escape(name.lower())}\b"
+        if re.search(rx, text):
+            found.append(name)
+            text = re.sub(rx, " ", text)
+    return found
+
+
+# Boroughs named after one of their neighbourhoods: a label that names another place as well
+# ("Pankow Prenzlauer Berg", "Mitte Wedding") is about that one.
+BOROUGH_NAMES = ["Mitte", "Pankow", "Reinickendorf", "Spandau", "Lichtenberg", "Neukölln"]
+
+
 def placement(listing: Listing, cfg: dict) -> tuple[str, str | None]:
     """Where the listing is: "in" the area, on its "edge", "out"side both, or
     "unknown"; and the postcode or place that says so. By postcode; without one,
@@ -262,14 +279,16 @@ def placement(listing: Listing, cfg: dict) -> tuple[str, str | None]:
     z = listing.zip_code
     if z:
         return ("in" if z in area["zip_codes"] else "edge" if z in area.get("edge_zip_codes", []) else "out"), z
-    label = _label(listing, area.get("exclude_names", []))
-    for kind, names in (("in", area["names"]), ("edge", area.get("edge_names", []))):
-        name = _named(label, names)
+    known = {n.lower() for n in _area_names(cfg)}
+    places = {**{p: "out" for p in BERLIN_PLACES if p.lower() not in known},
+              **{n: "edge" for n in area.get("edge_names", [])}, **{n: "in" for n in area["names"]}}
+    named = _all_named(_label(listing, area.get("exclude_names", [])), places)
+    named = [n for n in named if n not in BOROUGH_NAMES] or named
+    for kind in ("in", "edge", "out"):
+        name = next((n for n in named if places[n] == kind), None)
         if name:
             return kind, name
-    known = {n.lower() for n in _area_names(cfg)}
-    elsewhere = [p for p in BERLIN_PLACES if p.lower() not in known]
-    name = _named(_label(listing, []), elsewhere) or _place_in_title(listing.title or "", elsewhere)
+    name = _place_in_title(listing.title or "", [p for p, kind in places.items() if kind == "out"])
     return ("out", name) if name else ("unknown", None)
 
 

@@ -1,8 +1,8 @@
 # homefind
 
 Polls Berlin rental portals every few minutes for flats with **2+ rooms** in
-**west-central Berlin** (Charlottenburg, Wilmersdorf, Moabit, Mitte, Wedding,
-Schöneberg, Friedenau, Steglitz and around) **under 982 € warm**, drops the junk
+**west-central Berlin** (Charlottenburg, Wilmersdorf, Moabit, Tiergarten,
+Wedding, and around them Mitte, Schöneberg, Kreuzberg, Tegel, ...) **under 982 € warm**, drops the junk
 (swaps, sublets, WG rooms, furnished short-term lets, WBS-only, scams) and
 pushes the rest to your phone, and can fill in (or send) the contact form for
 you (ImmoScout24 and Immowelt). Python 3.11+, standard library only (applying uses Tampermonkey in Firefox).
