@@ -268,7 +268,9 @@ def build(cfg: dict, store: Store) -> Path:
     index = root / "photos.json"
     known = json.loads(index.read_text()) if index.exists() else {}
     data = snapshot(cfg, store, folder / "photos", known)
-    index.write_text(json.dumps(known))
+    part = index.with_name(index.name + ".part")  # in one go: keep.py reads it while homefind runs
+    part.write_text(json.dumps(known))
+    part.replace(index)
     used = {name for f in data["flats"] for name in f["photos"]}
     for p in (folder / "photos").iterdir():
         if p.name not in used:  # a flat that came off the page
